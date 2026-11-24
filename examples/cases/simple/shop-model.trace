@@ -1,0 +1,65 @@
+title "Shop data model"
+
+table customers "Customers" {
+  id uuid pk
+  email text unique
+  name text
+  created_at timestamptz
+}
+table addresses "Addresses" {
+  id uuid pk
+  customer_id uuid fk
+  street text
+  city text
+  country text
+}
+table orders "Orders" {
+  id uuid pk
+  customer_id uuid fk
+  ship_to uuid fk
+  status text
+  placed_at timestamptz
+}
+table order_items "Order items" {
+  order_id uuid pk fk
+  line int pk
+  product_id uuid fk
+  qty int
+  unit_price numeric(10,2)
+}
+table products "Products" {
+  id uuid pk
+  category_id uuid fk
+  sku text unique
+  name text
+  price numeric(10,2)
+}
+table categories "Categories" {
+  id uuid pk
+  parent_id uuid fk
+  name text
+}
+table payments "Payments" {
+  id uuid pk
+  order_id uuid fk
+  amount numeric(10,2)
+  provider_ref text unique
+}
+table reviews "Reviews" {
+  id uuid pk
+  product_id uuid fk
+  customer_id uuid fk
+  stars int
+  body text null
+}
+
+addresses.customer_id -> customers.id [n-1] : lives at
+orders.customer_id -> customers.id [n-1] : placed by
+orders.ship_to -> addresses.id [n-1] : ships to
+order_items.order_id -> orders.id [n-1] : part of
+order_items.product_id -> products.id [n-1] : is a
+products.category_id -> categories.id [n-1] : filed under
+categories.parent_id -> categories.id [0n-01] : child of
+payments.order_id -> orders.id [n-1] : pays for
+reviews.product_id -> products.id [n-1] : about
+reviews.customer_id -> customers.id [n-1] : written by

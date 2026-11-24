@@ -1,0 +1,40 @@
+title "Engineering organisation"
+
+ceo [user]: CEO | Mira Okafor
+cto [user]: CTO | Jonas Weber
+cfo [user]: CFO | Lena Duarte
+coo [user]: COO | Samir Haddad
+
+platform [users]: Platform | 14 people
+product [users]: Product | 22 people
+data [users]: Data | 9 people
+security [shield]: Security | 6 people
+finance [users]: Finance | 8 people
+legal [users]: Legal | 4 people
+support [users]: Support | 18 people
+ops [users]: Operations | 11 people
+
+infra [server]: Infrastructure
+dev [code]: Developer experience
+web [globe]: Web
+mobile [smartphone]: Mobile
+ml [brain]: Machine learning
+bi [chart-bar]: Analytics
+
+ceo -> cto
+ceo -> cfo
+ceo -> coo
+cto -> platform
+cto -> product
+cto -> data
+cto -> security
+cfo -> finance
+cfo -> legal
+coo -> support
+coo -> ops
+platform -> infra
+platform -> dev
+product -> web
+product -> mobile
+data -> ml
+data -> bi

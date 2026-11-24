@@ -1,0 +1,32 @@
+title "CQRS with event sourcing"
+
+client: Client
+frame write "write side" [blue] {
+  cmd: Command API
+  agg: Order aggregate | validates rules
+  store events: Event store | append only
+}
+bus: Event bus
+frame read "read side" [green] {
+  proj: Projector
+  store view: Read model | denormalised
+  query: Query API
+}
+frame side "side effects" [purple] {
+  mail: Email sender
+  search: Search indexer
+  bill: Invoicing
+}
+
+client -> cmd : place order
+cmd -> agg
+agg -> events : append OrderPlaced
+events -> bus : publish
+bus -> proj
+proj -> view : update
+query -> client : orders
+query -> view : read
+bus -> mail
+bus -> search
+bus -> bill
+events -> agg [dashed] : rebuild state

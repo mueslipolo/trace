@@ -1,0 +1,40 @@
+direction down
+title "Web stack in one VPC across two zones"
+
+pill users: Users
+cdn: CDN | static assets, TLS
+alb: Application load balancer
+
+frame vpc "VPC 10.0.0.0/16" [grey] {
+  frame az1 "zone a" [blue] {
+    web1: Web a | autoscaling group
+    app1: App a | ECS tasks
+    store db1: Postgres primary
+  }
+  frame az2 "zone b" [blue] {
+    web2: Web b | autoscaling group
+    app2: App b | ECS tasks
+    store db2: Postgres standby
+  }
+  store cache: Redis cluster | sessions
+}
+store s3: S3 | uploads, backups
+nat: NAT gateway
+ext: Payment API
+
+users -> cdn : 443
+cdn -> alb : 443
+alb -> web1 : 8080
+alb -> web2 : 8080
+web1 -> app1
+web2 -> app2
+app1 -> db1 : 5432
+app2 -> db2 : 5432
+db1 -> db2 [dashed] : replication
+app1 -> cache : 6379
+app2 -> cache : 6379
+app1 -> s3 : 443
+app2 -> s3 : 443
+app1 -> nat
+app2 -> nat
+nat -> ext : 443

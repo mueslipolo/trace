@@ -1,0 +1,34 @@
+title "Machine learning pipeline"
+
+store raw [database]: Raw events | warehouse
+clean [wand-sparkles]: Clean and join
+features [layers]: Feature pipeline
+store fstore [database]: Feature store
+split [split]: Train / validation split
+train [cpu]: Train model | GPU job
+eval [flask-conical]: Evaluate
+ask good: beats production?
+register [package]: Model registry
+deploy [rocket]: Canary deploy
+serve [server]: Online serving
+monitor [activity]: Monitor drift
+tune [settings]: Tune hyperparameters
+discard [bad trash-2]: Discard run
+
+raw -> clean
+clean -> features
+features -> fstore
+fstore -> split
+split -> train
+train -> eval
+eval -> good
+good -> register [ok] : yes
+good -> tune [bad] : no
+tune -> train : retry
+register -> deploy
+deploy -> serve
+serve -> monitor
+monitor -> raw [dashed] : new data
+monitor -> train [dashed] : drift detected
+good -> discard [dashed] : after 3 tries
+fstore -> serve : online features

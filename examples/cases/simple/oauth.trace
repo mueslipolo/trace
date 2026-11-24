@@ -1,0 +1,31 @@
+sequence
+title "Sign-in with OAuth 2.0 and PKCE"
+
+pill user: User
+web: Web app | single page
+idp: Identity provider
+api: Orders API
+store db: Orders DB
+
+user -> web : click sign in
+web -> web : create code verifier and challenge
+web -> idp : GET /authorize + code_challenge
+idp -> user : login page
+user -> idp : credentials + MFA
+alt "MFA passed" {
+  idp --> web : 302 redirect with code
+  web -> idp : POST /token + code_verifier
+  idp --> web : access token, refresh token
+  loop "every API call" {
+    web -> api : GET /orders, Bearer token
+    api -> idp : introspect token
+    idp --> api : active, scopes
+    api -> db : select orders
+    db --> api : rows
+    api --> web : 200 orders
+  }
+  else "MFA failed"
+  idp --> web : 302 redirect with error
+  web -> user : show sign-in error
+}
+note over web, idp : tokens never touch the URL bar

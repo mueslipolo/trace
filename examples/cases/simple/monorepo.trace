@@ -1,0 +1,41 @@
+title "Build graph of a monorepo"
+
+app-web: app-web
+app-mobile: app-mobile
+app-admin: app-admin
+ui: ui-kit
+forms: forms
+charts: charts
+auth: auth-client
+api: api-client
+http: http
+logger: logger
+config: config
+types: types
+utils: utils
+
+app-web -> ui
+app-web -> forms
+app-web -> charts
+app-web -> auth
+app-mobile -> ui
+app-mobile -> auth
+app-mobile -> api
+app-admin -> ui
+app-admin -> forms
+app-admin -> charts
+app-admin -> api
+ui -> utils
+ui -> types
+forms -> ui
+forms -> utils
+charts -> utils
+charts -> types
+auth -> api
+auth -> logger
+api -> http
+api -> types
+http -> logger
+http -> config
+logger -> config
+logger -> utils

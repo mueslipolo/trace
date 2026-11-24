@@ -1,0 +1,33 @@
+direction down
+title "Home network"
+
+pill isp [internet]: Fiber ISP | 1 Gb
+router [router]: Router | firewall, DHCP, DNS
+switch [network]: Switch | 8 ports
+ap [wifi]: Access point
+nas [hard-drive]: NAS
+printer [printer]: Printer
+tv [tv]: Living room TV
+console [gamepad-2]: Game console
+pc [monitor]: Desktop PC
+laptop [laptop]: Laptop
+phone [smartphone]: Phones
+cam [camera]: Cameras
+lamp [lightbulb]: Smart lights
+pihole [shield]: Pi-hole | ad blocking
+
+isp -> router
+router -> switch
+router -> ap
+router -> pihole : DNS 53
+switch -> nas
+switch -> printer
+switch -> tv
+switch -> console
+switch -> pc
+ap -> laptop
+ap -> phone
+ap -> cam
+ap -> lamp
+pc -> nas [dashed] : backup
+laptop -> nas [dashed] : backup

@@ -1,0 +1,34 @@
+title "Machine learning pipeline"
+
+store raw: Raw events | warehouse
+clean: Clean and join
+features: Feature pipeline
+store fstore: Feature store
+split: Train / validation split
+train: Train model | GPU job
+eval: Evaluate
+ask good: beats production?
+register: Model registry
+deploy: Canary deploy
+serve: Online serving
+monitor: Monitor drift
+tune: Tune hyperparameters
+discard [bad]: Discard run
+
+raw -> clean
+clean -> features
+features -> fstore
+fstore -> split
+split -> train
+train -> eval
+eval -> good
+good -> register [ok] : yes
+good -> tune [bad] : no
+tune -> train : retry
+register -> deploy
+deploy -> serve
+serve -> monitor
+monitor -> raw [dashed] : new data
+monitor -> train [dashed] : drift detected
+good -> discard [dashed] : after 3 tries
+fstore -> serve : online features

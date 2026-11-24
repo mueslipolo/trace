@@ -1,0 +1,33 @@
+direction down
+title "Support ticket triage"
+
+start new: ticket received
+ask spam: spam?
+ask known: known issue?
+ask urgent: customer down?
+ask paid: paying customer?
+ask tech: needs engineering?
+close [bad]: close
+kb: send help article
+page: page on-call
+queue: priority queue
+l1: support agent
+eng: engineering ticket
+final done: resolved
+
+new -> spam
+spam -> close [bad] : yes
+spam -> known : no
+known -> kb [ok] : yes
+known -> urgent : no
+urgent -> page [bad] : yes
+urgent -> paid : no
+paid -> queue : yes
+paid -> l1 : no
+page -> eng
+queue -> tech
+l1 -> tech
+tech -> eng : yes
+tech -> done : no
+eng -> done
+kb -> done
