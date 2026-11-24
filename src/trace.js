@@ -898,31 +898,75 @@ function mergeHubs(rm, MIN = 4) {
     const ok = items.filter(it => sideOf(it.P[it.P.length - 1]) === side);
     // the bus stands where the branches are short: just past the sources, as near to them as a free place allows
     const build = busM => {
-      const out = [];
+      const res = new Map(), taken = [];      // taken: runs across toward the bus already planned {c, m1, m2}
+      const inflated = (a, b, skip, g) => rm.nodes.some(n => n.x !== undefined && !skip.has(n.id) && Math.min(a.x, b.x) < n.x + n.w + g && n.x - g < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h + g && n.y - g < Math.max(a.y, b.y));
+      const bounds = rm.nodes.filter(n => n.x !== undefined);
+      const cLo = Math.min(...bounds.map(n => vert ? n.x : n.y)) - 8, cHi = Math.max(...bounds.map(n => vert ? n.x + n.w : n.y + n.h)) + 8;
+      const tryPath = (it, head, c) => {
+        const skip = new Set([hub.id, it.r.e.a, it.r.e.b]);
+        const path = [...head, mk(busM, c), mk(busM, trunkC), mk(endM, trunkC)];
+        for (let i = Math.max(1, head.length); i < path.length; i++) if (hits(path[i - 1], path[i], skip)) return null;
+        return { it, path, c };
+      };
+      const lane = (c, m1, m2) => !taken.some(t => Math.abs(t.c - c) < 14 && Math.min(t.m1, t.m2) < Math.max(m1, m2) && Math.min(m1, m2) < Math.max(t.m1, t.m2));
+      const borderOk = (c, m1, m2) => !rm.frames.some(f => vert
+        ? (Math.min(m1, m2) < f.y + f.h && f.y < Math.max(m1, m2) && (Math.abs(c - f.x) < 9 || Math.abs(c - f.x - f.w) < 9))
+        : (Math.min(m1, m2) < f.x + f.w && f.x < Math.max(m1, m2) && (Math.abs(c - f.y) < 9 || Math.abs(c - f.y - f.h) < 9)));
+      // 1. straight out of the source toward the bus
+      // a link that leaves its node sideways (not toward the bus) is let out of the side that faces the bus
+      const startOf = it => {
+        const P = it.P, a0 = P[0], a1 = P[1];
+        if ((vert ? eq(a0.x, a1.x) : eq(a0.y, a1.y)) && (M(a1) - M(a0)) * dir > 0) return { a0, a1 };
+        const sn = rm.nodes.find(n => n.id === (rev ? it.r.e.b : it.r.e.a));
+        if (!sn || sn.x === undefined || sn.cols || sn.span) return null;
+        const mSide = vert ? (dir > 0 ? sn.y + sn.h : sn.y) : (dir > 0 ? sn.x + sn.w : sn.x);
+        const c0 = vert ? sn.x + sn.w / 2 : sn.y + sn.h / 2;
+        return { a0: mk(mSide, c0), a1: mk(mSide + dir * 10, c0), fresh: true };
+      };
       for (const it of ok) {
-        const P = it.P, skip = new Set([hub.id, it.r.e.a, it.r.e.b]);
-        const tryPath = (head, c) => {
-          const path = [...head, mk(busM, c), mk(busM, trunkC), mk(endM, trunkC)];
-          for (let i = Math.max(1, head.length); i < path.length; i++) if (hits(path[i - 1], path[i], skip)) return null;
-          return { it, path, c };
-        };
-        let got = null;
-        // 1. straight out of the source toward the bus
-        const a0 = P[0], a1 = P[1];
-        if ((vert ? eq(a0.x, a1.x) : eq(a0.y, a1.y)) && (M(a1) - M(a0)) * dir > 0 && (busM - M(a0)) * dir > 4) got = tryPath([a0], C(a0));
-        // 2. along its own route until it crosses the bus line
-        if (!got) {
-          let at = null;
-          for (let i = 1; i < P.length && !at; i++) {
-            const a = P[i - 1], b = P[i];
-            if (vert ? eq(a.x, b.x) : eq(a.y, b.y)) { if ((M(a) - busM) * dir <= 0.5 && (M(b) - busM) * dir >= -0.5) at = { i, c: C(a) }; }
-            else if (eq(M(a), busM)) at = { i: i - 1, c: C(a) };
-          }
-          if (at) got = tryPath(P.slice(0, at.i), at.c);
+        const st = startOf(it); if (!st) continue;
+        const a0 = st.a0;
+        if ((busM - M(a0)) * dir > 4) {
+          const got = tryPath(it, [a0], C(a0));
+          if (got && lane(C(a0), M(a0), busM)) { res.set(it, got); taken.push({ c: C(a0), m1: M(a0), m2: busM }); }
         }
-        if (got) out.push(got);
       }
-      return out;
+      // 2. out a little, across to a free lane, then along it to the bus
+      for (const it of ok) {
+        if (res.has(it)) continue;
+        const st = startOf(it); if (!st) continue;
+        const a0 = st.a0, skip = new Set([hub.id, it.r.e.a, it.r.e.b]);
+        let best = null;
+        for (let off = 12; off <= 60; off += 8) {
+          const mj = M(a0) + dir * off;
+          if ((busM - mj) * dir < 12) break;
+          for (let c = Math.ceil(cLo / 4) * 4; c <= cHi; c += 4) {
+            if (Math.abs(c - C(a0)) < 6) continue;
+            const cost = Math.abs(c - C(a0)) + off * 0.5;
+            if (best && cost >= best.cost) continue;
+            const p1 = mk(mj, C(a0)), p2 = mk(mj, c), p3 = mk(busM, c);
+            if (inflated(a0, p1, skip, 0) || inflated(p1, p2, skip, 8) || inflated(p2, p3, skip, 8)) continue;
+            if (!lane(c, mj, busM) || !borderOk(c, mj, busM) || !borderOk(mj, C(a0), c) && false) continue;
+            const got = tryPath(it, [a0, p1, p2], c);
+            if (got) best = { cost, got, c, mj };
+          }
+        }
+        if (best) { res.set(it, best.got); taken.push({ c: best.c, m1: best.mj, m2: busM }); }
+      }
+      // 3. along its own route until it crosses the bus line
+      for (const it of ok) {
+        if (res.has(it)) continue;
+        const P = it.P;
+        let at = null;
+        for (let i = 1; i < P.length && !at; i++) {
+          const a = P[i - 1], b = P[i];
+          if (vert ? eq(a.x, b.x) : eq(a.y, b.y)) { if ((M(a) - busM) * dir <= 0.5 && (M(b) - busM) * dir >= -0.5) at = { i, c: C(a) }; }
+          else if (eq(M(a), busM)) at = { i: i - 1, c: C(a) };
+        }
+        const got = at && tryPath(it, P.slice(0, at.i), at.c);
+        if (got) res.set(it, got);
+      }
+      return ok.filter(it => res.has(it)).map(it => res.get(it));
     };
     const frameNear = m => rm.frames.some(f => vert ? (Math.abs(m - f.y) < 20 || Math.abs(m - f.y - f.h) < 20) : (Math.abs(m - f.x) < 20 || Math.abs(m - f.x - f.w) < 20));
     const startMax = Math.max(...ok.map(it => M(it.P[0]) * dir)) ;

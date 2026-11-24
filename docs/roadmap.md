@@ -115,7 +115,7 @@ column of nodes keep table-level attachment only; a table generated from SQL or 
   should loop around the column edge.
 - Fan-in to one point (CI “all green?”): optional join/bracket for a column's outgoing links.
 - Done (first version): links that go to or leave one node with the same label and style, four or more, are merged
-  into a bus (`mergeHubs`; case `hub`). Left: an escape hatch to switch it off or force it on fewer links, merging
-  links with different labels, and re-routing branches that still detour.
+  into a bus (`mergeHubs`; case `hub`). Branches that cannot run straight to the bus take a free lane of their own. Left: an escape hatch to
+  switch it off or force it on fewer links, and merging links with different labels.
 - A link style for “connection opened one way, traffic flows the other” (zero-trust connector).
 - Playground: share a diagram by link, syntax highlighting.
