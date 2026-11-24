@@ -21,7 +21,7 @@ column {
     }
     ask approve: release approved?
   }
-  row {
+  column {
     frame prod "production" [orange] {
       canary [bird]: Canary 5%
       ask slo: SLOs held 30 min?
@@ -47,3 +47,4 @@ slo -> full [ok] : yes
 slo -> rollback [bad] : no
 
 align registry deploy e2e approve
+align slo rollback
