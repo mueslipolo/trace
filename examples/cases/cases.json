@@ -68,5 +68,12 @@
     "context": "From an alert to a postmortem: triage, severity, paging and escalation, an incident commander, mitigation loops and status updates.",
     "uses": "Decisions as pills ending in a question mark, the happy path drawn plain, the escalation red and the dead ends muted; mitigate <- fixed draws the retry loop without the layout treating it as a new step.",
     "gap": "Close to what a careful hand would draw. The one tell is label placement on vertical links, which still takes a row of its own."
+  },
+  {
+    "id": "hub",
+    "title": "Microservices sharing one identity provider",
+    "context": "A web and a mobile app reach seven services through a gateway; every one of them, the gateway and both apps also check a token with the same identity provider.",
+    "uses": "Icons and one zone. Nothing else on purpose: this is the study case for merging links.",
+    "gap": "Ten links arrive at one node and fan out into a comb of parallel lines with the same label ten times. Wanted: links to one target that carry the same meaning merge into one trunk that splits near the sources, with the label written once, as a hand would draw a bus. Not built yet."
   }
 ]

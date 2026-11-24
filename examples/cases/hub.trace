@@ -1,0 +1,38 @@
+title "Microservices sharing one identity provider"
+
+web [globe]: Web app
+mobile [smartphone]: Mobile app
+gw [arrow-right-left]: API gateway | routing, rate limits
+
+frame services "services" [blue] {
+  orders [package]: Orders
+  catalog [list]: Catalog
+  search [search]: Search
+  billing [credit-card]: Billing
+  shipping [truck]: Shipping
+  notify [bell]: Notifications
+  reports [chart-bar]: Reports
+}
+
+idp [key]: Identity provider | OIDC, tokens, roles
+
+web -> gw
+mobile -> gw
+gw -> orders
+gw -> catalog
+gw -> search
+gw -> billing
+gw -> reports
+web -> idp : login
+mobile -> idp : login
+gw -> idp : validate token
+orders -> idp : validate token
+catalog -> idp : validate token
+search -> idp : validate token
+billing -> idp : validate token
+shipping -> idp : validate token
+notify -> idp : validate token
+reports -> idp : validate token
+orders -> shipping
+orders -> notify
+billing -> orders
