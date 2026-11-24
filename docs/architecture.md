@@ -24,9 +24,28 @@ source order). Errors are collected with line numbers; parsing continues after a
 
 ## 3. ELK
 
-One ELK `layered` run over the whole graph with `hierarchyHandling: INCLUDE_CHILDREN`, frames as
-compound nodes (`F:id`), orthogonal routing, model order respected (`considerModelOrder`), network
+One ELK `layered` run over the whole graph, orthogonal routing, model order respected (`considerModelOrder`), network
 simplex node placement. Spacing scales with `spacing`.
+
+`layout` tries three ways to place frames and keeps the valid one with the fewest link bends
+(ties go to the earlier one). A candidate is valid when no frame covers a node that is not its own
+and no two unrelated frames overlap more than 2px.
+
+1. **Per frame** (`hierLayout`): bottom-up, each frame is laid out by its own ELK run; a finished
+   frame is an opaque node with fixed ports in its parent's run. A link to a member inside a frame
+   gets a port on the frame's border (in-side, else top/bottom) and a straight stub to the member,
+   so the member must be reachable in a straight line. If every straight line is blocked (a link
+   into the middle of a stack), the stub runs along the frame's inner margin and turns into the
+   member's side. If that is blocked too, this mode gives up. A `[bridge]` stays inside its frame's
+   run, and `fitFrames` later moves the frame border to its centre. Not supported: links that
+   name a frame.
+2. **Flat**: frames are not ELK nodes; only members are laid out and `fitFrames` draws the frames
+   afterwards.
+3. **Compound**: frames are ELK compound nodes (`F:id`, `hierarchyHandling: INCLUDE_CHILDREN`).
+   Always valid; the fallback.
+
+`TRACE_LAYOUT=hier|flat|compound` forces one mode. Today per-frame or flat wins for every example that has frames except the ones where compound has
+fewer bends.
 
 ## 4. Post-processing (in this order)
 

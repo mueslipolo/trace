@@ -272,7 +272,41 @@ function sizeLabel(text, measure) {
 // ---------------------------------------------------------------- layout
 
 async function layout(model, measure, ELK) {
+  // Three ways to place frames, best valid one wins (fewest link bends, then the earlier one):
+  //  1. per frame: each frame laid out by its own ELK run, then composed (null if it cannot)
+  //  2. flat: only members are laid out, frames are drawn around them afterwards
+  //  3. compound: frames are ELK compound nodes (always valid, the fallback)
+  // A candidate is valid when no frame covers a node that is not its own and no two unrelated
+  // frames overlap. TRACE_LAYOUT=hier|flat|compound forces one.
+  const env = (typeof process !== 'undefined' && process.env) || {};
+  const owns = (fr, n) => { for (let p = n.parent; p; p = p.parent) if (p === fr) return true; return false; };
+  const ov = (a, b) => a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && a.y < b.y + b.h - 1 && b.y < a.y + a.h - 1;
+  const within = (a, b) => { for (let p = a; p; p = p.parent) if (p === b) return true; return false; };
+  const valid = rm => !(rm.frames.some(fr => rm.nodes.some(n => !owns(fr.f, n) && !n.tags.includes('bridge') && ov(fr, n))) ||
+    rm.frames.some(a => rm.frames.some(b => a.f.id < b.f.id && !within(a.f, b.f) && !within(b.f, a.f) &&
+      Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 2 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 2)));
+  const modes = { hier: [false, true], flat: [true, false], compound: [false, false] };
+  const forced = modes[env.TRACE_LAYOUT];
+  if (forced) return (await layoutOnce(model, measure, ELK, forced[0], forced[1])) || layoutOnce(model, measure, ELK, false, false);
+  if (!model.frames.size) return layoutOnce(model, measure, ELK, false, false);
+  const tried = [];
+  let last = null;
+  for (const m of ['hier', 'flat', 'compound']) {
+    const rm = await layoutOnce(model, measure, ELK, modes[m][0], modes[m][1]);
+    last = m;
+    if (!rm) continue;
+    if (m !== 'compound' && !valid(rm)) continue;
+    tried.push({ m, rm, bends: rm.edges.reduce((t, e) => t + Math.max(0, e.pts.length - 2), 0) });
+  }
+  let best = tried[0];
+  for (const c of tried) if (c.bends < best.bends) best = c;
+  // the model carries the state of the last run, so run the winner again if it was not last
+  return best.m === last ? best.rm : layoutOnce(model, measure, ELK, modes[best.m][0], modes[best.m][1]);
+}
+
+async function layoutOnce(model, measure, ELK, FLAT, HIER) {
   const S = model.spacing;
+  if (HIER && (model.edges.some(e => model.frames.has(e.a) || model.frames.has(e.b)))) return null;
   const flowH = model.direction === 'RIGHT';
   for (const n of model.nodes.values()) sizeNode(n, measure);
   for (const f of model.frames.values()) f.titleW = f.title ? measure(f.title, FONT_TITLE) : 0;
@@ -281,10 +315,12 @@ async function layout(model, measure, ELK) {
     const n = model.nodes.get(id);
     return n && n.parent && n.parent.type === 'group' ? n.parent : null;
   };
-  const elkId = id => model.frames.has(id) ? 'F:' + id : id;
+  const firstLeaf = fr => { for (const it of fr.items) { if (it.type === 'node') return it.id; if (it.type === 'group' && it.items.length) return 'G:' + it.id; if (it.type === 'frame') { const r = firstLeaf(it); if (r) return r; } } return null; };
+  const elkId = id => model.frames.has(id) ? (FLAT ? firstLeaf(model.frames.get(id)) : 'F:' + id) : id;
 
   model.edges.forEach((e, i) => {
     e.i = i;
+    e.stub = undefined;
     e.lab = sizeLabel(e.label, measure);
     const ga = groupOf(e.a), gb = groupOf(e.b);
     e.intra = !!(ga && ga === gb);
@@ -441,6 +477,7 @@ async function layout(model, measure, ELK) {
   for (const e of model.edges) {
     if (e.intra) continue;
     const src = addPort(e, 's'), tgt = addPort(e, 't');
+    e.srcBase = src; e.tgtBase = tgt;
     const ee = { id: 'E' + e.i, sources: [src], targets: [tgt] };
     if (e.lab) {
       const L = { id: 'L' + e.i, text: e.label.replace(/\n/g, ' '), width: e.lab.w, height: e.lab.h };
@@ -475,6 +512,7 @@ async function layout(model, measure, ELK) {
         if (it.span) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_POS' }; }
         out.push(en);
       }
+      else if (it.type === 'frame' && FLAT) { out.push(...build(it)); }
       else if (it.type === 'frame') {
         out.push({
           id: 'F:' + it.id,
@@ -519,7 +557,8 @@ async function layout(model, measure, ELK) {
     edges: elkEdges,
   };
   const elk = new ELK();
-  const res = await elk.layout(graph);
+  const res = HIER ? await hierLayout() : await elk.layout(graph);
+  if (!res) return null;
 
   // ---- read positions back
   const rm = { nodes: [], frames: [], edges: [], width: res.width, height: res.height, model };
@@ -549,6 +588,7 @@ async function layout(model, measure, ELK) {
     const ga = abs.get('G:' + g.id);
     if (ga) { g.x = ga.x; g.y = ga.y; }
   }
+  if (FLAT) (function fl(c, depth) { for (const it of c.items) if (it.type === 'frame') { rm.frames.push({ f: it, x: 0, y: 0, w: 0, h: 0, depth }); fl(it, depth + 1); } })(model.root, 0);
   rm.frames.sort((a, b) => a.depth - b.depth);
 
   const byId = new Map((res.edges || []).map(e => [e.id, e]));
@@ -566,8 +606,9 @@ async function layout(model, measure, ELK) {
         if (!pts.length) pts.push(mv(s.startPoint));
         pts.push(...(s.bendPoints || []).map(mv), mv(s.endPoint));
       }
-      if (e.stub && e.stub.s) pts.unshift(stubPoint(e.stub.s, pts[0]));
-      if (e.stub && e.stub.t) pts.push(stubPoint(e.stub.t, pts[pts.length - 1]));
+      const viaPts = st => { const O = abs.get('F:' + st.T.id); return [{ x: O.x + st.via.corner.x, y: O.y + st.via.corner.y }, { x: O.x + st.via.border.x, y: O.y + st.via.border.y }]; };
+      if (e.stub && e.stub.s) pts.unshift(...(e.stub.s.via ? viaPts(e.stub.s).reverse() : [stubPoint(e.stub.s, pts[0])]));
+      if (e.stub && e.stub.t) pts.push(...(e.stub.t.via ? viaPts(e.stub.t) : [stubPoint(e.stub.t, pts[pts.length - 1])]));
       if (e.lab && r.labels && r.labels[0]) {
         const L = r.labels[0];
         lab = { x: co.x + L.x + L.width / 2, y: co.y + L.y, anchor: 'middle' };
@@ -587,9 +628,193 @@ async function layout(model, measure, ELK) {
     rm.edges.push({ e, pts, lab });
   }
   compactBridges(rm, model, flowH);
-  straightenSpans(rm, model, flowH);
+  if (!HIER) straightenSpans(rm, model, flowH);
   fitFrames(rm, model, flowH);
   return rm;
+
+  // ---- per-frame layout (see docs/roadmap.md, item 2). Frames are laid out bottom-up, each by
+  // its own ELK run; a finished frame is an opaque node with fixed ports in its parent's run.
+  // The result is returned in the shape of one hierarchical ELK result, so the read-back above
+  // is shared. Returns null when a link cannot reach its member in a straight line.
+  async function hierLayout() {
+    // a [bridge] stays inside its frame's run; fitFrames later moves the frame border to its centre
+    const lifted = () => false;
+    const effPar = c => c.parent;
+    const chainOf = n => { const a = []; for (let p = effPar(n); p; p = p.parent) if (p.type === 'frame') a.unshift(p); return a; };
+    const frames = [];
+    (function coll(c) { for (const it of c.items) if (it.type === 'frame') { coll(it); frames.push(it); } })(model.root);
+    const frameById = new Map(frames.map(f => [f.id, f]));
+    const chains = new Map([...model.nodes.values()].map(n => [n, chainOf(n)]));
+    const lay = new Map();
+    const IN_ = IN, OUT_ = OUT;
+    const byL = new Map();
+    for (const e of model.edges) {
+      if (e.intra) continue;
+      const ca = chains.get(model.nodes.get(e.a)), cb = chains.get(model.nodes.get(e.b));
+      let k = 0;
+      while (k < ca.length && k < cb.length && ca[k] === cb[k]) k++;
+      e.h = { sa: ca[k] || null, sb: cb[k] || null };
+      const key = k ? ca[k - 1] : null;
+      if (!byL.has(key)) byL.set(key, []);
+      byL.get(key).push(e);
+    }
+    const idOf = c => c.type === 'node' ? c.id : c.type === 'group' ? 'G:' + c.id : 'F:' + c.id;
+    function relPos(Fr, n) {
+      let c = n;
+      while (effPar(c) !== Fr) c = effPar(c);
+      const q = lay.get(Fr).pos.get(idOf(c));
+      if (c.type === 'node') return { x: q.x, y: q.y };
+      if (c.type === 'group') return { x: q.x + n.rx, y: q.y + n.ry };
+      const r = relPos(c, n);
+      return { x: q.x + r.x, y: q.y + r.y };
+    }
+    const sp2 = v => String(Math.round(v * S));
+    const baseOpts = pad => ({
+      'elk.algorithm': 'layered', 'elk.direction': model.direction, 'elk.edgeRouting': 'ORTHOGONAL',
+      'elk.padding': pad,
+      'elk.spacing.nodeNode': sp2(30), 'elk.layered.spacing.nodeNodeBetweenLayers': sp2(44),
+      'elk.spacing.edgeNode': sp2(18), 'elk.spacing.edgeEdge': sp2(14),
+      'elk.layered.spacing.edgeNodeBetweenLayers': sp2(14), 'elk.layered.spacing.edgeEdgeBetweenLayers': sp2(12),
+      'elk.spacing.edgeLabel': '4', 'elk.layered.edgeLabels.sideSelection': 'ALWAYS_UP',
+      'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+      'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+      'elk.layered.thoroughness': '30', 'elk.layered.unnecessaryBendpoints': 'true',
+    });
+    // a port on frame T where link e reaches member m: a straight, unobstructed line to m
+    function portFor(T, e, end, m, reqs) {
+      const rects = [];
+      for (const [n, ch] of chains) if (n !== m && ch.includes(T)) { const r = relPos(T, n); rects.push({ x: r.x, y: r.y, w: n.w, h: n.h }); }
+      const mp = relPos(T, m), cx = mp.x + m.w / 2, cy = mp.y + m.h / 2, W = lay.get(T).w;
+      const cross = flowH ? ['NORTH', 'SOUTH'] : ['WEST', 'EAST'];
+      if ((flowH ? cy : cx) > (flowH ? lay.get(T).h : W) / 2) cross.reverse();
+      const sides = [end === 's' ? OUT_ : IN_, ...cross];
+      const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+      for (const side of sides) {
+        let ray;
+        if (side === 'WEST') ray = { x: 0, y: cy - 8, w: mp.x, h: 16 };
+        else if (side === 'EAST') ray = { x: mp.x + m.w, y: cy - 8, w: W, h: 16 };
+        else if (side === 'NORTH') ray = { x: cx - 8, y: 0, w: 16, h: mp.y };
+        else ray = { x: cx - 8, y: mp.y + m.h, w: 16, h: lay.get(T).h };
+        if (rects.some(r => hit(ray, r))) continue;
+        const rq = { T, e, end, m, side, mp };
+        reqs.push(rq);
+        return rq;
+      }
+      // blocked: run along the frame's inner margin instead, then turn into the member's side
+      const Lt = lay.get(T);
+      const Wa = flowH ? Lt.w : Lt.h, Ca = flowH ? Lt.h : Lt.w;
+      const pt = (a, c) => flowH ? { x: a, y: c } : { x: c, y: a };
+      const ma0 = flowH ? mp.x : mp.y, ma1 = ma0 + (flowH ? m.w : m.h), c0 = flowH ? cy : cx;
+      const margins = end === 's' ? ['far', 'near'] : ['near', 'far'];
+      for (const margin of margins) {
+        const a = margin === 'near' ? 9 : Wa - 9;
+        if (a > ma0 - 6 && a < ma1 + 6) continue;
+        for (const side of cross) {
+          const first = side === 'NORTH' || side === 'WEST';
+          const cb = first ? 0 : Ca;
+          const seg1 = flowH ? { x: a - 5, y: Math.min(cb, c0), w: 10, h: Math.abs(c0 - cb) } : { x: Math.min(cb, c0), y: a - 5, w: Math.abs(c0 - cb), h: 10 };
+          const f0 = Math.min(a, margin === 'near' ? ma0 : ma1), f1 = Math.max(a, margin === 'near' ? ma0 : ma1);
+          const seg2 = flowH ? { x: f0, y: c0 - 8, w: f1 - f0, h: 16 } : { x: c0 - 8, y: f0, w: 16, h: f1 - f0 };
+          if (rects.some(r => hit(seg1, r) || hit(seg2, r))) continue;
+          const rq = { T, e, end, m, side, mp, fixed: pt(a, cb), via: { corner: pt(a, c0), border: pt(margin === 'near' ? ma0 : ma1, c0) } };
+          reqs.push(rq);
+          return rq;
+        }
+      }
+      return null;
+    }
+    async function layoutFrame(Fr) {
+      const items = Fr ? Fr.items : model.root.items;
+      const reqs = [];
+      const edgeEnds = [];
+      for (const e of byL.get(Fr || null) || []) {
+        const ends = {};
+        for (const end of ['s', 't']) {
+          const T = end === 's' ? e.h.sa : e.h.sb;
+          const m = model.nodes.get(end === 's' ? e.a : e.b);
+          if (!T) { ends[end] = end === 's' ? e.srcBase : e.tgtBase; continue; }
+          const rq = portFor(T, e, end, m, reqs);
+          if (!rq) return null;
+          rq.pid = `P${e.i}${end}`;
+          ends[end] = rq.pid;
+          e.stub = e.stub || {};
+          e.stub[end] = { node: m, side: rq.side, T: rq.via ? rq.T : null, via: rq.via };
+        }
+        edgeEnds.push([e, ends]);
+      }
+      // spread links that reach the same member from the same side
+      const buckets = new Map();
+      for (const rq of reqs) { const k = rq.T.id + '|' + rq.side + '|' + rq.m.id + (rq.via ? '|via' : ''); (buckets.get(k) || buckets.set(k, []).get(k)).push(rq); }
+      const eports = new Map();
+      for (const list of buckets.values()) {
+        list.forEach((rq, i) => {
+          const horiz = rq.side === 'NORTH' || rq.side === 'SOUTH';
+          const ext = horiz ? rq.m.w : rq.m.h;
+          const step = Math.min(12, (ext - 10) / Math.max(1, list.length - 1));
+          const off = (i - (list.length - 1) / 2) * step;
+          const T = rq.T, L = lay.get(T);
+          const p = { id: rq.pid, width: 0, height: 0, layoutOptions: { 'elk.port.side': rq.side } };
+          if (rq.fixed) { p.x = rq.fixed.x; p.y = rq.fixed.y; if (!eports.has(T)) eports.set(T, []); eports.get(T).push(p); return; }
+          if (rq.side === 'WEST') { p.x = 0; p.y = rq.mp.y + rq.m.h / 2 + off; }
+          if (rq.side === 'EAST') { p.x = L.w; p.y = rq.mp.y + rq.m.h / 2 + off; }
+          if (rq.side === 'NORTH') { p.x = rq.mp.x + rq.m.w / 2 + off; p.y = 0; }
+          if (rq.side === 'SOUTH') { p.x = rq.mp.x + rq.m.w / 2 + off; p.y = L.h; }
+          if (!eports.has(T)) eports.set(T, []);
+          eports.get(T).push(p);
+        });
+      }
+      const children = [];
+      const here = items.filter(it => !lifted(it));
+      for (const it of items) if (it.type === 'frame') for (const b of it.items) if (lifted(b)) here.push(b);
+      for (const it of here) {
+        if (it.type === 'node') {
+          const en = { id: it.id, width: it.w, height: it.h };
+          if (it.span) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_POS' }; }
+          children.push(en);
+        } else if (it.type === 'group') {
+          if (it.items.length) children.push({ id: 'G:' + it.id, width: it.w, height: it.h, ports: it.ports, layoutOptions: { 'elk.portConstraints': 'FIXED_POS' } });
+        } else if (it.type === 'frame') {
+          const L = lay.get(it);
+          children.push({ id: 'F:' + it.id, width: L.w, height: L.h, ports: eports.get(it) || [], layoutOptions: { 'elk.portConstraints': 'FIXED_POS' } });
+        }
+      }
+      const edges = edgeEnds.map(([e, ends]) => {
+        const ee = { id: 'E' + e.i, sources: [ends.s], targets: [ends.t] };
+        if (e.lab) ee.labels = [{ id: 'L' + e.i, text: e.label.replace(/\n/g, ' '), width: e.lab.w, height: e.lab.h }];
+        return ee;
+      });
+      const pad = Fr ? `[top=${Fr.title ? 34 : 18},left=18,bottom=18,right=18]` : '[top=16,left=16,bottom=16,right=16]';
+      const r = await elk.layout({ id: Fr ? 'F:' + Fr.id : 'root', layoutOptions: baseOpts(pad), children, edges });
+      const minW = Fr ? Math.ceil(Fr.titleW + 36) : 0;
+      const w = Math.max(r.width, minW), dx = (w - r.width) / 2;
+      const pos = new Map(r.children.map(c => [c.id, { x: c.x + dx, y: c.y }]));
+      lay.set(Fr || null, { res: r, w, h: r.height, dx, pos });
+      return true;
+    }
+    for (const Fr of frames) if (!(await layoutFrame(Fr))) return null;
+    if (!(await layoutFrame(null))) return null;
+    const synth = [];
+    function assemble(Fr, ox, oy) {
+      const L = lay.get(Fr || null), r = L.res;
+      const kids = r.children.map(c => {
+        const o = { id: c.id, x: c.x + L.dx, y: c.y, width: c.width, height: c.height };
+        if (c.id.startsWith('F:')) o.children = assemble(frameById.get(c.id.slice(2)), ox + o.x, oy + o.y);
+        return o;
+      });
+      const mv = p => ({ x: p.x + ox + L.dx, y: p.y + oy });
+      for (const ed of r.edges || []) {
+        synth.push({
+          id: ed.id, container: 'root',
+          sections: (ed.sections || []).map(sc => ({ startPoint: mv(sc.startPoint), endPoint: mv(sc.endPoint), bendPoints: (sc.bendPoints || []).map(mv) })),
+          labels: (ed.labels || []).map(l => ({ ...l, x: l.x + ox + L.dx, y: l.y + oy })),
+        });
+      }
+      return kids;
+    }
+    const kids = assemble(null, 0, 0);
+    const R = lay.get(null).res;
+    return { id: 'root', width: R.width, height: R.height, children: kids, edges: synth };
+  }
 
   function stubPoint(st, p) {
     const n = st.node;
