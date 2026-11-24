@@ -134,3 +134,25 @@ test('a row or column that holds frames takes no title; a plain one still stacks
   assert.deepStrictEqual(plain.errors, []);
   assert.ok(plain.rm.nodes[0].x === plain.rm.nodes[1].x, 'still a hand-stacked column');
 });
+
+test('a long chain folds into rows by itself, a short one does not', async () => {
+  const chain = n => Array.from({ length: n }, (_, i) => 'n' + i).join(' -> ');
+  const long = await compile(chain(16), measure, ELK, {});
+  assert.deepStrictEqual(long.errors, []);
+  assert.ok(long.rm.width / long.rm.height < 4, `a 16-step chain is folded (${Math.round(long.rm.width)}x${Math.round(long.rm.height)})`);
+  const short = await compile(chain(5), measure, ELK, {});
+  assert.ok(short.rm.width > short.rm.height * 2 && short.rm.height < 80, 'a 5-step chain stays on one line');
+});
+
+test('every link of every example starts at its source and ends at its target', async () => {
+  const near = (p, n) => p.x >= n.x - 4 && p.x <= n.x + n.w + 4 && p.y >= n.y - 4 && p.y <= n.y + n.h + 4;
+  for (const file of files) {
+    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
+    const N = new Map(res.rm.nodes.map(n => [n.id, n]));
+    for (const { e, pts } of res.rm.edges) {
+      const A = N.get(e.a), B = N.get(e.b);
+      if (!A || !B || !pts.length) continue;
+      assert.ok(near(pts[0], A) && near(pts[pts.length - 1], B), `${file}: ${e.a} -> ${e.b} does not reach its ends`);
+    }
+  }
+});

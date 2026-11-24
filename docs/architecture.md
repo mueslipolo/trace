@@ -53,7 +53,15 @@ holds the frame it makes a port on. If the per-frame mode returns nothing, `layo
 diagram without the lanes (flat and compound treat a lane as transparent) and adds a note, which
 `compile` returns as a warning. Bridge fitting only pairs frames that are level on the other axis.
 
-`TRACE_LAYOUT=hier|flat|compound` forces one mode. Today per-frame or flat wins for every example that has frames except the ones where compound has
+A fourth candidate, `hierwrap`, is the per-frame layout with ELK's `MULTI_EDGE` wrapping on the root
+graph (a long chain of layers folds into rows). It is only tried when the first result is more than 4
+times wider than tall, also for diagrams without frames. Candidates are compared by cost: link bends
+plus 160 times how much the text shrinks when the drawing is fitted to a 1100px page. A later candidate
+must beat the best so far by 3% (8% for folding, whose long return links are a real cost), so a near
+tie keeps the simpler layout. A candidate is also rejected if any link does not start at its source and
+end at its target: ELK's wrapping cuts some labelled links short.
+
+`TRACE_LAYOUT=hier|flat|compound` forces one mode; `TRACE_NOWRAP=1` turns folding off. Today per-frame or flat wins for every example that has frames except the ones where compound has
 fewer bends.
 
 ## 4. Post-processing (in this order)

@@ -370,10 +370,16 @@ async function layout(model, measure, ELK) {
   const owns = (fr, n) => { for (let p = n.parent; p; p = p.parent) if (p === fr) return true; return false; };
   const ov = (a, b) => a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && a.y < b.y + b.h - 1 && b.y < a.y + a.h - 1;
   const within = (a, b) => { for (let p = a; p; p = p.parent) if (p === b) return true; return false; };
-  const valid = rm => !(rm.frames.some(fr => rm.nodes.some(n => !owns(fr.f, n) && !n.tags.includes('bridge') && ov(fr, n))) ||
+  // every link must start at its source and end at its target (ELK's wrapping can cut a link short)
+  const near = (p, n) => p.x >= n.x - 4 && p.x <= n.x + n.w + 4 && p.y >= n.y - 4 && p.y <= n.y + n.h + 4;
+  const linked = rm => rm.edges.every(({ e, pts }) => {
+    const A = model.nodes.get(e.a), B = model.nodes.get(e.b);
+    return !A || !B || !pts.length || (near(pts[0], A) && near(pts[pts.length - 1], B));
+  });
+  const valid = rm => linked(rm) && !(rm.frames.some(fr => rm.nodes.some(n => !owns(fr.f, n) && !n.tags.includes('bridge') && ov(fr, n))) ||
     rm.frames.some(a => rm.frames.some(b => a.f.id < b.f.id && !within(a.f, b.f) && !within(b.f, a.f) &&
       Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 2 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 2)));
-  const modes = { hier: [false, true], flat: [true, false], compound: [false, false] };
+  const modes = { hier: [false, true], hierwrap: [false, true, true], flat: [true, false], compound: [false, false] };
   // rows and columns that hold frames (lanes) only exist in the per-frame mode; if that cannot place
   // the diagram, the others draw it without the lanes
   const hasLane = (function f(c) { return c.items.some(i => i.type === 'lane' || (i.items && f(i))); })(model.root);
@@ -386,23 +392,30 @@ async function layout(model, measure, ELK) {
   }
   const forced = modes[env.TRACE_LAYOUT];
   if (forced) return (await layoutOnce(model, measure, ELK, forced[0], forced[1])) || layoutOnce(model, measure, ELK, false, false);
-  if (!model.frames.size) return layoutOnce(model, measure, ELK, false, false);
   const tried = [];
   let last = null;
-  for (const m of ['hier', 'flat', 'compound']) {
-    const rm = await layoutOnce(model, measure, ELK, modes[m][0], modes[m][1]);
+  // cost: link bends, plus how small the text gets when the drawing is fitted to a page 1100px wide
+  const cost = (rm, bends) => bends + 160 * (1 - Math.min(1, 1100 / rm.width));
+  // without frames the three ways are the same layout, so only the plain one is tried
+  for (const m of model.frames.size ? ['hier', 'hierwrap', 'flat', 'compound'] : ['compound', 'hierwrap']) {
+    // folding into rows is only tried for a strip much wider than it is tall
+    if (m === 'hierwrap' && !(tried.length && tried[0].rm.width / tried[0].rm.height > 4 && !env.TRACE_NOWRAP)) continue;
+    const rm = await layoutOnce(model, measure, ELK, modes[m][0], modes[m][1], modes[m][2]);
     last = m;
     if (!rm) continue;
-    if (m !== 'compound' && !valid(rm)) continue;
-    tried.push({ m, rm, bends: rm.edges.reduce((t, e) => t + Math.max(0, e.pts.length - 2), 0) });
+    if (m !== 'compound' && !valid(rm)) { if (env.TRACE_DEBUG) console.error(m, 'INVALID'); continue; }
+    const bends = rm.edges.reduce((t, e) => t + Math.max(0, e.pts.length - 2), 0);
+    tried.push({ m, rm, bends, cost: cost(rm, bends) }); if (env.TRACE_DEBUG) console.error(m, Math.round(rm.width) + 'x' + Math.round(rm.height), 'bends', bends, 'cost', cost(rm, bends).toFixed(1));
   }
   let best = tried[0];
-  for (const c of tried) if (c.bends < best.bends) best = c;
+  // a later candidate has to win by a margin (3%, 8% for folding: its long return links are a real cost),
+  // so a near tie keeps the earlier, simpler layout
+  for (const c of tried.slice(1)) if (c.cost < best.cost * (c.m === 'hierwrap' ? 0.92 : 0.97)) best = c;
   // the model carries the state of the last run, so run the winner again if it was not last
-  return best.m === last ? best.rm : layoutOnce(model, measure, ELK, modes[best.m][0], modes[best.m][1]);
+  return best.m === last ? best.rm : layoutOnce(model, measure, ELK, modes[best.m][0], modes[best.m][1], modes[best.m][2]);
 }
 
-async function layoutOnce(model, measure, ELK, FLAT, HIER) {
+async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP) {
   const S = model.spacing;
   if (HIER && (model.edges.some(e => model.frames.has(e.a) || model.frames.has(e.b)))) return null;
   const flowH = model.direction === 'RIGHT';
@@ -897,6 +910,11 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
       });
       const pad = isLane ? '[top=0,left=0,bottom=0,right=0]' : Fr ? `[top=${Fr.title ? 34 : 18},left=18,bottom=18,right=18]` : '[top=16,left=16,bottom=16,right=16]';
       const opts = baseOpts(pad, dirH);
+      if (!Fr && WRAP) {
+        // fold a long chain of layers into rows; the long return links are the price
+        opts['elk.layered.wrapping.strategy'] = 'MULTI_EDGE';
+        opts['elk.aspectRatio'] = '2';
+      }
       if (isLane) {
         opts['elk.partitioning.activate'] = 'true';
         // a lane is a grid, not a flow diagram: line its children up instead of sliding them to straighten links

@@ -10,6 +10,11 @@ order; nest them for a grid (`docs/language.md`). The DMZ case is now a 2 by 2 g
 strip. Chosen over relation statements (`frame pub above priv`) because it needs no extra
 vocabulary and maps onto one layout run per block.
 
+Principle (from the user): easy things easy, hard things possible. Full auto layout is the
+default; blocks are the escape hatch. Long chains and strips now fold by themselves (see item 2
+and `docs/architecture.md`). Not folded today because the long return links cost more than they
+save: cicd, hybrid, k8s, the unhinted DMZ.
+
 Left:
 - Relation statements (`place app below dmz`, `proxy beside fw`) as sugar for the same thing, if
   nesting blocks turns out to be awkward. Needed by: hybrid cloud (subnet tiers as bands in the
