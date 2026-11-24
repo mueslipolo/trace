@@ -80,10 +80,15 @@ Done: `same-width a b c` for nodes (before layout) or frames (after: grown to on
 a fixed pixel width (`width 200`), which would break when a label changes and narrow nodes into tall
 ones; a diagram-wide minimum node width.
 
-## 5. Sequence diagrams
+## 5. Sequence diagrams (done)
 
-A separate layout mode (participants as lifelines, messages as horizontal arrows, notes,
-alt/loop blocks), drawn in the same style as the other diagrams.
+Done: `sequence`, messages (`->`, `-->`, self), notes (`over`, `left of`, `right of`) and `loop`, `alt`
+(with `else`), `opt`, `par` groups; `layoutSequence` is its own layout, drawn by the same renderer
+(`docs/language.md`). Examples: `job-sequence`, `idempotency`.
+
+Left: activation bars on the lifelines, a participant row repeated at the bottom of a long diagram,
+messages that cross several lifelines without touching the ones between (they do pass over them),
+numbering, and `create`/`destroy` of participants.
 
 ## 6. ER / table diagrams
 

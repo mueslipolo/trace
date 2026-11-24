@@ -1,0 +1,25 @@
+sequence
+title "How a job runs"
+
+pill client [user]: Client
+api [api]: API | FastAPI
+store db [database]: Postgres
+worker [server]: Worker | polls for jobs
+
+client -> api : POST /jobs
+api -> db : insert job
+api --> client : 202 accepted, job id
+note over api, db : one transaction
+loop "every 5 s" {
+  worker -> api : claim a job
+  api -> db : lease it for 60 s
+  api --> worker : job payload
+}
+alt "success" {
+  worker -> api : report done
+  api -> api : mark succeeded
+else "failure"
+  worker -> api : report error
+  note right of api : retry with backoff
+}
+api -> client : webhook with the result

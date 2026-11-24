@@ -22,6 +22,16 @@ source order). Errors are collected with line numbers; parsing continues after a
 - `[span]` nodes are stretched to the extent of the stack they link to and get FIXED_POS ports at
   each member's centre; links to another stack get ports in proportion.
 
+## Sequence diagrams (a separate path)
+
+`parse` records an ordered `events` list (messages, notes, group starts and ends, dividers) next to the
+nodes and links, and `mode: 'sequence'` when the line `sequence` is present. `compile` then calls
+`layoutSequence` instead of `layout`: no ELK. It spaces the lifelines (neighbouring boxes must not
+touch; every message label, self message and two-participant note must fit in the span it crosses,
+shortest spans first), walks the events down the page, and returns the same shape the renderer already
+draws: boxes for participants and notes, frames for groups (with the title at the left), and links for
+lifelines, messages and dividers. The flow-layout invariants in the tests are skipped for these.
+
 ## 3. ELK
 
 One ELK `layered` run over the whole graph, orthogonal routing, model order respected (`considerModelOrder`), network

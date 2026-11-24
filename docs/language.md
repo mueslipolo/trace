@@ -144,6 +144,41 @@ column {
   direction, so a firewall between two rows is an ordinary node. Layout blocks need the per-frame layout;
   if the diagram cannot be placed that way, the blocks are ignored and the result carries a warning.
 
+## Sequence diagrams
+
+```
+sequence
+title "How a job runs"
+pill client [user]: Client
+api [api]: API
+store db [database]: Postgres
+
+client -> api : POST /jobs
+api -> db : insert job
+api --> client : 202 accepted
+note over api, db : one transaction
+loop "every 5 s" {
+  worker -> api : claim a job
+}
+alt "success" {
+  worker -> api : report done
+else "failure"
+  worker -> api : report error
+}
+```
+
+A line `sequence` switches the diagram to time running down. Participants are nodes, so kinds, icons
+and tags work; they run across the top in the order they are first mentioned (declare them first to
+choose the order). Each link is a message, in the order written: `->` solid, `-->` dashed (a reply),
+`<-` and `<--` put the arrowhead at the left end, and a message to yourself draws a small loop. A
+label gets as much room between its lifelines as it needs.
+
+- `note over a, b : text`, `note over a : text`, `note left of a : text`, `note right of a : text`.
+- `loop "label" { ... }`, `alt "label" { ... }`, `opt "label" { ... }` and `par "label" { ... }` draw a
+  group round the messages inside; they nest. Inside an `alt`, a line `else "label"` starts the next
+  branch with a dashed divider (`and "label"` inside a `par`).
+- No frames, rows, columns, rails, `align` or `same-width` in a sequence diagram.
+
 ## Equal sizes
 
 ```

@@ -231,6 +231,17 @@ column {
         <p>A <code>frame</code> draws a titled zone (<code>green</code>, <code>blue</code>, <code>orange</code>, <code>purple</code>, <code>grey</code>). A <code>column</code> stacks nodes top to bottom, a <code>row</code> side by side; links inside them run straight. Side-by-side columns of the same length line up row for row.</p>
       </div>
       <div>
+        <h3>Sequence diagrams</h3>
+<pre>sequence
+client -> api : POST /jobs
+api --> client : 202
+note over api, db : one transaction
+loop "every 5 s" {
+  worker -> api : claim
+}</pre>
+        <p>The line <code>sequence</code> makes time run down. Participants run across the top in the order you mention them; <code>-></code> is a message, <code>--></code> a reply, <code>a -> a</code> a message to yourself. <code>note over/left of/right of</code>, and <code>loop</code>, <code>alt</code> (with <code>else</code>), <code>opt</code>, <code>par</code> groups. See the two examples.</p>
+      </div>
+      <div>
         <h3>Whole diagram</h3>
 <pre>direction down
 spacing 1.3

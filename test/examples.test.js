@@ -23,7 +23,7 @@ for (const file of files) {
     for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
       assert.ok(!overlap(nodes[i], nodes[j], 1), `nodes overlap: ${nodes[i].id} and ${nodes[j].id}`);
     }
-    for (const fr of res.rm.frames) {
+    for (const fr of res.model.mode === 'sequence' ? [] : res.rm.frames) {
       for (const n of nodes) {
         if (owns(fr.f, n) || n.tags.includes('bridge')) continue;
         assert.ok(!overlap(fr, n, 1), `frame ${fr.f.id} covers foreign node ${n.id}`);
@@ -148,6 +148,7 @@ test('every link of every example starts at its source and ends at its target', 
   const near = (p, n) => p.x >= n.x - 4 && p.x <= n.x + n.w + 4 && p.y >= n.y - 4 && p.y <= n.y + n.h + 4;
   for (const file of files) {
     const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
+    if (res.model.mode === 'sequence') continue;
     const N = new Map(res.rm.nodes.map(n => [n.id, n]));
     for (const { e, pts } of res.rm.edges) {
       const A = N.get(e.a), B = N.get(e.b);
@@ -306,6 +307,7 @@ test('no link runs along a frame border in the middle of its path', async () => 
   const simp = pts => { const o = [pts[0]]; for (let i = 1; i < pts.length - 1; i++) { const a = o[o.length - 1], b = pts[i], c = pts[i + 1]; if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) continue; if ((Math.abs(a.x - b.x) < 0.5 && Math.abs(b.x - c.x) < 0.5) || (Math.abs(a.y - b.y) < 0.5 && Math.abs(b.y - c.y) < 0.5)) continue; o.push(b); } o.push(pts[pts.length - 1]); return o; };
   for (const file of files) {
     const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
+    if (res.model.mode === 'sequence') continue;
     for (const { e, pts } of res.rm.edges) {
       if (e.rail) continue;
       const q = simp(pts);
@@ -352,4 +354,66 @@ test('the simple form drops same-width lines', () => {
   const { text, stats } = simplify('a: A\nb: B\nsame-width a b\n');
   assert.doesNotMatch(text, /same-width/);
   assert.strictEqual(stats.sizing, 1);
+});
+
+test('sequence: participants run left to right in order of mention, messages top to bottom in the order written', async () => {
+  const src = 'sequence\nclient -> api : first\napi -> db : second\ndb --> api : third\napi --> client : fourth';
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const N = new Map(res.rm.nodes.map(n => [n.id, n]));
+  assert.ok(N.get('client').x < N.get('api').x && N.get('api').x < N.get('db').x, 'left to right');
+  assert.ok(res.rm.nodes.every(n => n.y === res.rm.nodes[0].y), 'participants on one line');
+  const msgs = res.rm.edges.filter(r => !r.e.lifeline && !r.e.divider);
+  assert.deepStrictEqual(msgs.map(r => r.e.label), ['first', 'second', 'third', 'fourth']);
+  for (let i = 1; i < msgs.length; i++) assert.ok(msgs[i].pts[0].y > msgs[i - 1].pts[0].y + 10, 'each message below the last');
+  const x = id => N.get(id).x + N.get(id).w / 2;
+  assert.ok(Math.abs(msgs[2].pts[0].x - x('db')) < 1 && Math.abs(msgs[2].pts[1].x - x('api')) < 1, 'a message runs from lifeline to lifeline, whichever way');
+  assert.ok(msgs[2].e.dashed && msgs[3].e.dashed, '--> is a dashed return');
+  const lifelines = res.rm.edges.filter(r => r.e.lifeline);
+  assert.strictEqual(lifelines.length, 3);
+  assert.ok(lifelines.every(l => l.pts[1].y > msgs[3].pts[0].y), 'lifelines run past the last message');
+});
+
+test('sequence: a long message label gets room between its lifelines', async () => {
+  const label = 'a message label that is much wider than the default gap between two participants';
+  const res = await compile(`sequence\na -> b : ${label}\nb -> c : ok`, measure, ELK, {});
+  const N = new Map(res.rm.nodes.map(n => [n.id, n]));
+  const gap = N.get('b').x + N.get('b').w / 2 - (N.get('a').x + N.get('a').w / 2);
+  const m = res.rm.edges.find(r => r.e.label === label);
+  assert.ok(gap >= m.e.lab.w + 30, `the lifelines are ${gap}px apart for a ${m.e.lab.w}px label`);
+});
+
+test('sequence: groups hold their messages and nest, with a divider for else', async () => {
+  const src = ['sequence', 'a -> b : before', 'loop "again" {', '  a -> b : in loop', '  alt "yes" {', '    b -> c : yes path', '  else "no"', '    b -> a : no path', '  }', '}', 'a -> b : after'].join('\n');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  assert.strictEqual(res.rm.frames.length, 2);
+  const [outer, inner] = res.rm.frames;
+  assert.ok(outer.f.title.startsWith('loop') && inner.f.title.startsWith('alt'));
+  assert.ok(inner.x > outer.x && inner.x + inner.w < outer.x + outer.w && inner.y > outer.y && inner.y + inner.h < outer.y + outer.h, 'the inner group sits inside the outer one');
+  const at = l => res.rm.edges.find(r => r.e.label === l).pts[0].y;
+  assert.ok(at('before') < outer.y && at('after') > outer.y + outer.h, 'messages outside are outside');
+  assert.ok(at('in loop') > outer.y && at('in loop') < inner.y, 'a message in the loop but not the alt is between');
+  assert.ok(at('yes path') > inner.y && at('no path') < inner.y + inner.h);
+  const div = res.rm.edges.find(r => r.e.divider);
+  assert.ok(div && div.pts[0].y > at('yes path') && div.pts[0].y < at('no path'), 'the else divider is between the two branches');
+});
+
+test('sequence: self messages loop, notes sit where they say, and the errors say what to write', async () => {
+  const res = await compile('sequence\na -> b : hi\nb -> b : think\nnote over a, b : both\nnote left of a : on the left\nnote right of b : on the right', measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const self = res.rm.edges.find(r => r.e.label === 'think');
+  assert.strictEqual(self.pts.length, 4, 'a message to yourself is a small loop');
+  const N = new Map(res.rm.nodes.map(n => [n.id, n]));
+  const notes = res.rm.nodes.filter(n => n.id.startsWith('_note'));
+  const [over, left, right] = notes;
+  const ca = N.get('a').x + N.get('a').w / 2, cb = N.get('b').x + N.get('b').w / 2;
+  assert.ok(over.x <= ca && over.x + over.w >= cb, 'over spans both lifelines');
+  assert.ok(left.x + left.w < ca && right.x > cb, 'left of and right of sit beside the lifeline');
+  assert.ok(res.rm.nodes.every(n => n.x >= 0), 'nothing reaches past the left edge');
+  const err = async s => (await compile(s, measure, ELK, {})).errors.map(e => e.msg).join('|');
+  assert.match(await err('a -> b\nnote over a : x'), /put the line  sequence  at the top/);
+  assert.match(await err('a -> b\nloop "x" {\n}'), /put the line  sequence  at the top/);
+  assert.match(await err('sequence\nframe f {\n}'), /no frames, rows or columns/);
+  assert.match(await err('sequence\nnote over a, b, c : x'), /one or two participants/);
 });

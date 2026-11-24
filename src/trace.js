@@ -141,7 +141,7 @@ function splitLabel(text) {
 function parse(src) {
   const model = {
     direction: 'RIGHT', spacing: 1, title: '',
-    nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], sameSize: [], errors: [],
+    nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], sameSize: [], events: [], mode: 'flow', errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
   model.root = root;
@@ -150,6 +150,7 @@ function parse(src) {
   const cur = () => stack[stack.length - 1];
 
   function placeNode(n, container) {
+    while (container.type === 'seqblock') container = container.parent;
     if (n.parent) {
       const i = n.parent.items.indexOf(n);
       if (i >= 0) n.parent.items.splice(i, 1);
@@ -171,10 +172,26 @@ function parse(src) {
   function handle(line, ln) {
     if (line === '}') {
       if (stack.length === 1) throw new TraceError('There is no open block for this } to close');
-      stack.pop();
+      const closed = stack.pop();
+      if (closed.type === 'seqblock') model.events.push({ type: 'blockEnd', block: closed, line: ln });
       return;
     }
     let m;
+    if (/^sequence$/i.test(line)) { model.mode = 'sequence'; return; }
+    if ((m = line.match(/^note\s+(over|left\s+of|right\s+of)\s+([^:]+?)\s*:\s*(.+)$/i))) {
+      // note over a[, b] : text    note left of a : text    note right of a : text
+      if (model.mode !== 'sequence') throw new TraceError('A note belongs to a sequence diagram: put the line  sequence  at the top');
+      const where = m[1].toLowerCase().replace(/\s+/g, ' ');
+      const ids = m[2].split(/[\s,]+/).filter(Boolean);
+      if (ids.length < 1 || ids.length > (where === 'over' ? 2 : 1)) throw new TraceError(where === 'over' ? 'note over takes one or two participants: note over api, db : text' : `note ${where} takes one participant: note ${where} api : text`);
+      for (const id of ids) ensure(id, ln);
+      model.events.push({ type: 'note', where, ids, text: m[3].trim().replace(/\\n/g, '\n'), line: ln });
+      return;
+    }
+    if ((m = line.match(/^(else|and)\b\s*(.*)$/i)) && stack[stack.length - 1].type === 'seqblock') {
+      model.events.push({ type: 'divider', word: m[1].toLowerCase(), title: unquote(m[2]), block: stack[stack.length - 1], line: ln });
+      return;
+    }
     if ((m = line.match(/^direction\s+(\S+)$/i))) {
       const d = m[1].toLowerCase();
       if (['right', 'lr'].includes(d)) model.direction = 'RIGHT';
@@ -215,6 +232,15 @@ function parse(src) {
     }
     if (line.endsWith('{')) {
       const head = line.slice(0, -1).trim();
+      const sb = head.match(/^(loop|alt|opt|par)\b\s*(.*)$/i);
+      if (sb) {
+        if (model.mode !== 'sequence') throw new TraceError(`${sb[1].toLowerCase()} groups messages in a sequence diagram: put the line  sequence  at the top`);
+        const blk = { type: 'seqblock', kind: sb[1].toLowerCase(), title: unquote(sb[2]), parent: cur(), line: ln };
+        stack.push(blk);
+        model.events.push({ type: 'blockStart', block: blk, line: ln });
+        return;
+      }
+      if (model.mode === 'sequence') throw new TraceError('A sequence diagram has no frames, rows or columns: group messages with loop, alt, opt or par');
       const hm = head.match(/^(frame|column|row|rail)\b\s*(.*)$/i);
       if (!hm) throw new TraceError('Only frame, column, row and rail open a block with {');
       const kind = hm[1].toLowerCase();
@@ -300,13 +326,15 @@ function parse(src) {
       for (let i = 0; i < parts.length; i += 2) ensure(parts[i], ln);
       for (let i = 1; i < parts.length; i += 2) {
         const op = parts[i], a = parts[i - 1], b = parts[i + 1];
-        model.edges.push({
+        const edge = {
           a, b, op, label: label ? label.replace(/\\n/g, '\n') : '',
           tags: tags.slice(),
           dashed: op === '-->' || op === '<--' || tags.includes('dashed'),
           start: op.startsWith('<'), end: op.endsWith('>'),
           line: ln,
-        });
+        };
+        model.edges.push(edge);
+        model.events.push({ type: 'msg', e: edge });
       }
       return;
     }
@@ -415,6 +443,126 @@ function sizeLabel(text, measure) {
 }
 
 // ---------------------------------------------------------------- layout
+
+// ---- sequence diagrams (see layoutSequence)
+
+// Participants run across the top in the order they were first mentioned; time runs down. Messages are
+// the links, in the order written; notes, and loop/alt/opt/par groups, sit between them. The result has
+// the shape the renderer already draws: boxes (participants and notes), frames (groups) and links
+// (lifelines, messages, dividers), so icons, kinds, tags and the light and dark themes all apply.
+async function layoutSequence(model, measure) {
+  const parts = [...model.nodes.values()];
+  for (const n of parts) sizeNode(n, measure);
+  model.edges.forEach((e, i) => { e.i = i; e.lab = sizeLabel(e.label, measure); });
+  const TOP = 16, H = Math.max(36, ...parts.map(n => n.h));
+  for (const n of parts) n.h = H;
+  const idx = new Map(parts.map((n, i) => [n.id, i]));
+  const k = parts.length;
+
+  // notes: wrap the text and size the box
+  const notes = model.events.filter(ev => ev.type === 'note');
+  for (const nt of notes) {
+    nt.lines = wrap(nt.text, FONT_NOTE, 210, measure);
+    nt.w = Math.ceil(Math.max(...nt.lines.map(l => measure(l, FONT_NOTE)))) + 20;
+    nt.h = nt.lines.length * 14 + 14;
+  }
+
+  // distance between neighbouring lifelines: boxes must not touch, and every message label, self message
+  // and two-participant note must fit in the span it crosses (shortest spans first)
+  const d = parts.slice(1).map((n, i) => (parts[i].w + n.w) / 2 + 28);
+  const need = [];
+  for (const ev of model.events) {
+    if (ev.type === 'msg') {
+      const a = idx.get(ev.e.a), b = idx.get(ev.e.b);
+      if (a === b) { if (a < k - 1) need.push({ lo: a, hi: a + 1, v: 52 + (ev.e.lab ? ev.e.lab.w : 0) }); }
+      else need.push({ lo: Math.min(a, b), hi: Math.max(a, b), v: (ev.e.lab ? ev.e.lab.w : 0) + 44 });
+    } else if (ev.type === 'note' && ev.ids.length === 2) {
+      const a = idx.get(ev.ids[0]), b = idx.get(ev.ids[1]);
+      if (a !== b) need.push({ lo: Math.min(a, b), hi: Math.max(a, b), v: ev.w - 30 });
+    }
+  }
+  need.sort((x, y) => (x.hi - x.lo) - (y.hi - y.lo));
+  for (const r of need) {
+    const have = d.slice(r.lo, r.hi).reduce((t, v) => t + v, 0);
+    if (have < r.v) { const add = (r.v - have) / (r.hi - r.lo); for (let i = r.lo; i < r.hi; i++) d[i] += add; }
+  }
+  const cx = [parts[0].w / 2];
+  for (let i = 1; i < k; i++) cx.push(cx[i - 1] + d[i - 1]);
+  const X = id => cx[idx.get(id)];
+
+  const edges = [], nodes = [...parts], frames = [], texts = [];
+  const open = [];       // groups being filled
+  const closed = [];
+  let y = TOP + H + 26, minX = 0, maxX = cx[k - 1] + parts[k - 1].w / 2, noteN = 0;
+  const reach = (x1, x2) => { for (const b of open) { b.x1 = Math.min(b.x1, x1); b.x2 = Math.max(b.x2, x2); } minX = Math.min(minX, x1); maxX = Math.max(maxX, x2); };
+  for (const ev of model.events) {
+    if (ev.type === 'msg') {
+      const e = ev.e, ca = X(e.a), cb = X(e.b), lab = e.lab, lh = lab ? lab.h : 0;
+      if (e.a === e.b) {
+        const ys = y + 6, w = 34;
+        edges.push({ e, pts: [{ x: ca, y: ys }, { x: ca + w, y: ys }, { x: ca + w, y: ys + 22 }, { x: ca, y: ys + 22 }], lab: lab ? { x: ca + w + 6, y: ys + 11 - lh / 2, anchor: 'start' } : null });
+        reach(ca - 8, ca + w + (lab ? lab.w + 8 : 8));
+        y = ys + 22 + 18 + Math.max(0, lh - 22);
+      } else {
+        const ay = y + lh + 14;
+        edges.push({ e, pts: [{ x: ca, y: ay }, { x: cb, y: ay }], lab: lab ? { x: (ca + cb) / 2, y: ay - 6 - lh, anchor: 'middle' } : null });
+        reach(Math.min(ca, cb) - 8, Math.max(ca, cb) + 8);
+        y = ay + 18;
+      }
+    } else if (ev.type === 'note') {
+      const [a, b] = ev.ids.map(X);
+      let x;
+      if (ev.where === 'over') { const w = ev.ids.length === 2 ? Math.max(ev.w, Math.abs(b - a) + 40) : ev.w; ev.w = w; x = ev.ids.length === 2 ? Math.min(a, b) - 20 : a - w / 2; }
+      else if (ev.where === 'left of') x = a - 12 - ev.w;
+      else x = a + 12;
+      nodes.push({ id: '_note' + (++noteN), type: 'node', kind: 'store', name: '', note: '', nameLines: [], noteLines: ev.lines, textH: ev.lines.length * 14, padX: 10, w: ev.w, h: ev.h, x, y: y + 4, tags: [], parent: null, iconMarkup: null });
+      reach(x, x + ev.w);
+      y += ev.h + 18;
+    } else if (ev.type === 'blockStart') {
+      const b = { block: ev.block, y1: y, x1: Infinity, x2: -Infinity, depth: open.length, dividers: [] };
+      open.push(b);
+      y += 30;
+    } else if (ev.type === 'divider') {
+      const b = open[open.length - 1];
+      if (b) { b.dividers.push({ y: y + 2, title: ev.title, word: ev.word }); y += 28; }
+    } else if (ev.type === 'blockEnd') {
+      const b = open.pop();
+      if (!b) continue;
+      b.y2 = y + 2;
+      closed.push(b);
+      y += 18;
+    }
+  }
+  const bottom = y + 8;
+
+  // groups: wide enough for what is inside, each one a little wider than the groups it holds
+  const byDepth = closed.slice().sort((p, q) => q.depth - p.depth);
+  for (const b of byDepth) {
+    if (b.x1 === Infinity) { b.x1 = cx[0] - 20; b.x2 = cx[k - 1] + 20; }
+    b.x1 -= 14; b.x2 += 14;
+    for (const c of closed) if (c !== b && c.depth === b.depth + 1 && c.y1 >= b.y1 && c.y2 <= b.y2) { b.x1 = Math.min(b.x1, c.x1 - 8); b.x2 = Math.max(b.x2, c.x2 + 8); }
+    minX = Math.min(minX, b.x1); maxX = Math.max(maxX, b.x2);
+  }
+
+  // everything moves right if something reaches past the left edge
+  const dx = 16 - minX;
+  for (const n of nodes) { if (n.kind === 'store' && n.id.startsWith('_note')) n.x += dx; else { n.x = cx[idx.get(n.id)] - n.w / 2 + dx; n.y = TOP; } }
+  for (const r of edges) { r.pts.forEach(p => { p.x += dx; }); if (r.lab) r.lab.x += dx; }
+  const lifelines = parts.map((n, i) => ({ e: { a: n.id, b: n.id, tags: ['muted'], dashed: true, start: false, end: false, label: '', lab: null, lifeline: true }, pts: [{ x: cx[i] + dx, y: TOP + H }, { x: cx[i] + dx, y: bottom }], lab: null }));
+  const dividers = [];
+  for (const b of closed) {
+    const f = { type: 'frame', id: '_seq' + frames.length, title: b.block.kind + (b.block.title ? '  ' + b.block.title : ''), tags: ['grey'], items: [], parent: null };
+    f.titleW = measure(f.title, FONT_TITLE);
+    frames.push({ f, x: b.x1 + dx, y: b.y1, w: b.x2 - b.x1, h: b.y2 - b.y1, depth: b.depth, titleLeft: true });
+    for (const dv of b.dividers) {
+      const lab = dv.title ? { lines: [dv.word + '  ' + dv.title], w: measure(dv.word + '  ' + dv.title, FONT_NOTE), h: 13 } : null;
+      dividers.push({ e: { a: '', b: '', tags: ['muted'], dashed: true, start: false, end: false, label: dv.title, lab, divider: true }, pts: [{ x: b.x1 + dx, y: dv.y }, { x: b.x2 + dx, y: dv.y }], lab: lab ? { x: b.x1 + dx + 8, y: dv.y + 4, anchor: 'start' } : null });
+    }
+  }
+  frames.sort((p, q) => p.depth - q.depth);
+  const rm = { nodes, frames, edges: [...lifelines, ...dividers, ...edges], rails: [], width: maxX + dx + 16, height: bottom + 16, model, notes: [] };
+  return rm;
+}
 
 // Keep links off frame borders: a stretch of link that runs along a frame's border closer than 8px
 // (ELK routed it before the frames were drawn tight around their members, or a node on a border sent it
@@ -1962,6 +2110,7 @@ function render(rm, { standalone = false, idPrefix = 'tr' } = {}) {
         { x: fr.x + fr.w - 12, y: fr.y + fr.h - 10, a: 'end' }, { x: fr.x + 12, y: fr.y + fr.h - 10, a: 'start' },
       ];
       if (fr.titleBottom) spots.push(...spots.splice(0, 2));
+      if (fr.titleLeft) spots.unshift({ x: fr.x + 10, y: fr.y + 17, a: 'start' });
       const clear = sp => {
         const x0 = sp.a === 'end' ? sp.x - tw : sp.x, y0 = sp.y - 11;
         return !rm.nodes.some(n => n.x < x0 + tw + 4 && x0 - 4 < n.x + n.w && n.y < y0 + 14 && y0 < n.y + n.h);
@@ -2064,7 +2213,7 @@ async function compile(src, measure, ELK, opts) {
   if (!model.nodes.size) return { model, errors: [], empty: true };
   for (const k of model.keys) k._tw = measure(k.text, FONT_NOTE);
   const iconsFailed = await loadIcons(model, opts && opts.loadIcon);
-  const rm = await layout(model, measure, ELK);
+  const rm = model.mode === 'sequence' ? await layoutSequence(model, measure) : await layout(model, measure, ELK);
   return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || [])], svg: render(rm, opts), standalone: () => render(rm, { ...opts, standalone: true }) };
 }
 

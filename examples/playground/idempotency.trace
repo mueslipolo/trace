@@ -1,0 +1,25 @@
+sequence
+title "A retried payment is charged once"
+
+pill client [user]: Client
+api [api]: Payments API
+store keys [database]: Idempotency keys
+psp [landmark]: Card provider
+
+client -> api : POST /charge  (Idempotency-Key: k1)
+api -> keys : look up k1
+keys --> api : not seen
+api -> keys : store k1 as in progress
+api -> psp : charge 20 EUR
+psp --> api : approved
+api -> keys : store k1 with the result
+api --> client : 200 charged
+
+note over client, api : the connection drops before the reply arrives
+client -> api : POST /charge  (same key k1)
+api -> keys : look up k1
+keys --> api : done, with the stored result
+opt "k1 was still in progress" {
+  api --> client : 409 retry shortly
+}
+api --> client : 200 the same result, no second charge
