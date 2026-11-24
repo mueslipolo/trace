@@ -324,3 +324,32 @@ test('no link runs along a frame border in the middle of its path', async () => 
     }
   }
 });
+
+test('same-width and same-height make nodes and frames equal, and frames share their edges', async () => {
+  const nodes = await compile('direction down\na: A\nb: A much longer label here\nc: Mid label\na -> b -> c\nsame-width a b c\nsame-height a c', measure, ELK, {});
+  assert.deepStrictEqual(nodes.errors, []);
+  const N = new Map(nodes.rm.nodes.map(n => [n.id, n]));
+  assert.ok(N.get('a').w === N.get('b').w && N.get('b').w === N.get('c').w, 'equal widths');
+  assert.strictEqual(N.get('a').h, N.get('c').h);
+  const F = (id, node) => `frame ${id} "${id}" {\n  ${node}\n}\n`;
+  const frames = await compile(`direction down\n${F('a', 'x: X')}${F('b', 'y: A node with a rather long label')}${F('c', 'z: Medium label')}x -> y\ny -> z\nsame-width a b c`, measure, ELK, {});
+  assert.deepStrictEqual(frames.errors, []);
+  const fr = frames.rm.frames;
+  assert.ok(fr.every(f => Math.abs(f.w - fr[0].w) < 1), 'equal widths');
+  assert.ok(fr.every(f => Math.abs(f.x - fr[0].x) < 1), 'and the same left edge');
+  for (const n of frames.rm.nodes) { const f = frames.rm.frames.find(f => f.f.items.includes(n)); assert.ok(n.x >= f.x && n.x + n.w <= f.x + f.w, 'the contents stay inside'); }
+});
+
+test('same-width says what to write when it cannot work', async () => {
+  const err = async s => (await compile(s, measure, ELK, {})).errors.map(e => e.msg).join('|');
+  assert.match(await err('a: A\nsame-width a'), /two or more names/);
+  assert.match(await err('a: A\nb: B\nsame-width a zz'), /no node or frame called "zz"/);
+  assert.match(await err('frame f {\n  c: C\n}\na: A\nsame-width a f'), /not a mix/);
+});
+
+test('the simple form drops same-width lines', () => {
+  const { simplify } = require('../tools/simplify.js');
+  const { text, stats } = simplify('a: A\nb: B\nsame-width a b\n');
+  assert.doesNotMatch(text, /same-width/);
+  assert.strictEqual(stats.sizing, 1);
+});

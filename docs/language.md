@@ -144,6 +144,20 @@ column {
   direction, so a firewall between two rows is an ordinary node. Layout blocks need the per-frame layout;
   if the diagram cannot be placed that way, the blocks are ignored and the result carries a warning.
 
+## Equal sizes
+
+```
+same-width edge core access      # frames
+same-height lb rp bastion        # nodes
+```
+
+Makes the listed nodes, or the listed frames (not a mix), as wide (`same-width`) or as tall
+(`same-height`) as the widest. Nodes are sized before anything is laid out, so the stacks and links
+you build from them see the equal sizes (a `[span]` node can still grow afterwards). A frame takes its
+size from what is inside it, so the smaller frames are grown afterwards: to one common box, with the
+same edges, when the frames fit in it; otherwise around their own centre or to the free side. A frame
+that cannot grow without covering another frame or node keeps its size, and the result says so.
+
 ## Rails
 
 ```

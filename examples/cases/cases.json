@@ -31,7 +31,7 @@
     "id": "office",
     "title": "Branch office LAN with dual ISPs",
     "context": "Two internet links (fiber and LTE backup), a firewall HA pair, a core switch doing inter-VLAN routing, a TLS-inspecting web proxy for staff, and four access VLANs, with guests isolated and sent straight out.",
-    "uses": "Top-down, with the two ISPs and the four VLANs as titled rows; [span] stretches the core switch across all four VLANs. fw <- proxy and fw <- guest send inspected and guest traffic back up to the firewall without breaking the layering.",
+    "uses": "Top-down, with the two ISPs and the four VLANs as titled rows; [span] stretches the core switch across all four VLANs. fw <- proxy and fw <- guest send inspected and guest traffic back up to the firewall without breaking the layering. same-width makes the edge, core and access zones one width, so the three tiers line up on both sides.",
     "gap": "The four trunks jog sideways. The layout engine keeps the core and access frames centred on each other instead of lining the switch up with the VLANs, and Trace only slides a frame back into line when nothing is in the way (here the guest bypass is). The proxy would also sit better beside the firewall, which needs a placement hint."
   },
   {

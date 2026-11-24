@@ -94,6 +94,9 @@ Fix: put those two zones one after the other along the flow instead.
   between them is one straight line. It costs a few bends in the other links between the two stacks,
   and it does not remove crossings, so use it for neatness of a pair, not as a fix for a tangle.
 
+- To make zones or nodes line up, write `same-width zoneA zoneB zoneC` (or `same-height`). It is a
+  statement about relations, not a number: it keeps working when a label changes, and the frames
+  share their edges as well as their size. Use it when the tiers of a diagram have ragged sides.
 - For links that touch many nodes and carry no part of the main story (logs to a SIEM, metrics to
   monitoring, a scheduler's triggers), use a `rail` on the side of the diagram those nodes are on. The
   links leave the layout, so the diagram looks as it did before they were added. Choose the side so the

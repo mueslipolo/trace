@@ -74,6 +74,12 @@ most crossings, was wrong. It is for a clear one-to-one pair.
 Left: aligning a node that is not in a row or column (the layout only tries to keep the link
 straight); aligning across stacks that are in different frames with a bridge between.
 
+## Equal sizes (done: `same-width`, `same-height`)
+
+Done: `same-width a b c` for nodes (before layout) or frames (after: grown to one common box). Not done:
+a fixed pixel width (`width 200`), which would break when a label changes and narrow nodes into tall
+ones; a diagram-wide minimum node width.
+
 ## 5. Sequence diagrams
 
 A separate layout mode (participants as lifelines, messages as horizontal arrows, notes,

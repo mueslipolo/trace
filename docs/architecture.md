@@ -72,6 +72,10 @@ diagram with blocks both `SIMPLE` and `NETWORK_SIMPLEX` are tried and the better
 kept, `SIMPLE` unless the other wins by 3%. Links into a `[span]` node that sits inside a frame are
 given a port on the frame at the span node's own attachment point, so they stay straight.
 
+`same-width` and `same-height` are applied in two places: on nodes before stacking (`equalNodes`, again
+after the span nodes have grown, for nodes outside a stack), and on frames after `fitFrames`
+(`sameSizeFrames`), which looks for one box holding every listed frame so they also share an edge.
+
 Rails (`type: 'rail'`, only at the top level) take no part in any layout: their nodes and the links to
 them are skipped by every ELK graph, and `placeRails` runs after `fitFrames`. It finds the bounding box of
 everything placed, puts the band beside it (shifting everything for a top or left rail), lays the nodes

@@ -141,7 +141,7 @@ function splitLabel(text) {
 function parse(src) {
   const model = {
     direction: 'RIGHT', spacing: 1, title: '',
-    nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], errors: [],
+    nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], sameSize: [], errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
   model.root = root;
@@ -187,6 +187,14 @@ function parse(src) {
       return;
     }
     if ((m = line.match(/^title\s+(.+)$/i))) { model.title = unquote(m[1]); return; }
+    if ((m = line.match(/^same-(width|height)\s+(.+)$/i))) {
+      // same-width a b c: make them as wide as the widest (nodes, or frames; not a mix)
+      const ids = m[2].trim().split(/[\s,]+/).filter(Boolean);
+      if (ids.length < 2) throw new TraceError(`same-${m[1].toLowerCase()} takes two or more names: same-${m[1].toLowerCase()} edge dmz app`);
+      for (const id of ids) if (!ID_RE.test(id)) throw new TraceError(`"${id}" is not a valid name`);
+      model.sameSize.push({ axis: m[1].toLowerCase() === 'width' ? 'w' : 'h', ids, line: ln });
+      return;
+    }
     if ((m = line.match(/^align\s+(.+)$/i))) {
       // align a b [c ...]: keep each pair level, by making the link between them straight
       const ids = m[1].trim().split(/[\s,]+/).filter(Boolean);
@@ -343,6 +351,14 @@ function parse(src) {
   if (stack.length > 1) {
     const open = stack[stack.length - 1];
     model.errors.push({ line: open.line, msg: `This ${open.type === 'frame' ? 'frame' : open.axis === 'v' ? 'column' : 'row'} is never closed with }` });
+  }
+  for (const ss of model.sameSize) {
+    const word = ss.axis === 'w' ? 'width' : 'height';
+    const kinds = ss.ids.map(id => model.nodes.has(id) && !(model.nodes.get(id).parent && model.nodes.get(id).parent.type === 'rail') ? 'node' : model.frames.has(id) ? 'frame' : null);
+    const bad = kinds.indexOf(null);
+    if (bad >= 0) { model.errors.push({ line: ss.line, msg: `same-${word}: there is no node or frame called "${ss.ids[bad]}"` }); continue; }
+    if (new Set(kinds).size > 1) { model.errors.push({ line: ss.line, msg: `same-${word} takes nodes or frames, not a mix: write one line for the nodes and one for the frames` }); continue; }
+    ss.kind = kinds[0];
   }
   for (const al of model.aligns) {
     const missing = [al.a, al.b].find(id => !model.nodes.has(id));
@@ -580,6 +596,19 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     e.ga = ga; e.gb = gb;
   });
 
+  // same-width / same-height on nodes: all as wide (or tall) as the widest; this runs before stacking, so
+  // columns and rows are built from the equal sizes (a span node may still grow afterwards)
+  const sameNodes = model.sameSize.filter(ss => ss.kind === 'node');
+  const equalNodes = (onlyLoose) => {
+    for (const ss of sameNodes) {
+      const ns = ss.ids.map(id => model.nodes.get(id)).filter(n => !onlyLoose || !(n.parent && n.parent.type === 'group'));
+      if (ns.length < 2) continue;
+      const v = Math.max(...ns.map(n => n[ss.axis]));
+      for (const n of ns) n[ss.axis] = v;
+    }
+  };
+  equalNodes(false);
+
   // nodes stacked across the flow share one width (or height), like a table column
   for (const g of model.groups) {
     const fh = fhOf(g);
@@ -706,6 +735,8 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     n.span = best;
     n.ports = [];
   }
+
+  equalNodes(true);
 
   // ---- ports where links leave a group
   const { IN, OUT } = sidesFor(flowH);
@@ -915,6 +946,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   if (!HIER) straightenSpans(rm, model, flowH);
   alignRows(rm, model);
   fitFrames(rm, model, flowH);
+  sameSizeFrames(rm, model);
   placeRails(rm, model, flowH);
   return rm;
 
@@ -1337,6 +1369,50 @@ function alignRows(rm, model) {
     if (blocked) continue;
     r.pts = r.e.a === first.id ? line : line.reverse();
     if (r.lab) { r.lab = { ...r.lab, [Y]: (a0 + a1) / 2, [X]: c - (r.e.lab ? r.e.lab.h + 6 : 0), anchor: vert ? 'middle' : 'middle' }; if (vert) { r.lab.x = (a0 + a1) / 2; r.lab.y = c - 6 - (r.e.lab ? r.e.lab.h : 0); } else { r.lab.x = (a0 + a1) / 2; r.lab.y = c - 6 - (r.e.lab ? r.e.lab.h : 0); } }
+  }
+}
+
+// same-width / same-height on frames: a frame takes its size from its contents, so the narrower ones are
+// grown to the size of the widest afterwards, around their centre when that is free, else to the side
+// that is. A frame that cannot grow without covering another frame or node stays as it is, and says so.
+function sameSizeFrames(rm, model) {
+  for (const ss of model.sameSize) {
+    if (ss.kind !== 'frame') continue;
+    const A = ss.axis === 'w' ? 'x' : 'y', S = ss.axis;
+    const boxes = ss.ids.map(id => rm.frames.find(f => f.f.id === id)).filter(Boolean);
+    if (boxes.length < 2) continue;
+    const target = Math.max(...boxes.map(b => b[S]));
+    const within = (a, b) => { for (let p = a; p; p = p.parent) if (p === b) return true; return false; };
+    const owns = (fr, n) => within(n.parent, fr);
+    const free0 = (b, pos) => {
+      const c = { ...b, [A]: pos, [S]: target };
+      const hit = (u, v) => u.x < v.x + v.w - 1 && v.x < u.x + u.w - 1 && u.y < v.y + v.h - 1 && v.y < u.y + u.h - 1;
+      if (rm.frames.some(o => o !== b && !boxes.includes(o) && !within(o.f, b.f) && !within(b.f, o.f) && hit(c, o))) return false;
+      if (rm.nodes.some(n => n.x !== undefined && !owns(b.f, n) && !(n.tags && n.tags.includes('bridge')) && hit(c, n))) return false;
+      return true;
+    };
+    // one common box that holds every frame as it is, so the edges line up as well as the sizes: from the
+    // widest frame's edge when the others fit in it
+    const lmin = Math.max(...boxes.map(b => b[A] + b[S])) - target, lmax = Math.min(...boxes.map(b => b[A]));
+    if (lmin <= lmax + 0.5) {
+      const widest = boxes.reduce((m, b) => b[S] > m[S] ? b : m, boxes[0]);
+      const L = Math.min(lmax, Math.max(lmin, widest[A]));
+      if (boxes.every(b => free0(b, L))) { for (const b of boxes) { b[A] = L; b[S] = target; } continue; }
+    }
+    for (const b of boxes) {
+      const d = target - b[S];
+      if (d < 0.5) continue;
+      const free = pos => {
+        const c = { ...b, [A]: pos, [S]: target };
+        const hit = (u, v) => u.x < v.x + v.w - 1 && v.x < u.x + u.w - 1 && u.y < v.y + v.h - 1 && v.y < u.y + u.h - 1;
+        if (rm.frames.some(o => o !== b && !within(o.f, b.f) && !within(b.f, o.f) && hit(c, o))) return false;
+        if (rm.nodes.some(n => n.x !== undefined && !owns(b.f, n) && !(n.tags && n.tags.includes('bridge')) && hit(c, n))) return false;
+        return true;
+      };
+      const pos = [b[A] - d / 2, b[A], b[A] - d].find(free);
+      if (pos === undefined) { (rm.notes = rm.notes || []).push(`same-${ss.axis === 'w' ? 'width' : 'height'}: the frame "${b.f.id}" cannot grow to match without covering something, so it keeps its size`); continue; }
+      b[A] = pos; b[S] = target;
+    }
   }
 }
 

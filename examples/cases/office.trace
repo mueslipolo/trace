@@ -47,3 +47,5 @@ fw <- guest [dashed] : 80, 443/tcp straight out, isolated
 staff <- nac [muted] : RADIUS 1812/udp, assigns VLAN
 
 key box [dashed] : isolated VLAN
+
+same-width edge core access
