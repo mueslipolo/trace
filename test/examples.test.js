@@ -540,7 +540,7 @@ test('links can say how many at each end, and are drawn with crow\'s feet instea
   const src = 'table a {\n  id int pk\n}\ntable b {\n  id int pk\n  a_id int fk\n}\nb.a_id -> a.id [n-1] : belongs to\nb -> a [0n-01]\nb -> a [1-1]\nb -> a [01-n]';
   const res = await compile(src, measure, ELK, {});
   assert.deepStrictEqual(res.errors, []);
-  const feet = (res.svg.match(/<path class="card" d="[^"]*M[^"]* L[^"]*M[^"]* L[^"]*M/g) || []).length;
+  const feet = (res.svg.match(/<path class="card" d="M[^ML"]* [^ML"]*L[^ML"]* [^ML"]*M[^ML"]* [^ML"]*L[^ML"]* [^ML"]*M[^ML"]* [^ML"]*L/g) || []).length;
   assert.ok(feet >= 3, `crow's feet are drawn (${feet})`);
   assert.ok(/<circle class="cardo"/.test(res.svg), 'a circle marks an optional end');
   assert.ok(!/marker-end/.test(res.svg.replace(/<marker[\s\S]*?<\/marker>/g, '')), 'no arrowheads on a link with cardinalities');
