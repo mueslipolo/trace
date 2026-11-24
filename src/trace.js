@@ -359,7 +359,15 @@ function sizeLabel(text, measure) {
 
 // ---------------------------------------------------------------- layout
 
+// The tidy-up runs on the layout that was chosen, after the choice: it changes the number of points in a
+// link without changing how it looks, and the choice is made on those counts.
 async function layout(model, measure, ELK) {
+  const rm = await chooseLayout(model, measure, ELK);
+  alignJogs(rm);
+  return rm;
+}
+
+async function chooseLayout(model, measure, ELK) {
   // Three ways to place frames, best valid one wins (fewest link bends, then the earlier one):
   //  1. per frame: each frame laid out by its own ELK run, then composed (null if it cannot)
   //  2. flat: only members are laid out, frames are drawn around them afterwards
@@ -773,7 +781,6 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   compactBridges(rm, model, flowH);
   if (!HIER) straightenSpans(rm, model, flowH);
   fitFrames(rm, model, flowH);
-  alignJogs(rm);
   return rm;
 
   // ---- per-frame layout (see docs/roadmap.md, item 2). Frames are laid out bottom-up, each by

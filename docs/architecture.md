@@ -72,7 +72,7 @@ diagram with blocks both `SIMPLE` and `NETWORK_SIMPLEX` are tried and the better
 kept, `SIMPLE` unless the other wins by 3%. Links into a `[span]` node that sits inside a frame are
 given a port on the frame at the span node's own attachment point, so they stay straight.
 
-A last pass, `alignJogs`, tidies links that have a single step: those that share a target (or source)
+A last pass, `alignJogs`, runs on the chosen layout (after the choice, which is made on point counts it would change) and tidies links that have a single step: those that share a target (or source)
 get their steps at one height, in the middle of the gap, when that touches no node and runs along no
 other link. It changes no bend count.
 
