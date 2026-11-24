@@ -1,0 +1,237 @@
+[
+  {
+    "id": "direction",
+    "title": "Direction",
+    "group": "The whole diagram",
+    "does": "`direction down` makes the main flow run top to bottom instead of left to right.",
+    "effect": "Layered things (tiers behind firewalls, a request path through zones) fit a page better going down; pipelines and lifecycles read better going right.",
+    "beforeLabel": "direction right (default)",
+    "afterLabel": "direction down",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "kinds",
+    "title": "Node kinds",
+    "group": "Nodes",
+    "does": "A kind in square brackets says what a node is: `store`, `engine`, `pill`, `ask`, `start`, `final`, `state`.",
+    "effect": "Kinds change the shape and colour, not the place. The layout only needs them for size: a pill is a little wider than a box.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "icons",
+    "title": "Icons",
+    "group": "Nodes",
+    "does": "Any Lucide icon name in the brackets, or one of the common names (`database`, `firewall`, `user`...). `top` puts the icon above the text.",
+    "effect": "Icons are drawn left of the text, so a node gets a little wider; with `top` it gets taller instead. Nothing else moves.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "links",
+    "title": "Link styles",
+    "group": "Links",
+    "does": "Labels after a colon; `-->` dashed, `<->` both ways, `--` no arrowhead; tags `ok`, `bad`, `muted`, `dashed`.",
+    "effect": "Labels take room in the layout (they sit beside the link and push things apart). The style of a link never changes where things go.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "frames",
+    "title": "Frames",
+    "group": "Frames",
+    "does": "A frame draws a titled zone around its members; colours are `green`, `blue`, `orange`, `purple`, `grey`.",
+    "effect": "Members of a frame are kept together, and the frame is drawn tight around them after the layout. Links that leave a zone cross its border.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "nesting",
+    "title": "Nested frames",
+    "group": "Frames",
+    "does": "Frames nest: a zone inside a zone.",
+    "effect": "Each frame is laid out on its own and then placed in its parent, so an inner zone stays together even when links pull its members apart.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "column",
+    "title": "Column and row",
+    "group": "Rows and columns",
+    "does": "`column` stacks nodes top to bottom, `row` side by side, inside the layout.",
+    "effect": "Members of a stack get the same width and line up like a table. Links between members run straight.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "across",
+    "title": "Siblings across the flow",
+    "group": "Rows and columns",
+    "does": "In a `direction down` diagram, put siblings in a `row`; in a `direction right` one, in a `column`.",
+    "effect": "Stacked along the flow, nodes stand in each other's way: the link to the one behind leaves sideways, runs round and comes back. Across the flow every node has a clear line.",
+    "beforeLabel": "column along the flow",
+    "afterLabel": "row across the flow",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "lanes",
+    "title": "Rows and columns of frames",
+    "group": "Rows and columns",
+    "does": "A `row` or `column` that holds frames places them side by side or one above the other, in the order written, and draws nothing itself.",
+    "effect": "You decide who is next to whom: a grid of zones instead of a chain. Links still decide the details inside each zone.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "span",
+    "title": "Span node",
+    "group": "Sizing and placement",
+    "does": "`span` makes a node as wide (or tall) as the stack it links to.",
+    "effect": "Two sources feeding one node are further apart than the node is wide, so their links slide inward and bunch up. A span node has one attachment point under each source: both links drop straight.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "bridge",
+    "title": "Bridge node",
+    "group": "Sizing and placement",
+    "does": "`bridge` puts a node on the border between two zones.",
+    "effect": "A firewall or gateway that belongs to two zones is drawn half in each, and the two zones are made to touch. Without it the firewall floats inside one of them.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "samewidth",
+    "title": "Same width, same height",
+    "group": "Sizing and placement",
+    "does": "`same-width a b c` makes frames (or nodes) as wide as the widest; `same-height` likewise.",
+    "effect": "A statement about relations, not a number: it keeps working when a label changes. The frames share their edges, so a stack of tiers has straight sides.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "align",
+    "title": "Align",
+    "group": "Sizing and placement",
+    "does": "`align registry deploy e2e approve` brings nodes in different rows level (here the registry, the zone holding Deploy and E2E, and the approval).",
+    "effect": "The stacks and zones are slid into line on those nodes, so the links between them are straight. A node in a zone moves with its whole zone.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "rail",
+    "title": "Rail",
+    "group": "Sizing and placement",
+    "does": "A `rail` is a band along one edge for links that touch many nodes: logs, metrics, schedules.",
+    "effect": "Rail links leave the layout entirely: each runs straight to a bus on the edge. The diagram looks as it did before the links were added.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "reverse",
+    "title": "Reversed link",
+    "group": "Links",
+    "does": "`pg <- worker` draws the arrow into `pg` but places the worker after it.",
+    "effect": "Both are laid out the same, with the worker on the far side. Only the arrow changes: it points at the node that is acted on. Use it when the story reads one way and the arrow the other (a worker polls the database: the worker comes later, the arrow goes to the database).",
+    "beforeLabel": "pg -> worker (the arrow points at the worker)",
+    "afterLabel": "pg <- worker (the arrow points into pg)",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "legend",
+    "title": "Legend",
+    "group": "Links",
+    "does": "`key` lines add a legend under the diagram.",
+    "effect": "The legend takes no part in the layout. It is laid out in a row below everything.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "tables",
+    "title": "Tables and cardinality",
+    "group": "Other diagram types",
+    "does": "`table` nodes list columns; links to `table.column` attach at the row, with crow's feet for `[n-1]`.",
+    "effect": "Every link ends at the row it is about, several links to one row are spread within it, and the ends are drawn as in an ER diagram.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "sequence",
+    "title": "Sequence diagram",
+    "group": "Other diagram types",
+    "does": "`sequence` on the first line turns the same links into messages between lifelines, top to bottom in the order written.",
+    "effect": "No layout engine: participants run left to right in order of mention. Notes and `loop`, `alt`, `opt`, `par` blocks are drawn around the messages.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "bus",
+    "title": "Merged links",
+    "group": "Automatic",
+    "does": "Four or more links to (or from) one node with the same label and style are drawn as one bus with the label once.",
+    "effect": "A trunk at the node, a line running past the sources, a short branch from each, and a dot where a branch joins. Links with different labels stay separate.",
+    "beforeLabel": "different labels",
+    "afterLabel": "same label",
+    "beforeOff": [],
+    "afterOff": []
+  },
+  {
+    "id": "fold",
+    "title": "Folding wide strips",
+    "group": "Automatic",
+    "does": "A diagram wider than about 3.5 times its height is retried as two or three rows, and kept when that is clearly better.",
+    "effect": "Top-level items are split into rows in the order they lie, and the fold is only used when the result has less width and no more crossings, bends or crossed labels.",
+    "beforeLabel": "fold switched off",
+    "afterLabel": "fold on (automatic)",
+    "beforeOff": [
+      "fold"
+    ],
+    "afterOff": []
+  },
+  {
+    "id": "spread",
+    "title": "Spread links",
+    "group": "Automatic",
+    "does": "Links that meet one side of a node are kept apart, and stretches of different links that would run side by side are pulled apart.",
+    "effect": "Arrowheads never touch the line next to them. A short side with many links shares its room out evenly, down to about 7px apart.",
+    "beforeLabel": "spreading off",
+    "afterLabel": "spreading on (automatic)",
+    "beforeOff": [
+      "tidy"
+    ],
+    "afterOff": []
+  }
+]

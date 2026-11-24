@@ -1,0 +1,13 @@
+direction down
+fw: Firewall
+row {
+  lb: Load balancer
+  rp: Reverse proxy
+  bastion: Bastion
+}
+app: App servers
+fw -> lb
+fw -> rp
+fw -> bastion
+lb -> app
+rp -> app

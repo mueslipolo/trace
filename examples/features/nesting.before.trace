@@ -1,0 +1,8 @@
+a: Gateway
+b: Pod web
+c: Pod api
+d: Redis
+e: Postgres
+a -> b -> c
+c -> d
+c -> e

@@ -1,0 +1,5 @@
+customers: Customers
+orders: Orders
+items: Order items
+customers -> orders
+orders -> items

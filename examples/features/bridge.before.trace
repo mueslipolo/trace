@@ -1,0 +1,21 @@
+direction down
+frame dmz "DMZ" [orange] {
+  fw1: Edge firewall
+  row {
+    lb: Load balancer
+    rp: Reverse proxy
+  }
+}
+frame app "app zone" [blue] {
+  fw2: Internal firewall
+  row {
+    web: Web servers
+    api: API servers
+  }
+}
+fw1 -> lb
+fw1 -> rp
+lb -> fw2
+rp -> fw2
+fw2 -> web
+fw2 -> api

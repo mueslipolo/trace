@@ -10,7 +10,8 @@
     "snapshots": "node tools/snapshots.js",
     "build:playground": "node tools/build-playground.js",
     "build:showcase": "node tools/build-showcase.js",
-    "build": "npm run build:playground && npm run build:showcase",
+    "build:features": "node tools/build-features.js",
+    "build": "npm run build:playground && npm run build:showcase && npm run build:features",
     "test": "node --test",
     "build:icons": "node tools/build-icons.js",
     "simplify": "node tools/simplify.js"

@@ -1,0 +1,19 @@
+column {
+  row {
+    frame edge "edge" [orange] {
+      fw: Firewall
+    }
+    frame dmz "DMZ" [orange] {
+      lb: Load balancer
+    }
+  }
+  row {
+    frame app "app zone" [blue] {
+      api: API servers
+    }
+    frame data "data zone" [purple] {
+      db: Postgres
+    }
+  }
+}
+fw -> lb -> api -> db

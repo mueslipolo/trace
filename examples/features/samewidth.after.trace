@@ -1,0 +1,15 @@
+direction down
+frame a "edge" [orange] {
+  fw: Firewall
+}
+frame b "application servers and workers" [blue] {
+  app: App servers
+  jobs: Background workers
+}
+frame c "data" [purple] {
+  db: Postgres
+}
+fw -> app
+app -> db
+jobs -> db
+same-width a b c

@@ -23,8 +23,11 @@ before changing layout, and `docs/roadmap.md` before picking up work.
   `examples/cases/simple/*.trace` are the same diagrams as you would write them with no layout help,
   generated from the full ones by `npm run simplify` (`tools/simplify.js`); a test fails when they are
   out of date. Together they are the regression suite and the showcase.
+- `examples/features/`: one small before/after pair per language feature (`<id>.before.trace`, `<id>.after.trace`) and the text
+  in `features.json`; `npm run build:features` draws them in `dist/features.html`. A feature can switch an automatic tidy-up off
+  for its "before" (`beforeOff`: `fold`, `merge`, `tidy`), which is what `compile(..., { off: [...] })` does.
 - `playground/template.html`: the live editor page. `playground/showcase-template.html`: the page that draws the cases with their notes. Both get `src/trace.js` inlined by the build.
-- `tools/`: `render.js` (one file to SVG), `snapshots.js` (all examples to `out/`),
+- `tools/`: `build-features.js` (the features page), `render.js` (one file to SVG), `snapshots.js` (all examples to `out/`),
   `build-playground.js`, `build-showcase.js` (to `dist/`), `measure.js` (text widths in Node).
 - `test/examples.test.js`: every example lays out with no errors, no overlapping nodes, and no
   frame covering a node that isn't its own.

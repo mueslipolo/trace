@@ -620,3 +620,24 @@ test('a strip much wider than tall is folded into rows when that is clearly bett
   process.env.TRACE_NOFOLD = '1';
   try { const strip = await compile(src, measure, ELK, {}); assert.ok(strip.rm.width / strip.rm.height > 4, 'a strip without the fold'); } finally { delete process.env.TRACE_NOFOLD; }
 });
+
+test('the engine runs where there is no `process` (the page): nothing outside the guarded env reads it', () => {
+  const src = fs.readFileSync(path.join(root, 'src/trace.js'), 'utf8');
+  const bad = src.split('\n').map((l, i) => [l, i + 1]).filter(([l]) => /\bprocess\./.test(l) && !/typeof process/.test(l));
+  assert.deepStrictEqual(bad.filter(([l]) => !/const (env|DEBUG) = /.test(l)).map(([l, i]) => i + ': ' + l.trim()), []);
+});
+
+test('every feature example draws, before and after, and the features page has a card for each', async () => {
+  const { execFileSync } = require('child_process');
+  const meta = JSON.parse(fs.readFileSync(path.join(root, 'examples/features/features.json'), 'utf8'));
+  for (const f of meta) {
+    for (const [k, off] of [['before', f.beforeOff], ['after', f.afterOff]]) {
+      const res = await compile(fs.readFileSync(path.join(root, 'examples/features', `${f.id}.${k}.trace`), 'utf8'), measure, ELK, { off });
+      assert.deepStrictEqual(res.errors, [], `${f.id} ${k}`);
+      assert.ok(res.rm, `${f.id} ${k} draws`);
+    }
+  }
+  execFileSync('node', [path.join(root, 'tools/build-features.js')], { stdio: 'pipe' });
+  const html = fs.readFileSync(path.join(root, 'dist/features.html'), 'utf8');
+  assert.strictEqual((html.match(/<details class="case" id="/g) || []).length, meta.length);
+});

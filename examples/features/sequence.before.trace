@@ -1,0 +1,7 @@
+client: Client
+api: API
+db [database]: Postgres
+client -> api : POST /jobs
+api -> db : insert job
+db -> api : ok
+api -> client : 202 accepted

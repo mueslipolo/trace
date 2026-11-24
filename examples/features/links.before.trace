@@ -1,0 +1,10 @@
+a: Client
+b: API
+c: Cache
+d: Queue
+e: Worker
+a -> b
+b -> c
+b -> d
+d -> e
+e -> b

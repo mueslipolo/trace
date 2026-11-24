@@ -1,0 +1,49 @@
+title "Kubernetes ingress, service mesh and egress"
+
+pill client [user]: Clients
+clb [loadbalancer]: Cloud load balancer | L4, public IP
+
+frame cluster "cluster prod-eu-1" [blue] {
+  frame ingressns "namespace ingress" [grey] {
+    ingress [span route]: Ingress controller | nginx, cert-manager TLS
+  }
+  frame shop "namespace shop" [green] {
+    column "services" {
+      svcweb: svc/web
+      svccart: svc/cart
+      svccat: svc/catalog
+    }
+    column "pods, envoy sidecar" {
+      podweb [container]: web × 3
+      podcart [container]: cart × 2
+      podcat [container]: catalog × 2
+    }
+  }
+  frame datans "namespace data" [purple] {
+    column {
+      store redis [cache]: Redis
+      store pg [database]: Postgres operator | 3 replicas
+    }
+  }
+  frame egressns "namespace egress" [orange] {
+    egw [log-out]: Egress gateway | allow-list
+  }
+}
+column "outside" {
+  engine stripe [credit-card]: Stripe API
+  engine smtp [mail]: SMTP relay
+}
+
+client -> clb : 443/tcp
+clb -> ingress : 443, NodePort 30443
+ingress -> svcweb : / 8080/tcp
+ingress -> svccart : /cart 8080/tcp
+ingress -> svccat : /api/catalog 8080/tcp
+svcweb -> podweb : 8080 mTLS
+svccart -> podcart : 8080 mTLS
+svccat -> podcat : 8080 mTLS
+podcart -> redis : 6379/tcp
+podcat -> pg : 5432/tcp
+podcart -> egw [dashed] : 15443 mesh egress
+egw -> stripe : 443/tcp only
+egw -> smtp : 587/tcp STARTTLS

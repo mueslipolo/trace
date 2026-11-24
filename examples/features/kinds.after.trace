@@ -1,0 +1,10 @@
+pill u: Customer
+s: Order service
+store d: Orders DB
+engine e: Payment provider
+ask q: In stock?
+start a:
+final z: Done
+u -> s -> d
+s -> e
+s -> q -> z

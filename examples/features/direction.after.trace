@@ -1,0 +1,9 @@
+direction down
+title "Request path"
+user [user]: Browser
+cdn [cloud]: CDN
+lb [loadbalancer]: Load balancer
+web [server]: Web tier
+app [api]: App tier
+db [database]: Database
+user -> cdn -> lb -> web -> app -> db

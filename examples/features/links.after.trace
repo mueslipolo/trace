@@ -1,0 +1,10 @@
+a: Client
+b: API
+c: Cache
+d: Queue
+e: Worker
+a -> b : HTTPS 443
+b <-> c : 6379, read through
+b --> d : enqueue [dashed]
+d -> e : consume [ok]
+e -> b [bad] : callback failed

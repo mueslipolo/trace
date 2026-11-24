@@ -1,0 +1,14 @@
+title "One label"
+idp [key]: Identity provider
+a [globe]: Web
+b [smartphone]: Mobile
+c [package]: Orders
+d [credit-card]: Billing
+e [truck]: Shipping
+f [bell]: Notify
+a -> idp : validate token
+b -> idp : validate token
+c -> idp : validate token
+d -> idp : validate token
+e -> idp : validate token
+f -> idp : validate token

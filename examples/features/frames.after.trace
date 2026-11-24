@@ -1,0 +1,15 @@
+frame web "web tier" [blue] {
+  web1: Web 1
+  web2: Web 2
+}
+frame app "app tier" [green] {
+  app1: App 1
+  app2: App 2
+}
+frame data "data tier" [purple] {
+  db: Database
+}
+web1 -> app1
+web2 -> app2
+app1 -> db
+app2 -> db

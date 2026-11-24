@@ -1,0 +1,10 @@
+u: Customer
+s: Order service
+d: Orders DB
+e: Payment provider
+q: In stock?
+a: Start
+z: Done
+u -> s -> d
+s -> e
+s -> q -> z

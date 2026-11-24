@@ -1,0 +1,10 @@
+a: Primary
+b: Replica
+c [dashed]: Legacy
+d [bad]: Failover
+a -> b
+a -> c [dashed]
+b -> d [bad]
+key box [dashed] : retired
+key box [bad] : failure state
+key -> [dashed] : optional

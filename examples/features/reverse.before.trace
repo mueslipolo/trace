@@ -1,0 +1,6 @@
+client: Client
+api: API
+pg [database]: Postgres
+worker: Worker
+client -> api -> pg
+pg -> worker : claim a job

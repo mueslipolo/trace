@@ -1,0 +1,11 @@
+lb: Load balancer
+column "web servers" {
+  w1: web-01
+  w2: web-02
+  w3: web-03
+  w4: web-04
+}
+lb -> w1
+lb -> w2
+lb -> w3
+lb -> w4

@@ -1,0 +1,16 @@
+direction down
+fw1: Edge firewall
+fw2: Internal firewall
+fw3: DB firewall
+app: App servers
+db: Postgres
+rail logs "management" [right] {
+  siem: SIEM
+}
+fw1 -> app
+app -> fw2
+fw2 -> fw3
+fw3 -> db
+fw1 --> siem
+fw2 --> siem
+fw3 --> siem

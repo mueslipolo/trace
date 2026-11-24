@@ -1,0 +1,14 @@
+frame cloud "cloud region" [grey] {
+  a: Gateway
+  frame cluster "cluster" [blue] {
+    b: Pod web
+    c: Pod api
+  }
+  frame data "managed data" [purple] {
+    d: Redis
+    e: Postgres
+  }
+}
+a -> b -> c
+c -> d
+c -> e

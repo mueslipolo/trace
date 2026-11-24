@@ -1,0 +1,7 @@
+a: Primary
+b: Replica
+c: Legacy
+d: Failover
+a -> b
+a -> c
+b -> d

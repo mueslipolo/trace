@@ -1,0 +1,14 @@
+table customers "Customers" {
+  id uuid pk
+  email text unique
+}
+table orders "Orders" {
+  id uuid pk
+  customer_id uuid fk
+}
+table items "Order items" {
+  order_id uuid pk fk
+  qty int
+}
+orders.customer_id -> customers.id [n-1] : placed by
+items.order_id -> orders.id [n-1] : part of

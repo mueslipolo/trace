@@ -1,0 +1,14 @@
+title "Eight different labels"
+idp [key]: Identity provider
+a [globe]: Web
+b [smartphone]: Mobile
+c [package]: Orders
+d [credit-card]: Billing
+e [truck]: Shipping
+f [bell]: Notify
+a -> idp : login
+b -> idp : refresh
+c -> idp : validate orders
+d -> idp : validate billing
+e -> idp : validate shipping
+f -> idp : validate notify

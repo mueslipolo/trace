@@ -1,0 +1,9 @@
+web1: Web 1
+web2: Web 2
+app1: App 1
+app2: App 2
+db: Database
+web1 -> app1
+web2 -> app2
+app1 -> db
+app2 -> db

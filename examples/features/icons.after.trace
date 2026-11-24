@@ -1,0 +1,7 @@
+direction down
+pill user [user]: Internet users
+fw [firewall]: Firewall | stateful
+lb [loadbalancer]: Load balancer
+web [server]: Web servers
+store db [database]: Postgres
+user -> fw -> lb -> web -> db

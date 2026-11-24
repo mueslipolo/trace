@@ -1149,15 +1149,17 @@ function spreadEnds(rm, gap0 = 22) {
 
 // The tidy-up runs on the layout that was chosen, after the choice: it changes the number of points in a
 // link without changing how it looks, and the choice is made on those counts.
-async function layout(model, measure, ELK) {
+// opts.off lists the automatic tidy-ups to leave out (for showing what they do): 'fold', 'merge', 'tidy'
+async function layout(model, measure, ELK, opts) {
   const env = (typeof process !== 'undefined' && process.env) || {};
-  const finish = rm => { clearFrames(rm); alignJogs(rm); simplifySnakes(rm); mergeHubs(rm); separateParallels(rm); spreadEnds(rm); placeLabels(rm, measure); return rm; };
+  const off = new Set((opts && opts.off) || []);
+  const finish = rm => { clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); if (!off.has('tidy')) { separateParallels(rm); spreadEnds(rm); } placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
   // two or three rows (items above each other stay one column). Kept only when the finished drawing is
   // clearly better: less width, and no more tangle.
-  if (!env.TRACE_NOFOLD && rm.width / rm.height > 3.5 && model.frames.size) {
+  if (!env.TRACE_NOFOLD && !off.has('fold') && rm.width / rm.height > 3.5 && model.frames.size) {
     const fold = await foldCandidate(model, rm, run);
     if (fold) return fold;
     rm = await run();      // the model holds the last try: draw the strip again
@@ -1226,7 +1228,9 @@ async function chooseLayout(model, measure, ELK) {
     // folding into rows is only tried for a strip much wider than it is tall
     if (m === 'hierwrap' && !(tried.length && tried[0].rm.width / tried[0].rm.height > 4 && !env.TRACE_NOWRAP)) continue;
     for (const cyc of cycles) {
-      const rm = await layoutOnce(model, measure, ELK, modes[m][0], modes[m][1], modes[m][2], cyc);
+      // ELK itself throws on a few combinations (fixed table ports with MODEL_ORDER cycle breaking): that way of placing is skipped
+      let rm = null;
+      try { rm = await layoutOnce(model, measure, ELK, modes[m][0], modes[m][1], modes[m][2], cyc); } catch (err) { if (cyc === undefined && m === 'compound') throw err; if (env.TRACE_DEBUG) console.error(m, cyc || '', 'THREW', err.message); }
       last = m + '|' + (cyc || '');
       if (!rm) continue;
       if (m !== 'compound' && !valid(rm)) { if (env.TRACE_DEBUG) console.error(m, cyc || '', 'INVALID'); continue; }
@@ -1278,6 +1282,7 @@ function labelHits(rm) {
 // Try the rows of a folded layout on a model whose top level is in `best.rm` (laid out as a strip). The model
 // is changed while trying and put back when the fold does not win; when it wins the model keeps its rows.
 async function foldCandidate(model, rm, choose) {
+  const DEBUG = typeof process !== 'undefined' && process.env && process.env.TRACE_DEBUG;
   const root = model.root;
   const cost = (r, bends) => bends + 160 * (1 - Math.min(1, 1100 / r.width));
   const bendsOf = r => r.edges.reduce((t, e) => t + Math.max(0, e.pts.length - 2), 0);
@@ -1332,10 +1337,10 @@ async function foldCandidate(model, rm, choose) {
     root.items = [outer, ...root.items.filter(it => it.type === 'rail')];
     outer.parent = root;
     let r2 = null;
-    try { r2 = await choose(); } catch (err) { if (process.env.TRACE_DEBUG) console.error('fold', rows, 'failed:', err.message); }
+    try { r2 = await choose(); } catch (err) { if (DEBUG) console.error('fold', rows, 'failed:', err.message); }
     if (!r2) continue;
     const c2 = cost(r2, bendsOf(r2));
-    if (process.env.TRACE_DEBUG) console.error('fold', rows, Math.round(r2.width) + 'x' + Math.round(r2.height), 'cost', c2.toFixed(1), 'vs', best.cost.toFixed(1));
+    if (DEBUG) console.error('fold', rows, Math.round(r2.width) + 'x' + Math.round(r2.height), 'cost', c2.toFixed(1), 'vs', best.cost.toFixed(1));
     // a fold may not trade the width for a tangle: no more crossings and no more than 15% more bends than the strip
     const worse = crossingsOf(r2) > crossingsOf(best.rm) || bendsOf(r2) > bendsOf(best.rm) * 1.15 + 2 || labelHits(r2) > labelHits(best.rm);
     if (!worse && c2 < best.cost * 0.92 && (!winner || c2 < winner.cost)) winner = { cost: c2, rows };
@@ -3025,7 +3030,7 @@ async function compile(src, measure, ELK, opts) {
   if (!model.nodes.size) return { model, errors: [], empty: true };
   for (const k of model.keys) k._tw = measure(k.text, FONT_NOTE);
   const iconsFailed = await loadIcons(model, opts && opts.loadIcon);
-  const rm = model.mode === 'sequence' ? await layoutSequence(model, measure) : await layout(model, measure, ELK);
+  const rm = model.mode === 'sequence' ? await layoutSequence(model, measure) : await layout(model, measure, ELK, opts);
   return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || [])], svg: render(rm, opts), standalone: theme => render(rm, { ...opts, standalone: true, theme: typeof theme === 'string' ? theme : null }) };
 }
 
