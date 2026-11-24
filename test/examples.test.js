@@ -514,3 +514,15 @@ test('a label moves off a link that crosses it, and may wrap to two lines to fit
   const wide = await compile(['direction down', 'a: A', 'b: B', 'a -> b : 8443/tcp admins only', 'a -> b [dashed] : second'].join('\n'), measure, ELK, {});
   assert.deepStrictEqual(wide.errors, []);
 });
+
+test('the showcase page has a collapsible section per case, with collapse and expand buttons', () => {
+  const { execFileSync } = require('child_process');
+  execFileSync('node', [path.join(root, 'tools/build-showcase.js')], { stdio: 'pipe' });
+  const html = fs.readFileSync(path.join(root, 'dist/showcase.html'), 'utf8');
+  const cases = JSON.parse(fs.readFileSync(path.join(root, 'examples/cases/cases.json'), 'utf8'));
+  assert.strictEqual((html.match(/<details class="case" id="/g) || []).length, cases.length);
+  for (const c of cases) assert.match(html, new RegExp(`<details class="case" id="${c.id}" open>\\s*<summary class="case-head">`));
+  assert.match(html, /id="collapse-all"/);
+  assert.match(html, /id="expand-all"/);
+  assert.match(html, /function openFromHash/);
+});

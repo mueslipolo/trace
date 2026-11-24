@@ -38,8 +38,17 @@ h1 { font-size: 1.6rem; margin: 0 0 6px; letter-spacing: -0.01em; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); flex: none; }
 .seg button { border: 0; background: transparent; height: 32px; padding: 0 12px; font: inherit; font-size: 0.8125rem; color: var(--muted); cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--bg); color: var(--fg); font-weight: 600; }
-.case { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin-top: 22px; padding: 18px 20px 14px; }
-.case-head { display: flex; gap: 14px; align-items: baseline; }
+.case { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin-top: 22px; padding: 0 20px; }
+.case[open] { padding-bottom: 14px; }
+.case-head { display: flex; gap: 14px; align-items: baseline; cursor: pointer; list-style: none; padding: 16px 0 14px; }
+.case:not([open]) .case-head { padding-bottom: 16px; }
+.case-head::-webkit-details-marker { display: none; }
+.case-head::marker { content: ''; }
+.chev { margin-left: auto; align-self: center; width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .15s; flex: none; margin-right: 4px; }
+.case[open] .chev { transform: rotate(-135deg); }
+.case-head:hover h2 { color: var(--accent); }
+.case-body { padding-top: 2px; }
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
 .num { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; font-size: 0.9rem; flex: none; }
 .case h2 { margin: 0; font-size: 1.15rem; }
 .context { margin: 4px 0 0; color: var(--muted); max-width: 90ch; font-size: 0.925rem; }
@@ -74,6 +83,10 @@ body.fit .canvas.tr svg { width: 100%; height: auto; }
       <button data-size="fit" aria-pressed="true">Fit width</button>
       <button data-size="actual" aria-pressed="false">Actual size</button>
     </span>
+    <span class="seg" role="group" aria-label="Show or hide the cases">
+      <button id="collapse-all" type="button">Collapse all</button>
+      <button id="expand-all" type="button">Expand all</button>
+    </span>
   </div>
 @@CARDS@@
 </main>
@@ -97,6 +110,16 @@ body.fit .canvas.tr svg { width: 100%; height: auto; }
     if (v === undefined) { ctx.font = font; v = ctx.measureText(text).width; cache.set(k, v); }
     return v;
   }
+  // collapse or expand every case; a link to a case (the table of contents, or a URL ending in #id) opens it
+  const cases = () => [...document.querySelectorAll('details.case')];
+  document.getElementById('collapse-all').addEventListener('click', () => cases().forEach(d => { d.open = false; }));
+  document.getElementById('expand-all').addEventListener('click', () => cases().forEach(d => { d.open = true; }));
+  function openFromHash() {
+    const el = location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+    if (el && el.tagName === 'DETAILS') { el.open = true; el.scrollIntoView(); }
+  }
+  window.addEventListener('hashchange', openFromHash);
+  openFromHash();
   document.querySelectorAll('button[data-size]').forEach(b => b.addEventListener('click', () => {
     document.body.classList.toggle('fit', b.dataset.size === 'fit');
     document.querySelectorAll('button[data-size]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));

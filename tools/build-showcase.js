@@ -16,31 +16,32 @@ const LABELS = { icons: ['icon', 'icons'], span: ['span node', 'span nodes'], br
 const adds = st => Object.entries(st).filter(([, v]) => v).map(([k, v]) => `${v} ${LABELS[k][v === 1 ? 0 : 1]}`).join(', ') || 'nothing: this diagram is already fine on its own';
 const nav = cases.map(c => `<li><a href="#${c.id}">${esc(c.title)}</a></li>`).join('');
 const cards = cases.map((c, i) => `
-<section class="case" id="${c.id}" aria-labelledby="h-${c.id}">
-  <header class="case-head">
+<details class="case" id="${c.id}" open>
+  <summary class="case-head">
     <span class="num">${String(i + 1).padStart(2, '0')}</span>
-    <div>
-      <h2 id="h-${c.id}">${esc(c.title)}</h2>
-      <p class="context">${esc(c.context)}</p>
+    <h2>${esc(c.title)}</h2>
+    <span class="chev" aria-hidden="true"></span>
+  </summary>
+  <div class="case-body">
+    <p class="context">${esc(c.context)}</p>
+    <div class="pair">
+      <figure class="panel">
+        <figcaption><b>Simple</b>: nodes, links and frames, automatic layout</figcaption>
+        <div class="canvas tr dgw" data-case="${i}" data-variant="simple"><div class="wait">Drawing…</div></div>
+        <details class="src"><summary>Source</summary><div class="src-grid"><pre>${esc(c.simple)}</pre></div></details>
+      </figure>
+      <figure class="panel">
+        <figcaption><b>Full</b>: adds ${esc(adds(c.stats))}</figcaption>
+        <div class="canvas tr dgw" data-case="${i}" data-variant="trace"><div class="wait">Drawing…</div></div>
+        <details class="src"><summary>Source</summary><div class="src-grid"><pre>${esc(c.trace)}</pre></div></details>
+      </figure>
     </div>
-  </header>
-  <div class="pair">
-    <figure class="panel">
-      <figcaption><b>Simple</b>: nodes, links and frames, automatic layout</figcaption>
-      <div class="canvas tr dgw" data-case="${i}" data-variant="simple"><div class="wait">Drawing…</div></div>
-      <details class="src"><summary>Source</summary><div class="src-grid"><pre>${esc(c.simple)}</pre></div></details>
-    </figure>
-    <figure class="panel">
-      <figcaption><b>Full</b>: adds ${esc(adds(c.stats))}</figcaption>
-      <div class="canvas tr dgw" data-case="${i}" data-variant="trace"><div class="wait">Drawing…</div></div>
-      <details class="src"><summary>Source</summary><div class="src-grid"><pre>${esc(c.trace)}</pre></div></details>
-    </figure>
+    <div class="notes">
+      <p><b>What the full version uses.</b> ${esc(c.uses)}</p>
+      <p><b>Still missing.</b> ${esc(c.gap)}</p>
+    </div>
   </div>
-  <div class="notes">
-    <p><b>What the full version uses.</b> ${esc(c.uses)}</p>
-    <p><b>Still missing.</b> ${esc(c.gap)}</p>
-  </div>
-</section>`).join('');
+</details>`).join('');
 let page = fs.readFileSync(path.join(root, 'playground/showcase-template.html'), 'utf8');
 page = page
   .replace('@@NAV@@', () => nav)
