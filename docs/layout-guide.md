@@ -68,6 +68,10 @@ A `row` or `column` that holds frames places them side by side or one above the 
 you write them. Use it when you want something the flow would not give you: two zones next to each
 other (a grid), or a particular order.
 
+- To **centre** things over what they feed (two sources either side of the first node, say), put them
+  and the thing they feed in a `column` block. A column centres its children on each other; without
+  it the layout may let one source drop straight and shift the other, since either is equally short
+  for it. The price is a bend in each link where the sources are further apart than the node.
 - A block that repeats what the flow already does (a `column` of zones in a top-down diagram) adds
   nothing and can make the result worse. Take it out and compare.
 - Links that cross between blocks pay for it: the app zone beside the DMZ instead of below it turned
@@ -116,7 +120,8 @@ Fix: put those two zones one after the other along the flow instead.
 | Top-down, app and data side by side, stacks as rows | 1,602 x 1,080 | 56 |
 | Top-down, stacks as rows, one column of zones (layout block) | 786 x 1,282 | 54 |
 | The same without the layout block around the zones | 786 x 1,168 | 25 |
+| Sources centred over the first zone (a column block holding them and that zone) | 795 x 1,220 | 44 |
 
-The last version is the plain top-down diagram with rows inside the zones, icons, `[bridge]` and
-`[span]`. It is also the best looking one. (The plain version has fewer bends but its firewalls are
+The last two versions are the plain top-down diagram with rows inside the zones, icons, `[bridge]` and
+`[span]`, the last with the sources centred. They are the best looking. (The plain version has fewer bends but its firewalls are
 ordinary boxes inside the zones, and its nodes are stacked along the flow.)

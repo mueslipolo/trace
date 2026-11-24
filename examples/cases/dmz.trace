@@ -1,14 +1,15 @@
 direction down
 title "Three-tier network behind a DMZ"
 
-row {
-  pill users [user]: Internet users
-  pill partners [handshake]: Partner APIs
-}
-
-frame edge "edge, provider managed" [grey] {
-  ddos [shield]: DDoS scrubbing
-  cdn [cloud]: CDN + WAF | TLS termination, bot rules
+column {
+  row {
+    pill users [user]: Internet users
+    pill partners [handshake]: Partner APIs
+  }
+  frame edge "edge, provider managed" [grey] {
+    ddos [shield]: DDoS scrubbing
+    cdn [cloud]: CDN + WAF | TLS termination, bot rules
+  }
 }
 frame dmz "DMZ, 10.0.1.0/24" [orange] {
   fw1 [bridge span firewall]: Edge firewall | stateful, geo-block

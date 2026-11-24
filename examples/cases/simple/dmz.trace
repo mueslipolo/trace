@@ -3,7 +3,6 @@ title "Three-tier network behind a DMZ"
 
 pill users: Internet users
 pill partners: Partner APIs
-
 frame edge "edge, provider managed" [grey] {
   ddos: DDoS scrubbing
   cdn: CDN + WAF | TLS termination, bot rules
