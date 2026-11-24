@@ -48,6 +48,6 @@ fw3 -> redis : 6379/tcp
 pgp -> pgr : 5432, streaming replication
 
 key frame [orange] : DMZ
-fw1 -> siem [dashed muted] : 514/udp
-fw2 -> siem [dashed muted] : 514/udp
-fw3 -> siem [dashed muted] : 514/udp
+fw1 -> siem [dashed] : 514/udp
+fw2 -> siem [dashed] : 514/udp
+fw3 -> siem [dashed] : 514/udp

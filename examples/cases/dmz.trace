@@ -61,6 +61,6 @@ pgp -> pgr : 5432, streaming replication
 
 key frame [orange] : DMZ
 key box : firewall on a zone border
-fw1 -> logs [dashed muted] : 514/udp
-fw2 -> logs [dashed muted] : 514/udp
-fw3 -> logs [dashed muted] : 514/udp
+fw1 -> logs [dashed] : 514/udp
+fw2 -> logs [dashed] : 514/udp
+fw3 -> logs [dashed] : 514/udp

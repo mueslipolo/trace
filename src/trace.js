@@ -1415,9 +1415,11 @@ function placeRails(rm, model, flowH) {
         ? (Math.abs(v - f.x) < 7 || Math.abs(v - f.x - f.w) < 7) && o.y < f.y + f.h && f.y < o.y + o.h + 200
         : (Math.abs(v - f.y) < 7 || Math.abs(v - f.y - f.h) < 7) && o.x < f.x + f.w && f.x < o.x + o.w + 200);
       if (nearBorder(c)) {
+        // the place on the node farthest from every border (6px in from its edge at most)
         const lo = (horiz ? o.x : o.y) + 6, hi = (horiz ? o.x + o.w : o.y + o.h) - 6, span = hi - lo;
-        const pick = [c - span / 4, c + span / 4, c - span / 3, c + span / 3].find(v => v >= lo && v <= hi && !nearBorder(v));
-        if (pick !== undefined) c = pick;
+        const dist = v => Math.min(Infinity, ...rm.frames.flatMap(f => horiz ? [Math.abs(v - f.x), Math.abs(v - f.x - f.w)] : [Math.abs(v - f.y), Math.abs(v - f.y - f.h)]));
+        const options = [lo, hi, c - span / 3, c + span / 3, c - span / 4, c + span / 4].filter(v => v >= lo && v <= hi && !nearBorder(v));
+        if (options.length) c = options.reduce((best, v) => dist(v) > dist(best) ? v : best);
       }
       const edge = side === 'bottom' ? o.y + o.h : side === 'top' ? o.y : side === 'right' ? o.x + o.w : o.x;
       const nodePt = horiz ? { x: c, y: edge } : { x: edge, y: c };
