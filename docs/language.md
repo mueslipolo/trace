@@ -91,7 +91,9 @@ a -> b -> c            # chains; a label applies to every link of the chain
 | `<->` | arrowheads at both ends |
 | `--` | no arrowhead |
 
-`<-` is the main layout tool: `pg <- worker` keeps the worker on the far side of Postgres while the
+You can write a link either way round: when a link points back against the order you declared the
+nodes in, the layout treats it as a feedback link and keeps the main flow straight. `<-` is for when
+you want to say so yourself, and is the main layout tool: `pg <- worker` keeps the worker on the far side of Postgres while the
 arrow points at Postgres; `fw <- proxy` sends traffic back up without the layout turning around.
 
 Link tags: `ok`, `bad`, `muted` (colour), `dashed`.

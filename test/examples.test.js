@@ -176,3 +176,13 @@ test('simple cases use none of the advanced commands', () => {
     assert.doesNotMatch(src, /\[[^\]]*\b(span|bridge|top)\b[^\]]*\]/, f + ': no span, bridge or top');
   }
 });
+
+test('links written against the order of the nodes are laid out sensibly without <-', async () => {
+  const src = fs.readFileSync(path.join(root, 'examples/cases/simple/office.trace'), 'utf8');
+  const bends = r => r.rm.edges.reduce((t, e) => t + Math.max(0, e.pts.length - 2), 0);
+  const withCycle = await compile(src, measure, ELK, {});
+  process.env.TRACE_NOCYCLE = '1';
+  let without;
+  try { without = await compile(src, measure, ELK, {}); } finally { delete process.env.TRACE_NOCYCLE; }
+  assert.ok(bends(withCycle) < bends(without) * 0.8, `fewer bends when cycles are broken by declaration order (${bends(withCycle)} against ${bends(without)})`);
+});

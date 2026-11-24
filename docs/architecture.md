@@ -61,7 +61,13 @@ must beat the best so far by 3% (8% for folding, whose long return links are a r
 tie keeps the simpler layout. A candidate is also rejected if any link does not start at its source and
 end at its target: ELK's wrapping cuts some labelled links short.
 
-`TRACE_LAYOUT=hier|flat|compound` forces one mode; `TRACE_NOWRAP=1` turns folding off. Today per-frame or flat wins for every example that has frames except the ones where compound has
+When some link points against the declaration order (`a -> b` with `b` declared before `a`), that makes
+a cycle, and ELK's default breaks it wherever it likes. Every layout is then also tried with
+`cycleBreaking: MODEL_ORDER`, which reverses exactly those links; that is what `<-` asks for by hand.
+It has to win by the same 3% margin. A diagram without such a link is laid out once, as before.
+
+`TRACE_LAYOUT=hier|flat|compound` forces one mode; `TRACE_NOWRAP=1` turns folding off;
+`TRACE_NOCYCLE=1` skips the declaration-order variant. Today per-frame or flat wins for every example that has frames except the ones where compound has
 fewer bends.
 
 ## 4. Post-processing (in this order)

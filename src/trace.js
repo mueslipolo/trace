@@ -396,26 +396,35 @@ async function layout(model, measure, ELK) {
   let last = null;
   // cost: link bends, plus how small the text gets when the drawing is fitted to a page 1100px wide
   const cost = (rm, bends) => bends + 160 * (1 - Math.min(1, 1100 / rm.width));
+  // A link written against the order of the nodes (a -> b, with b above a) makes a cycle. ELK can break
+  // cycles by declaration order, which is what `<-` asks for by hand: when such a link exists, every
+  // layout is also tried that way (it has to win by a margin, so a fine diagram keeps its layout).
+  const order = [...model.nodes.keys()];
+  const hasBack = model.edges.some(e => e.a !== e.b && order.indexOf(e.a) > order.indexOf(e.b));
+  const cycles = hasBack && !env.TRACE_NOCYCLE ? [undefined, 'MODEL_ORDER'] : [undefined];
   // without frames the three ways are the same layout, so only the plain one is tried
   for (const m of model.frames.size ? ['hier', 'hierwrap', 'flat', 'compound'] : ['compound', 'hierwrap']) {
     // folding into rows is only tried for a strip much wider than it is tall
     if (m === 'hierwrap' && !(tried.length && tried[0].rm.width / tried[0].rm.height > 4 && !env.TRACE_NOWRAP)) continue;
-    const rm = await layoutOnce(model, measure, ELK, modes[m][0], modes[m][1], modes[m][2]);
-    last = m;
-    if (!rm) continue;
-    if (m !== 'compound' && !valid(rm)) { if (env.TRACE_DEBUG) console.error(m, 'INVALID'); continue; }
-    const bends = rm.edges.reduce((t, e) => t + Math.max(0, e.pts.length - 2), 0);
-    tried.push({ m, rm, bends, cost: cost(rm, bends) }); if (env.TRACE_DEBUG) console.error(m, Math.round(rm.width) + 'x' + Math.round(rm.height), 'bends', bends, 'cost', cost(rm, bends).toFixed(1));
+    for (const cyc of cycles) {
+      const rm = await layoutOnce(model, measure, ELK, modes[m][0], modes[m][1], modes[m][2], cyc);
+      last = m + '|' + (cyc || '');
+      if (!rm) continue;
+      if (m !== 'compound' && !valid(rm)) { if (env.TRACE_DEBUG) console.error(m, cyc || '', 'INVALID'); continue; }
+      const bends = rm.edges.reduce((t, e) => t + Math.max(0, e.pts.length - 2), 0);
+      tried.push({ m, cyc, id: m + '|' + (cyc || ''), rm, bends, cost: cost(rm, bends) });
+      if (env.TRACE_DEBUG) console.error(m, cyc || '', Math.round(rm.width) + 'x' + Math.round(rm.height), 'bends', bends, 'cost', cost(rm, bends).toFixed(1));
+    }
   }
   let best = tried[0];
   // a later candidate has to win by a margin (3%, 8% for folding: its long return links are a real cost),
   // so a near tie keeps the earlier, simpler layout
   for (const c of tried.slice(1)) if (c.cost < best.cost * (c.m === 'hierwrap' ? 0.92 : 0.97)) best = c;
   // the model carries the state of the last run, so run the winner again if it was not last
-  return best.m === last ? best.rm : layoutOnce(model, measure, ELK, modes[best.m][0], modes[best.m][1], modes[best.m][2]);
+  return best.id === last ? best.rm : layoutOnce(model, measure, ELK, modes[best.m][0], modes[best.m][1], modes[best.m][2], best.cyc);
 }
 
-async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP) {
+async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC) {
   const S = model.spacing;
   if (HIER && (model.edges.some(e => model.frames.has(e.a) || model.frames.has(e.b)))) return null;
   const flowH = model.direction === 'RIGHT';
@@ -667,6 +676,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP) {
       'elk.layered.edgeLabels.sideSelection': 'ALWAYS_UP',
       'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
       'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+      ...(CYC ? { 'elk.layered.cycleBreaking.strategy': CYC } : {}),
       'elk.layered.thoroughness': '30',
       'elk.layered.unnecessaryBendpoints': 'true',
     },
@@ -798,6 +808,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP) {
       'elk.spacing.edgeLabel': '4', 'elk.layered.edgeLabels.sideSelection': 'ALWAYS_UP',
       'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
       'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+      ...(CYC ? { 'elk.layered.cycleBreaking.strategy': CYC } : {}),
       'elk.layered.thoroughness': '30', 'elk.layered.unnecessaryBendpoints': 'true',
     });
     // a port on frame T where link e reaches member m: a straight, unobstructed line to m
