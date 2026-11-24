@@ -611,3 +611,12 @@ test('links leaving one short side of a node share the room out; stretches of di
   assert.ok(ys.length >= 3);
   for (let i = 1; i < ys.length; i++) assert.ok(ys[i] - ys[i - 1] >= 9.5, `starts ${ys[i] - ys[i - 1]}px apart`);
 });
+
+test('a strip much wider than tall is folded into rows when that is clearly better (k8s case)', async () => {
+  const src = fs.readFileSync(path.join(root, 'examples/cases/k8s.trace'), 'utf8');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  assert.ok(res.rm.width / res.rm.height < 3.5, `page-shaped (${Math.round(res.rm.width)}x${Math.round(res.rm.height)})`);
+  process.env.TRACE_NOFOLD = '1';
+  try { const strip = await compile(src, measure, ELK, {}); assert.ok(strip.rm.width / strip.rm.height > 4, 'a strip without the fold'); } finally { delete process.env.TRACE_NOFOLD; }
+});

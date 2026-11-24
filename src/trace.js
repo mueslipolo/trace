@@ -1150,14 +1150,18 @@ function spreadEnds(rm, gap0 = 22) {
 // The tidy-up runs on the layout that was chosen, after the choice: it changes the number of points in a
 // link without changing how it looks, and the choice is made on those counts.
 async function layout(model, measure, ELK) {
-  const rm = await chooseLayout(model, measure, ELK);
-  clearFrames(rm);
-  alignJogs(rm);
-  simplifySnakes(rm);
-  mergeHubs(rm);
-  separateParallels(rm);
-  spreadEnds(rm);
-  placeLabels(rm, measure);
+  const env = (typeof process !== 'undefined' && process.env) || {};
+  const finish = rm => { clearFrames(rm); alignJogs(rm); simplifySnakes(rm); mergeHubs(rm); separateParallels(rm); spreadEnds(rm); placeLabels(rm, measure); return rm; };
+  const run = async () => finish(await chooseLayout(model, measure, ELK));
+  let rm = await run();
+  // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
+  // two or three rows (items above each other stay one column). Kept only when the finished drawing is
+  // clearly better: less width, and no more tangle.
+  if (!env.TRACE_NOFOLD && rm.width / rm.height > 3.5 && model.frames.size) {
+    const fold = await foldCandidate(model, rm, run);
+    if (fold) return fold;
+    rm = await run();      // the model holds the last try: draw the strip again
+  }
   return rm;
 }
 
@@ -1237,6 +1241,113 @@ async function chooseLayout(model, measure, ELK) {
   for (const c of tried.slice(1)) if (c.cost < best.cost * (c.m === 'hierwrap' ? 0.92 : 0.97)) best = c;
   // the model carries the state of the last run, so run the winner again if it was not last
   return best.id === last ? best.rm : layoutOnce(model, measure, ELK, modes[best.m][0], modes[best.m][1], modes[best.m][2], best.cyc);
+}
+
+// Crossings between links that do not share a node.
+function crossingsOf(rm) {
+  const segs = rm.edges.map(({ pts }) => (pts || []).slice(1).map((p, i) => [pts[i], p]));
+  const o = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const X = (a, b, c, d) => o(a, b, c) * o(a, b, d) < -1e-6 && o(c, d, a) * o(c, d, b) < -1e-6;
+  let n = 0;
+  for (let i = 0; i < rm.edges.length; i++) for (let j = i + 1; j < rm.edges.length; j++) {
+    const a = rm.edges[i].e, b = rm.edges[j].e;
+    if (a.a === b.a || a.a === b.b || a.b === b.a || a.b === b.b) continue;
+    for (const s of segs[i]) for (const t of segs[j]) if (X(s[0], s[1], t[0], t[1])) n++;
+  }
+  return n;
+}
+
+// Link labels with another link running through them (after the labels are placed).
+function labelHits(rm) {
+  let n = 0;
+  for (const r of rm.edges) {
+    if (!r.lab || !r.e.lab) continue;
+    const w = r.e.lab.w, h = r.e.lab.h;
+    const x0 = r.lab.anchor === 'middle' ? r.lab.x - w / 2 : r.lab.anchor === 'end' ? r.lab.x - w : r.lab.x;
+    for (const o of rm.edges) {
+      if (o === r || !o.pts) continue;
+      for (let i = 1; i < o.pts.length; i++) {
+        const a = o.pts[i - 1], b = o.pts[i];
+        if (Math.min(a.x, b.x) < x0 + w && x0 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < r.lab.y + h && r.lab.y < Math.max(a.y, b.y)) { n++; break; }
+      }
+    }
+  }
+  return n;
+}
+
+// Try the rows of a folded layout on a model whose top level is in `best.rm` (laid out as a strip). The model
+// is changed while trying and put back when the fold does not win; when it wins the model keeps its rows.
+async function foldCandidate(model, rm, choose) {
+  const root = model.root;
+  const cost = (r, bends) => bends + 160 * (1 - Math.min(1, 1100 / r.width));
+  const bendsOf = r => r.edges.reduce((t, e) => t + Math.max(0, e.pts.length - 2), 0);
+  const best = { rm, cost: cost(rm, bendsOf(rm)) };
+  const movable = root.items.filter(it => it.type === 'node' || it.type === 'frame' || it.type === 'group' || it.type === 'lane');
+  if (movable.length < 3 || movable.length !== root.items.filter(it => it.type !== 'rail').length) return null;
+  const boxOf = it => {
+    if (it.type === 'frame') { const f = rm.frames.find(x => x.f === it); return f && { x: f.x, y: f.y, w: f.w, h: f.h }; }
+    if (it.type === 'node' || it.type === 'group') return it.x === undefined ? null : { x: it.x, y: it.y, w: it.w, h: it.h };
+    const bs = [...leafItems(it)].map(boxOf).filter(Boolean);
+    if (!bs.length) return null;
+    const x = Math.min(...bs.map(b => b.x)), y = Math.min(...bs.map(b => b.y));
+    return { x, y, w: Math.max(...bs.map(b => b.x + b.w)) - x, h: Math.max(...bs.map(b => b.y + b.h)) - y };
+  };
+  const boxes = movable.map(it => ({ it, b: boxOf(it) }));
+  if (boxes.some(x => !x.b)) return null;
+  boxes.sort((a, b) => a.b.x - b.b.x);
+  // items that lie above each other (they share most of their x range) form one column
+  const clusters = [];
+  for (const x of boxes) {
+    const c = clusters[clusters.length - 1];
+    if (c && Math.min(c.x2, x.b.x + x.b.w) - Math.max(c.x1, x.b.x) > 0.5 * Math.min(c.x2 - c.x1, x.b.w)) { c.items.push(x); c.x1 = Math.min(c.x1, x.b.x); c.x2 = Math.max(c.x2, x.b.x + x.b.w); }
+    else clusters.push({ items: [x], x1: x.b.x, x2: x.b.x + x.b.w });
+  }
+  if (clusters.length < 2) return null;
+  const saved = { items: root.items.slice(), parents: new Map(), groups: model.groups.slice() };
+  for (const it of movable) saved.parents.set(it, it.parent);
+  const restore = () => { root.items = saved.items; for (const [it, p] of saved.parents) it.parent = p; model.groups = saved.groups; };
+  let n = 0;
+  const lane = (axis, items, parent) => { const l = { type: 'lane', id: '_fold' + (++n), axis, title: '', items, parent, line: 0 }; for (const it of items) it.parent = l; return l; };
+  const wOf = c => c.x2 - c.x1;
+  let winner = null;
+  for (const rows of [2, 3]) {
+    if (clusters.length < rows) break;
+    // split the clusters into `rows` runs of about equal width
+    const total = clusters.reduce((t, c) => t + wOf(c), 0);
+    const runs = [[]];
+    let acc = 0;
+    for (const c of clusters) {
+      if (runs.length < rows && acc >= total * runs.length / rows - wOf(c) / 2 && runs[runs.length - 1].length) runs.push([]);
+      runs[runs.length - 1].push(c); acc += wOf(c);
+    }
+    if (runs.length < rows) continue;
+    restore();
+    const outer = { type: 'lane', id: '_fold0', axis: 'v', title: '', items: [], parent: root, line: 0 };
+    outer.items = runs.map(run => {
+      const kids = run.map(c => c.items.length === 1 ? c.items[0].it : lane('v', c.items.sort((a, b) => a.b.y - b.b.y).map(x => x.it), null));
+      const r = lane('h', kids, outer);
+      for (const k of kids) k.parent = r;
+      return r;
+    });
+    root.items = [outer, ...root.items.filter(it => it.type === 'rail')];
+    outer.parent = root;
+    let r2 = null;
+    try { r2 = await choose(); } catch (err) { if (process.env.TRACE_DEBUG) console.error('fold', rows, 'failed:', err.message); }
+    if (!r2) continue;
+    const c2 = cost(r2, bendsOf(r2));
+    if (process.env.TRACE_DEBUG) console.error('fold', rows, Math.round(r2.width) + 'x' + Math.round(r2.height), 'cost', c2.toFixed(1), 'vs', best.cost.toFixed(1));
+    // a fold may not trade the width for a tangle: no more crossings and no more than 15% more bends than the strip
+    const worse = crossingsOf(r2) > crossingsOf(best.rm) || bendsOf(r2) > bendsOf(best.rm) * 1.15 + 2 || labelHits(r2) > labelHits(best.rm);
+    if (!worse && c2 < best.cost * 0.92 && (!winner || c2 < winner.cost)) winner = { cost: c2, rows };
+  }
+  if (!winner) { restore(); return null; }
+  // build the winning fold again, so the model holds it
+  const runsFor = rows => { const total = clusters.reduce((t, c) => t + wOf(c), 0); const runs = [[]]; let acc = 0; for (const c of clusters) { if (runs.length < rows && acc >= total * runs.length / rows - wOf(c) / 2 && runs[runs.length - 1].length) runs.push([]); runs[runs.length - 1].push(c); acc += wOf(c); } return runs; };
+  restore();
+  const outer = { type: 'lane', id: '_fold0', axis: 'v', title: '', items: [], parent: root, line: 0 };
+  outer.items = runsFor(winner.rows).map(run => { const kids = run.map(c => c.items.length === 1 ? c.items[0].it : lane('v', c.items.map(x => x.it), null)); const r = lane('h', kids, outer); for (const k of kids) k.parent = r; return r; });
+  root.items = [outer, ...root.items.filter(it => it.type === 'rail')];
+  return choose();
 }
 
 async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {

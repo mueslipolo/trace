@@ -113,6 +113,8 @@ column of nodes keep table-level attachment only; a table generated from SQL or 
 - Edge labels in direction down take a whole row; find a placement that sits beside the link.
 - “Call back” links that run backwards into the previous column (k8s: web pods calling svc/cart)
   should loop around the column edge.
+- Done: a strip wider than 3.5:1 is folded into two or three rows when the result is clearly better (less width, no
+  more crossings, at most 15% more bends, no more labels crossed); `foldCandidate`, `TRACE_NOFOLD=1` switches it off.
 - Fan-in to one point (CI “all green?”): optional join/bracket for a column's outgoing links.
 - Done (first version): links that go to or leave one node with the same label and style, four or more, are merged
   into a bus (`mergeHubs`; case `hub`). Branches that cannot run straight to the bus take a free lane of their own. Left: an escape hatch to

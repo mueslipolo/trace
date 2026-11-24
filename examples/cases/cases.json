@@ -130,7 +130,7 @@
     "title": "CQRS with event sourcing",
     "context": "Commands append events to a store, a bus feeds a projector that updates a read model and three side effects; queries read the model.",
     "uses": "Three frames, dashed links, a link written backwards (query to client).",
-    "gap": "A strip 1,600 px wide: the three frames follow the flow in one line, and “orders” returns under everything. A top-down arrangement with the two sides next to each other (rows of frames) would be page-shaped."
+    "gap": "Still a strip 1,600 px wide. The fold was tried (two rows) and rejected: it made the page-shaped version but with long return links (“orders”, “publish”) and more crossings. Writing the two sides as rows of frames by hand is what fixes it; the engine only folds when the result is no more tangled."
   },
   {
     "id": "monorepo",
