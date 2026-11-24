@@ -54,10 +54,19 @@ of the diagram, like a bus. Needed by: the SIEM in the DMZ case (left out for no
 quality checks in the analytics case. Possible syntax: `rail bottom "logs" { siem }` with links
 into a rail routed along it.
 
-## 4. Row alignment across columns
+## 4. Row alignment across columns (done: `align a b`)
 
-`align tPay payment` to keep a topic level with its main consumer; removes most crossings in the
-Kafka case.
+Done: `align tPay payment` pads one stack so the two nodes sit at the same offset, tells ELK to
+straighten the link, and then slides a stack the last few pixels and draws the link as one straight
+line (`alignRows`). One pair per two stacks; a pair that cannot be slid without touching a node or
+link is left alone, with a warning.
+
+Measured on the Kafka case: it does not remove crossings (4 with or without), and it adds bends to the
+other links between the stacks, so the case does not use it. The earlier claim here, that it removes
+most crossings, was wrong. It is for a clear one-to-one pair.
+
+Left: aligning a node that is not in a row or column (the layout only tries to keep the link
+straight); aligning across stacks that are in different frames with a bridge between.
 
 ## 5. Sequence diagrams
 

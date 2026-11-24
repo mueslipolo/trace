@@ -226,3 +226,33 @@ test('single-step links into the same node have their steps at one height', asyn
   assert.ok(steps.length >= 2, 'the outer links need a step');
   assert.ok(steps.every(y => Math.abs(y - steps[0]) <= 1), `the steps are at one height (${steps.join(', ')})`);
 });
+
+test('align puts two nodes in different stacks level and draws the link between them straight', async () => {
+  // two columns of different lengths: without align, b sits at the top and y further down
+  const src = [
+    'column {', '  a: One', '  b: Two', '  c: Three', '}',
+    'column {', '  x: First', '  y: Second', '  z: Third', '  w: Fourth', '}',
+    'a -> x', 'b -> y', 'c -> z', 'c -> w',
+    'align c w',
+  ].join('\n');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const N = new Map(res.rm.nodes.map(n => [n.id, n]));
+  const cy = id => N.get(id).y + N.get(id).h / 2;
+  assert.ok(Math.abs(cy('c') - cy('w')) < 1, `c and w are level (${cy('c')} against ${cy('w')})`);
+  const link = res.rm.edges.find(r => r.e.a === 'c' && r.e.b === 'w');
+  assert.strictEqual(link.pts.length, 2, 'the link between them is a straight line');
+  assert.ok(Math.abs(link.pts[0].y - link.pts[1].y) < 0.5);
+  assert.deepStrictEqual(res.warnings, []);
+});
+
+test('align says what to write when it cannot work', async () => {
+  const err = async s => (await compile(s, measure, ELK, {})).errors.map(e => e.msg).join('|');
+  assert.match(await err('a -> b\nalign a c'), /no node called "c"/);
+  assert.match(await err('a: A\nb: B\nalign a b'), /need one: write a -> b/);
+  assert.match(await err('a -> b\nalign a'), /two or more nodes/);
+  const same = await compile('column {\n  a: A\n  b: B\n}\na -> b\nalign a b', measure, ELK, {});
+  assert.match(same.warnings.join('|'), /already in line/);
+  const loose = await compile('a -> b\nalign a b', measure, ELK, {});
+  assert.match(loose.warnings.join('|'), /only nodes in a row or column/);
+});

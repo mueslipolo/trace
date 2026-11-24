@@ -89,6 +89,11 @@ other (a grid), or a particular order.
 Symptom: long links between two zones that sit in different rows or columns.
 Fix: put those two zones one after the other along the flow instead.
 
+- To keep one pair level across two stacks of different lengths (an order and its invoice, a topic
+  and its main consumer), write `align a b`. The stacks are slid into line on that pair and the link
+  between them is one straight line. It costs a few bends in the other links between the two stacks,
+  and it does not remove crossings, so use it for neatness of a pair, not as a fix for a tangle.
+
 ## 6. Reading a result
 
 | What you see | What it means | Try |

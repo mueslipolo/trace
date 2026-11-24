@@ -139,7 +139,7 @@ function splitLabel(text) {
 function parse(src) {
   const model = {
     direction: 'RIGHT', spacing: 1, title: '',
-    nodes: new Map(), frames: new Map(), groups: [], edges: [], keys: [], errors: [],
+    nodes: new Map(), frames: new Map(), groups: [], edges: [], keys: [], aligns: [], errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
   model.root = root;
@@ -185,6 +185,14 @@ function parse(src) {
       return;
     }
     if ((m = line.match(/^title\s+(.+)$/i))) { model.title = unquote(m[1]); return; }
+    if ((m = line.match(/^align\s+(.+)$/i))) {
+      // align a b [c ...]: keep each pair level, by making the link between them straight
+      const ids = m[1].trim().split(/[\s,]+/).filter(Boolean);
+      if (ids.length < 2) throw new TraceError('align takes two or more nodes that are linked, one after the other: align topic consumer');
+      for (const id of ids) if (!ID_RE.test(id)) throw new TraceError(`"${id}" is not a valid name`);
+      for (let i = 1; i < ids.length; i++) model.aligns.push({ a: ids[i - 1], b: ids[i], line: ln });
+      return;
+    }
     if ((m = line.match(/^key\s+(.*)$/i))) {
       const c = firstColon(m[1]);
       if (c < 0) throw new TraceError('A key line reads: key <shape or arrow> [tags] : text');
@@ -308,6 +316,12 @@ function parse(src) {
   if (stack.length > 1) {
     const open = stack[stack.length - 1];
     model.errors.push({ line: open.line, msg: `This ${open.type === 'frame' ? 'frame' : open.axis === 'v' ? 'column' : 'row'} is never closed with }` });
+  }
+  for (const al of model.aligns) {
+    const missing = [al.a, al.b].find(id => !model.nodes.has(id));
+    if (missing) { model.errors.push({ line: al.line, msg: `align: there is no node called "${missing}"` }); continue; }
+    const linked = model.edges.some(e => (e.a === al.a && e.b === al.b) || (e.a === al.b && e.b === al.a));
+    if (!linked) model.errors.push({ line: al.line, msg: `align ${al.a} ${al.b} keeps the link between them straight, so they need one: write ${al.a} -> ${al.b}` });
   }
   return model;
 }
@@ -465,6 +479,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   model.edges.forEach((e, i) => {
     e.i = i;
     e.stub = undefined;
+    e.align = model.aligns.some(al => (al.a === e.a && al.b === e.b) || (al.a === e.b && al.b === e.a));
     e.lab = sizeLabel(e.label, measure);
     const ga = groupOf(e.a), gb = groupOf(e.b);
     e.intra = !!(ga && ga === gb);
@@ -551,6 +566,29 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     g.ports = [];
   }
 
+  // ---- align a b: pad one stack so the two members sit at the same offset from the top (or left) of
+  // their stacks; with the link between them straightened, the stacks line up on that link
+  model.alignNotes = [];
+  model.alignPairs = [];
+  const padded = new Set();
+  for (const al of model.aligns) {
+    const A = model.nodes.get(al.a), B = model.nodes.get(al.b);
+    const ga = A && A.parent && A.parent.type === 'group' ? A.parent : null;
+    const gb = B && B.parent && B.parent.type === 'group' ? B.parent : null;
+    if (!ga || !gb) { model.alignNotes.push(`align ${al.a} ${al.b}: only nodes in a row or column can be aligned this way (the layout tries to keep the link straight)`); continue; }
+    if (ga === gb) { model.alignNotes.push(`align ${al.a} ${al.b}: both are in the same ${ga.axis === 'v' ? 'column' : 'row'}, so they are already in line`); continue; }
+    if ((ga.axis === 'v') !== (gb.axis === 'v')) { model.alignNotes.push(`align ${al.a} ${al.b}: one is in a row and the other in a column`); continue; }
+    if (padded.has(ga) || padded.has(gb)) { model.alignNotes.push(`align ${al.a} ${al.b}: one of these stacks is already lined up with another; only one pair per two stacks can be level`); continue; }
+    const vert = ga.axis === 'v';
+    const mid = n => vert ? n.ry + n.h / 2 : n.rx + n.w / 2;
+    const d = mid(A) - mid(B);
+    const [g, delta] = d > 0 ? [gb, d] : [ga, -d];
+    for (const n of g.items) { if (vert) n.ry += delta; else n.rx += delta; }
+    if (vert) g.h += delta; else g.w += delta;
+    padded.add(ga); padded.add(gb);
+    model.alignPairs.push({ A, B, ga, gb, vert });
+  }
+
   // ---- [span] nodes grow to the height (or width) of the column (or row) they feed
   for (const n of model.nodes.values()) {
     if (!n.tags.includes('span') || (n.parent && n.parent.type === 'group')) continue;
@@ -629,6 +667,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     const src = addPort(e, 's'), tgt = addPort(e, 't');
     e.srcBase = src; e.tgtBase = tgt;
     const ee = { id: 'E' + e.i, sources: [src], targets: [tgt] };
+    if (e.align) ee.layoutOptions = { 'elk.layered.priority.straightness': '100' };
     if (e.lab) {
       const L = { id: 'L' + e.i, text: e.label.replace(/\n/g, ' '), width: e.lab.w, height: e.lab.h };
       ee.labels = [L];
@@ -780,6 +819,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   }
   compactBridges(rm, model, flowH);
   if (!HIER) straightenSpans(rm, model, flowH);
+  alignRows(rm, model);
   fitFrames(rm, model, flowH);
   return rm;
 
@@ -945,6 +985,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       }
       const edges = edgeEnds.map(([e, ends]) => {
         const ee = { id: 'E' + e.i, sources: [ends.s], targets: [ends.t] };
+        if (e.align) ee.layoutOptions = { 'elk.layered.priority.straightness': '100' };
         if (e.lab) ee.labels = [{ id: 'L' + e.i, text: e.label.replace(/\n/g, ' '), width: e.lab.w, height: e.lab.h }];
         return ee;
       });
@@ -1126,6 +1167,81 @@ function compactBridges(rm, model, flowH) {
     for (const { pts, lab } of rm.edges) { pts.forEach(mv); if (lab) mv(lab); }
     for (const fr of rm.frames) mv(fr);
     if (flowH) rm.width -= d; else rm.height -= d;
+  }
+}
+
+// align a b: the stacks were padded so the two nodes sit at the same offset, and the link between them
+// was made straight, but ELK still leaves them a few pixels apart (long links put placeholder nodes in
+// the layers). Slide one stack the last bit, re-route the links that touch it with a small step, and
+// draw the link between the two nodes as a straight line. A pair that cannot be slid without touching
+// a node or crossing a link is left as it is, and said so.
+function alignRows(rm, model) {
+  for (const al of model.alignPairs || []) {
+    const { A, B, ga, gb, vert } = al;
+    if (A.x === undefined || B.x === undefined) continue;
+    const X = vert ? 'y' : 'x', Y = vert ? 'x' : 'y', W = vert ? 'h' : 'w';
+    const mid = n => n[X] + n[W] / 2;
+    const d = mid(A) - mid(B);
+    if (Math.abs(d) >= 0.5) {
+      let done = false;
+      for (const [g, dd] of [[gb, d], [ga, -d]]) {
+        const inRegion = it => it.parent === g;
+        const box = { x: g.x, y: g.y, w: g.w, h: g.h };
+        const moved = { ...box, [X]: box[X] + dd };
+        const hits = [...model.nodes.values()].some(o => o.x !== undefined && !inRegion(o) &&
+          o.x < moved.x + moved.w && moved.x < o.x + o.w && o.y < moved.y + moved.h && moved.y < o.y + o.h);
+        if (hits) continue;
+        const inside = p => p.x >= box.x - 0.5 && p.x <= box.x + box.w + 0.5 && p.y >= box.y - 0.5 && p.y <= box.y + box.h + 0.5;
+        const cuts = rm.edges.some(r => {
+          if (r.pts.some(inside)) return false;
+          for (let i = 1; i < r.pts.length; i++) {
+            const p = r.pts[i - 1], q = r.pts[i];
+            const x1 = Math.min(p.x, q.x), x2 = Math.max(p.x, q.x), y1 = Math.min(p.y, q.y), y2 = Math.max(p.y, q.y);
+            if (x1 < moved.x + moved.w && moved.x < x2 + 0.01 && y1 < moved.y + moved.h && moved.y < y2 + 0.01) return true;
+          }
+          return false;
+        });
+        if (cuts) continue;
+        for (const o of model.nodes.values()) if (o.x !== undefined && inRegion(o)) o[X] += dd;
+        g[X] += dd;
+        for (const r of rm.edges) {
+          const flags = r.pts.map(inside);
+          if (!flags.some(Boolean)) continue;
+          const out = [];
+          r.pts.forEach((p, i) => {
+            const q = { ...p };
+            if (flags[i]) q[X] += dd;
+            if (i > 0 && flags[i] !== flags[i - 1]) {
+              const prev = out[out.length - 1];
+              if (Math.abs(prev[X] - q[X]) > 0.5 && Math.abs(r.pts[i - 1][X] - p[X]) < 0.5) {
+                const m = (prev[Y] + q[Y]) / 2;
+                out.push({ [X]: prev[X], [Y]: m }, { [X]: q[X], [Y]: m });
+              }
+            }
+            out.push(q);
+          });
+          r.pts = out;
+          if (r.lab && inside({ x: r.lab.x, y: r.lab.y })) r.lab[X] += dd;
+        }
+        done = true;
+        break;
+      }
+      if (!done) { (model.alignNotes = model.alignNotes || []).push(`align ${A.id} ${B.id}: they could not be brought level without touching another node or link, so they are left as laid out`); continue; }
+    }
+    // the link between them: a straight line from the near side of one to the near side of the other
+    const r = rm.edges.find(o => (o.e.a === A.id && o.e.b === B.id) || (o.e.a === B.id && o.e.b === A.id));
+    if (!r) continue;
+    const lo = A[Y] + A[vert ? 'w' : 'h'] <= B[Y] ? [A, B] : B[Y] + B[vert ? 'w' : 'h'] <= A[Y] ? [B, A] : null;
+    if (!lo) continue;
+    const [first, second] = lo;
+    const c = mid(A), a0 = first[Y] + first[vert ? 'w' : 'h'], a1 = second[Y];
+    const seg = { [X]: c, [Y]: a0 };
+    const line = [{ [X]: c, [Y]: a0 }, { [X]: c, [Y]: a1 }].map(q => ({ x: vert ? q[Y] : q[X], y: vert ? q[X] : q[Y] }));
+    const blocked = [...model.nodes.values()].some(o => o !== A && o !== B && o.x !== undefined &&
+      o[X] < c + 1 && c - 1 < o[X] + o[W] && o[Y] < a1 && a0 < o[Y] + o[vert ? 'w' : 'h']);
+    if (blocked) continue;
+    r.pts = r.e.a === first.id ? line : line.reverse();
+    if (r.lab) { r.lab = { ...r.lab, [Y]: (a0 + a1) / 2, [X]: c - (r.e.lab ? r.e.lab.h + 6 : 0), anchor: vert ? 'middle' : 'middle' }; if (vert) { r.lab.x = (a0 + a1) / 2; r.lab.y = c - 6 - (r.e.lab ? r.e.lab.h : 0); } else { r.lab.x = (a0 + a1) / 2; r.lab.y = c - 6 - (r.e.lab ? r.e.lab.h : 0); } }
   }
 }
 
@@ -1636,7 +1752,7 @@ async function compile(src, measure, ELK, opts) {
   for (const k of model.keys) k._tw = measure(k.text, FONT_NOTE);
   const iconsFailed = await loadIcons(model, opts && opts.loadIcon);
   const rm = await layout(model, measure, ELK);
-  return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || [])], svg: render(rm, opts), standalone: () => render(rm, { ...opts, standalone: true }) };
+  return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || [])], svg: render(rm, opts), standalone: () => render(rm, { ...opts, standalone: true }) };
 }
 
 if (typeof module !== 'undefined') module.exports = { parse, layout, render, compile, diagramCSS, standaloneCSS, PALETTE, FONT_NAME, FONT_NOTE, withIcon };

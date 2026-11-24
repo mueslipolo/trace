@@ -144,6 +144,20 @@ column {
   direction, so a firewall between two rows is an ordinary node. Layout blocks need the per-frame layout;
   if the diagram cannot be placed that way, the blocks are ignored and the result carries a warning.
 
+## Aligning two nodes
+
+```
+align tPay payment
+```
+
+Puts two linked nodes in different rows or columns level: the stacks are brought into line on them and
+the link between them is drawn as one straight line. They need a link between them (`tPay -> payment`),
+and each pair of stacks can have one such pair. `align a b c` keeps `a` with `b` and `b` with `c`. If it
+cannot be done without touching another node, the diagram is left as laid out and says so.
+
+Use it for a clear one-to-one pair between two stacks of different lengths, such as an order and its
+invoice. It does not reduce crossings: a fan of links between two stacks crosses the same way level or not.
+
 ## Legend
 
 ```
