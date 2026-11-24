@@ -121,6 +121,42 @@ on the `.trace` files and `cases.json`; no language change. Do it after the fram
 layout settles (item 2), since longer labels widen the gaps. Test: `npm test`, then look at every
 snapshot.
 
+## 9. Layout recommendations (later; designed, not started)
+
+Look at a diagram and suggest the layout features that would improve it (rows, columns, `align`,
+`same-width`, `rail`, `span`, `direction down`), as concrete source edits, each measured before it is
+shown. Decided in a brainstorm, not built; the user asked to leave it for later.
+
+Approach (chosen over open-ended search and over an LLM): **detect, try, measure**.
+- Detectors look at the source and the layout result for the symptoms in `docs/layout-guide.md`:
+  siblings stacked along the flow, a strip wider than 4:1, a block that repeats the flow, ragged zone
+  edges, sources bunching into one node, many links to one control-plane node, one clear pair across two
+  stacks with a visible jog. Each proposes one edit.
+- The engine applies the edit to a copy, lays it out, and keeps it only if it clearly scores better
+  (bends, text size at page width, plus the symptom it targets) and creates no new symptom.
+- Layout edits only: never the nodes, links or labels. At most three suggestions, each with the reason
+  (a line from the guide) and its measured effect (for example 34 to 24 bends).
+
+How a person uses it (their choice, both wanted):
+- **Apply one by one**: preview a suggestion, apply it, the others are re-checked against the new
+  diagram.
+- **Auto-apply and compare**: apply every verified suggestion at once and show before and after side by
+  side, with a way to take back any one of them.
+
+Where: a Suggestions panel in the playground (Preview, Apply, undo) and `tools/suggest.js` for the
+command line; the core is a function that takes source and returns suggestions, so both use it.
+
+Noise control: only verified suggestions; do not repeat one that was applied or dismissed (a dismissal
+is a `# no-suggest rail` comment in the source); stay quiet on a diagram that is already fine.
+
+Benchmark, already available: the ten cases exist as `examples/cases/simple/` (what a user starts
+from) and `examples/cases/` (the hand-tuned full form). The suggestions for a simple case should
+rediscover the features of its full form; count how many it finds and how many it proposes that the
+full form does not have.
+
+Open for when it is built: whether dismissals live in the source or in the playground only; how to
+preview (side by side or toggle); how the cost weights are tuned.
+
 ## Smaller items
 
 - Split `src/trace.js` into modules (parse, measure, layout, postprocess, render) without breaking
