@@ -90,77 +90,14 @@ Left: activation bars on the lifelines, a participant row repeated at the bottom
 messages that cross several lifelines without touching the ones between (they do pass over them),
 numbering, and `create`/`destroy` of participants.
 
-## 6. ER / table diagrams
+## 6. ER / table diagrams (done)
 
-Tables with columns, PK/FK markers, dashed links for non-FK references.
+Done: `table` blocks with typed columns and `pk`, `fk`, `unique`, `null` markers; links to a column attach
+at its row (also from outside a frame); several links to one row are spread within it; dashed links for
+references without a foreign key. Example: `data-model`.
 
-## 7. Icon set (done: I.1 to I.3 in one go, I.4 left)
-
-Done: icons are tags in the node's brackets (`fw [firewall]`, `lb [loadbalancer top]`); 33 friendly
-names map to Lucide icons and every Lucide icon works under its own name (`lucide/` prefix for a
-name that clashes with a tag). Drawn in ink, left of the text or above it with `top`. Left:
-a gallery in the playground, showing the icon-load warning in the playground, more aliases as
-they are needed. The cases use icons now (all but `payment`, a state machine).
-
-Original plan:
-
-A set of polished built-in visuals for the common diagram elements (database, server, user,
-cloud, browser, queue, firewall, storage, then load balancer, container, API, lock, mobile,
-internet). Flat single-weight line icons in the existing palette, working in light and dark:
-no shadows, no gradients. Planned as slices, each keeping `npm test` green:
-
-- I.1 Syntax and plumbing: `[box] db icon=database : Orders`; unknown names give an error with a
-  line number and the valid names; the node grows to fit the icon.
-  Test: `node tools/render.js` on a one-node file shows the icon in the SVG.
-- I.2 First set of about 8 icons, with `examples/playground/icons.trace` showing all of them.
-  Test: `npm run snapshots`, look at the PNG in light and dark.
-- I.3 Second set for network and ops.
-- I.4 Use icons in the ten cases, document the names in `docs/language.md`, add a gallery to the
-  playground. Test: `npm run build`, open `dist/playground.html`.
-
-## 8. Ports and protocols in the cases
-
-Several of the ten cases (`dmz`, `hybrid`, `office`, `zerotrust`, `k8s`, `payment`) should show
-more network links, labelled with ports and protocols (`: 5432/tcp`, `: 443 mTLS`). Content work
-on the `.trace` files and `cases.json`; no language change. Do it after the frame
-layout settles (item 2), since longer labels widen the gaps. Test: `npm test`, then look at every
-snapshot.
-
-## 9. Layout recommendations (later; designed, not started)
-
-Look at a diagram and suggest the layout features that would improve it (rows, columns, `align`,
-`same-width`, `rail`, `span`, `direction down`), as concrete source edits, each measured before it is
-shown. Decided in a brainstorm, not built; the user asked to leave it for later.
-
-Approach (chosen over open-ended search and over an LLM): **detect, try, measure**.
-- Detectors look at the source and the layout result for the symptoms in `docs/layout-guide.md`:
-  siblings stacked along the flow, a strip wider than 4:1, a block that repeats the flow, ragged zone
-  edges, sources bunching into one node, many links to one control-plane node, one clear pair across two
-  stacks with a visible jog. Each proposes one edit.
-- The engine applies the edit to a copy, lays it out, and keeps it only if it clearly scores better
-  (bends, text size at page width, plus the symptom it targets) and creates no new symptom.
-- Layout edits only: never the nodes, links or labels. At most three suggestions, each with the reason
-  (a line from the guide) and its measured effect (for example 34 to 24 bends).
-
-How a person uses it (their choice, both wanted):
-- **Apply one by one**: preview a suggestion, apply it, the others are re-checked against the new
-  diagram.
-- **Auto-apply and compare**: apply every verified suggestion at once and show before and after side by
-  side, with a way to take back any one of them.
-
-Where: a Suggestions panel in the playground (Preview, Apply, undo) and `tools/suggest.js` for the
-command line; the core is a function that takes source and returns suggestions, so both use it.
-
-Noise control: only verified suggestions; do not repeat one that was applied or dismissed (a dismissal
-is a `# no-suggest rail` comment in the source); stay quiet on a diagram that is already fine.
-
-Benchmark, already available: the ten cases exist as `examples/cases/simple/` (what a user starts
-from) and `examples/cases/` (the hand-tuned full form). The suggestions for a simple case should
-rediscover the features of its full form; count how many it finds and how many it proposes that the
-full form does not have.
-
-Open for when it is built: whether dismissals live in the source or in the playground only; how to
-preview (side by side or toggle); how the cost weights are tuned.
+Left: cardinality marks at the link ends (crow's foot, 1 and N) instead of a label; tables inside a row or
+column of nodes keep table-level attachment only; a table generated from SQL or a schema file.
 
 ## Smaller items
 

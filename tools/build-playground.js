@@ -6,7 +6,7 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const core = ['lucide-core', 'lucide-names', 'trace'].map(n => fs.readFileSync(path.join(root, 'src', n + '.js'), 'utf8')).join('\n');
 const order = ['components-and-data-flow', 'job-states', 'routing-and-fallback', 'engines-behind-one-contract',
-  'network-boundaries', 'the-vocabulary', 'who-may-delete-audit-rows', 'job-sequence', 'idempotency'];
+  'network-boundaries', 'the-vocabulary', 'who-may-delete-audit-rows', 'job-sequence', 'idempotency', 'data-model'];
 const dir = path.join(root, 'examples/playground');
 const files = fs.readdirSync(dir).filter(f => f.endsWith('.trace')).map(f => f.replace(/\.trace$/, ''));
 files.sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));

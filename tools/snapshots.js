@@ -8,6 +8,10 @@ const { compile } = require('../src/trace.js');
 const { measure } = require('./measure.js');
 let Resvg = null;
 try { ({ Resvg } = require('@resvg/resvg-js')); } catch (e) { /* PNGs are optional */ }
+// resvg needs a font to draw text: use DejaVu when it is installed (a stand-in for Inter, a little wider),
+// otherwise the PNGs have shapes and no text
+const FONT_DIR = '/usr/share/fonts/truetype/dejavu/';
+const FONT_FILES = ['DejaVuSans.ttf', 'DejaVuSans-Bold.ttf'].map(f => FONT_DIR + f).filter(f => fs.existsSync(f));
 
 (async () => {
   const root = path.join(__dirname, '..');
@@ -24,7 +28,8 @@ try { ({ Resvg } = require('@resvg/resvg-js')); } catch (e) { /* PNGs are option
       fs.writeFileSync(path.join(outDir, name + '.svg'), svg);
       if (Resvg) {
         // resvg ignores prefers-color-scheme and paint-order, so drop the halo for a readable PNG
-        const png = new Resvg(svg.replace(/ halo/g, ''), { background: 'white', fitTo: { mode: 'zoom', value: 1.25 } }).render().asPng();
+        const forPng = svg.replace(/ halo/g, '').replace(/font:12px Inter,[^}]*\}/g, 'font-family:"DejaVu Sans";font-size:12px}');
+        const png = new Resvg(forPng, { background: 'white', fitTo: { mode: 'zoom', value: 1.25 }, font: FONT_FILES.length ? { loadSystemFonts: false, fontFiles: FONT_FILES, defaultFontFamily: 'DejaVu Sans' } : undefined }).render().asPng();
         fs.writeFileSync(path.join(outDir, name + '.png'), png);
       }
       console.log(`✓ ${group}/${name}  ${Math.round(res.rm.width)}×${Math.round(res.rm.height)}`);

@@ -417,3 +417,42 @@ test('sequence: self messages loop, notes sit where they say, and the errors say
   assert.match(await err('sequence\nframe f {\n}'), /no frames, rows or columns/);
   assert.match(await err('sequence\nnote over a, b, c : x'), /one or two participants/);
 });
+
+test('tables: columns, markers, and links that attach at the column row', async () => {
+  const src = ['table users {', '  id uuid pk', '  email text unique', '  name text null', '}', 'table orders {', '  id uuid pk', '  user_id uuid fk', '}',
+    'orders.user_id -> users.id : placed by', 'orders -> users : whole table'].join('\n');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const N = new Map(res.rm.nodes.map(n => [n.id, n]));
+  assert.deepStrictEqual([...N.keys()].sort(), ['orders', 'users'], 'a column reference is not a node of its own');
+  const u = N.get('users'), o = N.get('orders');
+  assert.strictEqual(u.cols.length, 3);
+  assert.deepStrictEqual(u.cols[1].marks, ['unique']);
+  assert.ok(u.h > o.h, 'a table with more columns is taller');
+  const link = res.rm.edges.find(r => r.e.label === 'placed by');
+  const rowCentre = (n, i) => n.y + n.headH + i * n.rowH + n.rowH / 2;
+  assert.ok(Math.abs(link.pts[0].y - rowCentre(o, 1)) < 1, 'it leaves orders level with the user_id row');
+  assert.ok(Math.abs(link.pts[link.pts.length - 1].y - rowCentre(u, 0)) < 1, 'and enters users level with the id row');
+  assert.match(res.svg, /class="mk muted"[^>]*>PK</);
+  assert.match(res.svg, /class="ct muted"[^>]*>text\?</, 'a nullable column shows ? after its type');
+});
+
+test('tables: errors say what to write', async () => {
+  const err = async s => (await compile(s, measure, ELK, {})).errors.map(e => e.msg).join('|');
+  assert.match(await err('table t {\n  id uuid pk\n}\nt.idd -> t\nx -> t.id'), /no column "idd".*columns are: id/);
+  assert.match(await err('table t {\n  1bad int\n}'), /not a column name/);
+  assert.match(await err('table t {\n  a int\n  a text\n}'), /already has a column called "a"/);
+  assert.match(await err('table {\n}'), /needs a name/);
+  assert.match(await err('column {\n  table t {\n  }\n}'), /not inside a row, column or rail/);
+  assert.match(await err('sequence\ntable t {\n}'), /not a sequence diagram/);
+});
+
+test('tables sit in frames and take links to a column from outside the frame', async () => {
+  const src = ['frame db "database" [purple] {', '  table users {', '    id uuid pk', '    name text', '  }', '  table orders {', '    id uuid pk', '    user_id uuid fk', '  }', '}', 'api: API', 'api -> users.name : reads', 'orders.user_id -> users.id'].join('\n');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const N = new Map(res.rm.nodes.map(n => [n.id, n]));
+  const link = res.rm.edges.find(r => r.e.label === 'reads');
+  const u = N.get('users');
+  assert.ok(Math.abs(link.pts[link.pts.length - 1].y - (u.y + u.headH + u.rowH * 1.5)) < 1.5, 'from outside the frame it still lands on the name row');
+});

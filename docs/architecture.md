@@ -32,6 +32,15 @@ shortest spans first), walks the events down the page, and returns the same shap
 draws: boxes for participants and notes, frames for groups (with the title at the left), and links for
 lifelines, messages and dividers. The flow-layout invariants in the tests are skipped for these.
 
+## Tables
+
+A `table` is a node of kind `table` with `cols`. `sizeTable` sizes it from its header and its widest
+row (marker column included); `tableSVG` draws it. A link to `table.column` is read as a link to a node
+of that name and turned back into the table plus the column once the whole source is read (a table may
+come after the link). Each linked column gets a fixed ELK port at its row, on the in or out side, like a
+span node; ports on the same row are spread within it. In the per-frame mode the port on the enclosing
+frame is placed at that row too, and only that side is tried.
+
 ## 3. ELK
 
 One ELK `layered` run over the whole graph, orthogonal routing, model order respected (`considerModelOrder`), network

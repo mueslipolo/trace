@@ -85,6 +85,8 @@ const NODE_TAG_SET = {
   hint: t => `Unknown tag "${t}" on a node. Use ${[...NODE_TAGS, 'top'].join(', ')}, or an icon name such as database, server, user, firewall.${iconHint(t)}`,
 };
 
+const COL_MARKS = new Set(['pk', 'fk', 'unique', 'null']);
+
 class TraceError extends Error {}
 
 function stripComment(line) {
@@ -177,6 +179,18 @@ function parse(src) {
       return;
     }
     let m;
+    const top = stack[stack.length - 1];
+    if (top.type === 'tablebody' && line !== '}') {
+      // a column: name [type words] [pk] [fk] [unique] [null]
+      const words = line.split(/\s+/);
+      const name = words[0];
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new TraceError(`"${name}" is not a column name: use letters, digits and _, as in  user_id uuid fk`);
+      if (top.node.cols.some(c => c.name === name)) throw new TraceError(`The table "${top.node.id}" already has a column called "${name}"`);
+      const marks = [], type = [];
+      for (const w of words.slice(1)) { if (COL_MARKS.has(w.toLowerCase())) marks.push(w.toLowerCase()); else if (w.toLowerCase() === 'uq') marks.push('unique'); else type.push(w); }
+      top.node.cols.push({ name, type: type.join(' '), marks: [...new Set(marks)] });
+      return;
+    }
     if (/^sequence$/i.test(line)) { model.mode = 'sequence'; return; }
     if ((m = line.match(/^note\s+(over|left\s+of|right\s+of)\s+([^:]+?)\s*:\s*(.+)$/i))) {
       // note over a[, b] : text    note left of a : text    note right of a : text
@@ -232,6 +246,30 @@ function parse(src) {
     }
     if (line.endsWith('{')) {
       const head = line.slice(0, -1).trim();
+      const tb = head.match(/^table\b\s*(.*)$/i);
+      if (tb) {
+        if (model.mode === 'sequence') throw new TraceError('Tables belong to a flow diagram, not a sequence diagram');
+        const parent0 = cur();
+        if (parent0.type === 'group' || parent0.type === 'rail') throw new TraceError('A table goes in a frame or at the top level, not inside a row, column or rail');
+        let { rest, tags } = takeTags(tb[1], NODE_TAG_SET, 'a table');
+        let title = '';
+        const qm = rest.match(/"([^"]*)"\s*$/);
+        if (qm) { title = qm[1]; rest = rest.slice(0, qm.index).trim(); }
+        const id = rest.trim();
+        if (!id || !ID_RE.test(id)) throw new TraceError('A table needs a name: table orders {   (or table orders "Orders" {)');
+        if (model.frames.has(id) || model.rails.has(id)) throw new TraceError(`"${id}" is already a frame or rail`);
+        let icon = null;
+        tags = tags.filter(t => { if (!NODE_TAGS.has(t) && t !== 'top') { icon = t; return false; } return t !== 'top'; });
+        let n = model.nodes.get(id);
+        if (n && !n.implicit) throw new TraceError(`There is already a node or table called "${id}"`);
+        if (!n) { n = { type: 'node', id, kind: 'table', name: '', note: '', tags: [], parent: null, line: ln }; model.nodes.set(id, n); }
+        Object.assign(n, { kind: 'table', name: title || id, cols: [], implicit: false, line: ln });
+        n.tags = [...new Set(n.tags.concat(tags))];
+        if (icon) n.icon = icon;
+        placeNode(n, parent0);
+        stack.push({ type: 'tablebody', node: n, parent: parent0 });
+        return;
+      }
       const sb = head.match(/^(loop|alt|opt|par)\b\s*(.*)$/i);
       if (sb) {
         if (model.mode !== 'sequence') throw new TraceError(`${sb[1].toLowerCase()} groups messages in a sequence diagram: put the line  sequence  at the top`);
@@ -380,6 +418,24 @@ function parse(src) {
     const open = stack[stack.length - 1];
     model.errors.push({ line: open.line, msg: `This ${open.type === 'frame' ? 'frame' : open.axis === 'v' ? 'column' : 'row'} is never closed with }` });
   }
+  // orders.user_id: a column of a table. Reading a link made a node of that name; turn it back into
+  // the table and the column.
+  for (const [id, n] of [...model.nodes]) {
+    if (!n.implicit || !id.includes('.')) continue;
+    for (let dot = id.indexOf('.'); dot >= 0; dot = id.indexOf('.', dot + 1)) {
+      const t = model.nodes.get(id.slice(0, dot)), col = id.slice(dot + 1);
+      if (!t || t.kind !== 'table') continue;
+      const edgesOf = model.edges.filter(e => e.a === id || e.b === id);
+      if (!t.cols.some(c => c.name === col)) {
+        for (const e of edgesOf) model.errors.push({ line: e.line, msg: `The table "${t.id}" has no column "${col}". Its columns are: ${t.cols.map(c => c.name).join(', ') || '(none yet)'}` });
+      } else {
+        for (const e of edgesOf) { if (e.a === id) { e.a = t.id; e.aCol = col; } if (e.b === id) { e.b = t.id; e.bCol = col; } }
+      }
+      if (n.parent) n.parent.items.splice(n.parent.items.indexOf(n), 1);
+      model.nodes.delete(id);
+      break;
+    }
+  }
   for (const ss of model.sameSize) {
     const word = ss.axis === 'w' ? 'width' : 'height';
     const kinds = ss.ids.map(id => model.nodes.has(id) && !(model.nodes.get(id).parent && model.nodes.get(id).parent.type === 'rail') ? 'node' : model.frames.has(id) ? 'frame' : null);
@@ -421,7 +477,27 @@ function wrap(text, font, maxW, measure) {
 
 const even = v => Math.ceil(v / 2) * 2;
 
+const FONT_COL = '400 12px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+const MARK_TEXT = { pk: 'PK', fk: 'FK', unique: 'UQ' };
+function sizeTable(n, measure) {
+  n.nameLines = []; n.noteLines = []; n.textH = 0; n.padX = 14;
+  n.iconMarkup = n.icon ? iconSvg(n.icon) : null;
+  n.headH = 30; n.rowH = 22;
+  const anyMarks = n.cols.some(c => c.marks.some(m => MARK_TEXT[m]));
+  // room for the longest run of markers (PK FK)
+  n.markW = anyMarks ? Math.ceil(Math.max(...n.cols.map(c => measure(c.marks.filter(m => MARK_TEXT[m]).map(m => MARK_TEXT[m]).join(' '), '700 9px Inter, system-ui, sans-serif')))) + 14 : 0;
+  const head = measure(n.name, FONT_NAME) + 28 + (n.iconMarkup ? ICON_SIZE + 8 : 0);
+  let rows = 0;
+  for (const c of n.cols) {
+    const t = c.type ? c.type + (c.marks.includes('null') ? '?' : '') : '';
+    rows = Math.max(rows, 24 + n.markW + measure(c.name, FONT_COL) + (t ? 24 + measure(t, FONT_NOTE) : 0));
+  }
+  n.w = even(Math.max(110, head, rows));
+  n.h = even(n.headH + n.cols.length * n.rowH + (n.cols.length ? 8 : 0));
+  n.ports = [];
+}
 function sizeNode(n, measure) {
+  if (n.kind === 'table') return sizeTable(n, measure);
   if (n.kind === 'start') { n.w = 18; n.h = 18; n.nameLines = []; n.noteLines = []; return; }
   n.nameLines = n.name ? wrap(n.name, FONT_NAME, 210, measure) : [];
   n.noteLines = n.note ? wrap(n.note, FONT_NOTE, 230, measure) : [];
@@ -889,10 +965,35 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   // ---- ports where links leave a group
   const { IN, OUT } = sidesFor(flowH);
   const portBuckets = new Map();
+  const colCount = new Map(), colSeen = new Map();
+  for (const e of model.edges) for (const end of ['s', 't']) {
+    const col = end === 's' ? e.aCol : e.bCol;
+    if (col && !e.rail) { const key = `${end === 's' ? e.a : e.b}|${col}|${end}`; colCount.set(key, (colCount.get(key) || 0) + 1); }
+  }
   function addPort(e, end) {
     const id = end === 's' ? e.a : e.b;
     const g = groupOf(id);
     const sn = model.nodes.get(id);
+    const colName = end === 's' ? e.aCol : e.bCol;
+    if (!g && sn && sn.cols && colName) {
+      // a link to a column leaves or enters the table level with that row
+      const fh = fhOf(sn), { IN, OUT } = sidesFor(fh);
+      const side = end === 's' ? OUT : IN;
+      const i = sn.cols.findIndex(c => c.name === colName);
+      // links that meet the same row are spread within it, so their arrowheads do not pile up
+      const key = `${id}|${colName}|${end}`, cnt = colCount.get(key) || 1, k = colSeen.get(key) || 0;
+      colSeen.set(key, k + 1);
+      const spread = cnt > 1 ? (k - (cnt - 1) / 2) * Math.min(6, 14 / (cnt - 1)) : 0;
+      const along = fh ? sn.headH + i * sn.rowH + sn.rowH / 2 + spread : sn.w / 2 + spread;
+      const pid = `P${e.i}${end}`;
+      const p = { id: pid, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } };
+      if (side === 'WEST') { p.x = 0; p.y = along; }
+      if (side === 'EAST') { p.x = sn.w; p.y = along; }
+      if (side === 'NORTH') { p.x = along; p.y = 0; }
+      if (side === 'SOUTH') { p.x = along; p.y = sn.h; }
+      sn.ports.push(p);
+      return pid;
+    }
     if (!g && sn && sn.span) {
       const fh = fhOf(sn), { IN, OUT } = sidesFor(fh);
       const otherId = end === 's' ? e.b : e.a;
@@ -971,7 +1072,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     for (const it of container.items) {
       if (it.type === 'node') {
         const en = { id: it.id, width: it.w, height: it.h };
-        if (it.span) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_POS' }; }
+        if (it.span || (it.cols && it.ports && it.ports.length)) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_POS' }; }
         out.push(en);
       }
       else if ((it.type === 'frame' && FLAT) || it.type === 'lane') { out.push(...build(it)); }
@@ -1155,10 +1256,14 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       const { IN: IN_, OUT: OUT_ } = sidesFor(dirH);
       const rects = [];
       for (const [n, ch] of chains) if (n !== m && ch.includes(T)) { const r = relPos(T, n); rects.push({ x: r.x, y: r.y, w: n.w, h: n.h }); }
-      const mp = relPos(T, m), cx = mp.x + m.w / 2, cy = mp.y + m.h / 2, W = lay.get(T).w;
+      const mp = relPos(T, m), W = lay.get(T).w;
+      let cx = mp.x + m.w / 2, cy = mp.y + m.h / 2;
+      // a link to a table column has its place on the table: level with that row, on the side the port is on
+      const colPort = m.cols && m.ports && m.ports.find(q => q.id === `P${e.i}${end}`);
+      if (colPort) { if (dirH) cy = mp.y + colPort.y; else cx = mp.x + colPort.x; }
       const cross = dirH ? ['NORTH', 'SOUTH'] : ['WEST', 'EAST'];
       if ((dirH ? cy : cx) > (dirH ? lay.get(T).h : W) / 2) cross.reverse();
-      const sides = [end === 's' ? OUT_ : IN_, ...cross];
+      const sides = colPort ? [end === 's' ? OUT_ : IN_] : [end === 's' ? OUT_ : IN_, ...cross];
       const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
       for (const side of sides) {
         let ray;
@@ -1229,7 +1334,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
           if (rq.fixed) { p.x = rq.fixed.x; p.y = rq.fixed.y; if (!eports.has(T)) eports.set(T, []); eports.get(T).push(p); return; }
           // a [span] node has its own attachment point for each link (level with the member of the stack
           // on the other end); the port on the frame lines up with it so the link runs straight
-          const sp = rq.m.span && rq.m.ports && rq.m.ports.find(q => q.id === rq.pid);
+          const sp = rq.m.ports && rq.m.ports.find(q => q.id === rq.pid);
           const alongX = sp ? rq.mp.x + sp.x : rq.mp.x + rq.m.w / 2 + off;
           const alongY = sp ? rq.mp.y + sp.y : rq.mp.y + rq.m.h / 2 + off;
           if (rq.side === 'WEST') { p.x = 0; p.y = alongY; }
@@ -1248,8 +1353,9 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
         const part = isLane ? { 'elk.partitioning.partition': String(items.indexOf(it)) } : {};
         if (it.type === 'node') {
           const en = { id: it.id, width: it.w, height: it.h };
-          en.layoutOptions = { ...part, ...(it.span ? { 'elk.portConstraints': 'FIXED_POS' } : {}) };
-          if (it.span) en.ports = it.ports;
+          const fixed = it.span || (it.cols && it.ports && it.ports.length);
+          en.layoutOptions = { ...part, ...(fixed ? { 'elk.portConstraints': 'FIXED_POS' } : {}) };
+          if (fixed) en.ports = it.ports;
           children.push(en);
         } else if (it.type === 'group') {
           if (it.items.length) children.push({ id: 'G:' + it.id, width: it.w, height: it.h, ports: it.ports, layoutOptions: { ...part, 'elk.portConstraints': 'FIXED_POS' } });
@@ -2008,6 +2114,9 @@ function diagramCSS(p, scope) {
     `${s}.box.ok{stroke:${p.ok};stroke-width:1.6}${s}.box.bad{stroke:${p.bad};stroke-width:1.6}` +
     `${s}.box.muted{stroke:${p.soft}}${s}.dashed{stroke-dasharray:4 3}` +
     `${s}.dot{fill:${p.line}}` +
+    `${s}.thead{fill:${p.engine}}${s}.tsep{fill:none;stroke:${p.soft};stroke-width:1}${s}.tframe{fill:none;stroke:${p.line};stroke-width:1.2}` +
+    `${s}.tframe.ok{stroke:${p.ok};stroke-width:1.6}${s}.tframe.bad{stroke:${p.bad};stroke-width:1.6}${s}.tframe.muted{stroke:${p.soft}}` +
+    `${s}.mk{font-size:9px;font-weight:700;letter-spacing:.03em}${s}.cn{font-size:12px;font-weight:400}${s}.cn.pk{font-weight:700}${s}.ct{font-size:11px}` +
     `${s}.ico{fill:none;stroke:${p.line};stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}` +
     `${s}.zone{stroke-width:1}${z}` +
     `${s}.arrow{fill:none;stroke:${p.line};stroke-width:1.2}${s}.arrow.ok{stroke:${p.ok}}${s}.arrow.bad{stroke:${p.bad}}${s}.arrow.muted{stroke:${p.soft}}` +
@@ -2052,7 +2161,31 @@ function shorten(pts, atStart, atEnd, by = 1.5) {
   return p;
 }
 
+function tableSVG(n) {
+  const out = [];
+  const cls = ['box'];
+  for (const t of n.tags) cls.push(t);
+  const c = cls.join(' ');
+  const x = n.x, y = n.y, w = n.w, h = n.h;
+  out.push(`<rect class="${c}" x="${r1(x)}" y="${r1(y)}" width="${w}" height="${h}" rx="6"/>`);
+  out.push(`<rect class="thead" x="${r1(x + 0.6)}" y="${r1(y + 0.6)}" width="${w - 1.2}" height="${n.headH - 0.6}" rx="5.4"/>`);
+  if (n.cols.length) out.push(`<rect class="thead" x="${r1(x + 0.6)}" y="${r1(y + n.headH - 6)}" width="${w - 1.2}" height="6"/>`, `<path class="tsep" d="M${r1(x)} ${r1(y + n.headH)}H${r1(x + w)}"/>`);
+  let tx = x + 14;
+  if (n.iconMarkup) { out.push(`<g class="ico" transform="translate(${r1(x + 12)} ${r1(y + (n.headH - ICON_SIZE) / 2)}) scale(${r1(ICON_SIZE / 24 * 1000) / 1000})">${n.iconMarkup}</g>`); tx = x + 12 + ICON_SIZE + 8; }
+  out.push(`<text class="name fg" x="${r1(tx)}" y="${r1(y + 19.5)}">${esc(n.name)}</text>`);
+  n.cols.forEach((col, i) => {
+    const ry = y + n.headH + i * n.rowH;
+    const marks = col.marks.filter(m => MARK_TEXT[m]).map(m => MARK_TEXT[m]).join(' ');
+    if (marks) out.push(`<text class="mk muted" x="${r1(x + 12)}" y="${r1(ry + 15.5)}">${marks}</text>`);
+    out.push(`<text class="cn fg${col.marks.includes('pk') ? ' pk' : ''}" x="${r1(x + 12 + n.markW)}" y="${r1(ry + 15.5)}">${esc(col.name)}</text>`);
+    if (col.type) out.push(`<text class="ct muted" x="${r1(x + w - 12)}" y="${r1(ry + 15)}" text-anchor="end">${esc(col.type + (col.marks.includes('null') ? '?' : ''))}</text>`);
+  });
+  out.push(`<rect class="tframe ${n.tags.join(' ')}" x="${r1(x)}" y="${r1(y)}" width="${w}" height="${h}" rx="6"/>`);
+  return out.join('');
+}
+
 function nodeSVG(n) {
+  if (n.kind === 'table') return tableSVG(n);
   const out = [];
   const cls = ['box'];
   if (n.kind === 'store') cls.push('store');

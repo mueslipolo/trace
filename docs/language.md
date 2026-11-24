@@ -144,6 +144,31 @@ column {
   direction, so a firewall between two rows is an ordinary node. Layout blocks need the per-frame layout;
   if the diagram cannot be placed that way, the blocks are ignored and the result carries a warning.
 
+## Tables (data models)
+
+```
+table orders "Orders" {
+  id uuid pk
+  customer_id uuid fk
+  total numeric(10,2)
+  note text null
+}
+orders.customer_id -> customers.id : placed by
+audit_log --> orders.id : refers to, no foreign key
+```
+
+A `table` is a node with a header and one row per column: `name type` then any of `pk`, `fk`, `unique`
+and `null` (a nullable column shows `?` after its type). The title in quotes is the header text (the name
+by default); a tag or icon word in brackets works as on any node (`table orders [database] {`). A table
+goes in a frame or at the top level.
+
+A link can name a column, `orders.customer_id`, and then it leaves or enters level with that row, on the
+side the diagram flows from and to. Links that meet the same row are spread within it. A link to the table
+alone (`orders -> customers`) attaches wherever the layout puts it. `-->` and `[dashed]` give the dashed
+link the roadmap asked for, for a reference without a foreign key. Tables are ordinary nodes otherwise:
+frames, icons, `same-width`, `align`, rails and the rest apply; only a table inside a row or column of
+nodes loses the row-level attachment.
+
 ## Sequence diagrams
 
 ```
