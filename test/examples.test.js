@@ -71,3 +71,29 @@ test('icons: the node grows to fit and the icon is drawn', async () => {
   assert.match(left.standalone(), /class="ico"/);
   assert.doesNotMatch(plain.standalone(), /class="ico" transform/);
 });
+
+test('icons: every friendly name has its drawing in the bundled core', () => {
+  const core = require('../src/lucide-core.js');
+  const src = fs.readFileSync(path.join(root, 'src/trace.js'), 'utf8');
+  const aliases = [...src.match(/const ICON_ALIASES = \{([\s\S]*?)\};/)[1].matchAll(/: '([a-z0-9-]+)'/g)].map(m => m[1]);
+  assert.ok(aliases.length >= 17);
+  for (const l of aliases) assert.ok(core[l], `${l} is missing from src/lucide-core.js: add it to CORE in tools/build-icons.js`);
+  for (const n of ['database', 'server', 'user', 'cloud', 'container', 'lock', 'router', 'wifi', 'shield', 'laptop', 'monitor', 'printer', 'clock', 'bell', 'settings', 'mail']) assert.ok(core[n], n);
+});
+
+test('icons: an icon outside the core is loaded when the diagram uses it', async () => {
+  const calls = [];
+  const loadIcon = async name => { calls.push(name); return `<svg viewBox="0 0 24 24"><path d="M1 1h2"/></svg>`; };
+  const res = await compile('a [bug]: Bug\nb [bug]: Again\nc [database]: Core', measure, ELK, { loadIcon });
+  assert.deepStrictEqual(res.errors, []);
+  assert.deepStrictEqual(calls, ['bug'], 'fetched once, and not for core icons');
+  assert.deepStrictEqual(res.warnings, []);
+  assert.match(res.standalone(), /M1 1h2/);
+});
+
+test('icons: a failed load draws the node without the icon and says so', async () => {
+  const res = await compile('a [cable]: Link', measure, ELK, { loadIcon: async () => { throw new Error('offline'); } });
+  assert.deepStrictEqual(res.errors, []);
+  assert.match(res.warnings[0], /cable/);
+  assert.ok(res.rm.nodes[0].w <= 100, 'no room kept for an icon that is not there');
+});

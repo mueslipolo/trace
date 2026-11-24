@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
-const core = fs.readFileSync(path.join(root, 'src/lucide.js'), 'utf8') + fs.readFileSync(path.join(root, 'src/trace.js'), 'utf8');
+const core = ['lucide-core', 'lucide-names', 'trace'].map(n => fs.readFileSync(path.join(root, 'src', n + '.js'), 'utf8')).join('\n');
 const order = ['components-and-data-flow', 'job-states', 'routing-and-fallback', 'engines-behind-one-contract',
   'network-boundaries', 'the-vocabulary', 'who-may-delete-audit-rows'];
 const dir = path.join(root, 'examples/playground');

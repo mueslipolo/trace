@@ -10,16 +10,41 @@ const ID_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
 
 // Icons: every Lucide icon by its own name, plus friendlier names for common diagram elements.
 // `lucide/name` skips the aliases (needed for `lucide/bridge`, since `bridge` is a Trace tag).
-const ICON_SET = typeof module !== 'undefined' ? require('./lucide.js') : LUCIDE;
+// The drawings of the named icons ship with the engine; any other icon is fetched when a diagram
+// first uses it (see loadIcons). Every name is known up front, so mistakes are caught while parsing.
+const IN_NODE = typeof module !== 'undefined';
+const ICON_CORE = IN_NODE ? require('./lucide-core.js') : LUCIDE_CORE;
+const ICON_NAMES = new Set(IN_NODE ? require('./lucide-names.js') : LUCIDE_NAMES);
+const ICON_LOADED = new Map();
 const ICON_ALIASES = {
   browser: 'app-window', queue: 'list-end', firewall: 'brick-wall-fire', storage: 'archive', loadbalancer: 'graph-hub',
   api: 'webhook', internet: 'globe', mobile: 'smartphone', switch: 'ethernet-port', vpn: 'shield-check', dns: 'network',
   camera: 'cctv', cache: 'zap', function: 'square-function', document: 'file-text', chart: 'chart-column', key: 'key-round',
 };
 const ICON_SIZE = 22;
-function iconSvg(name) {
-  if (name.startsWith('lucide/')) return ICON_SET[name.slice(7)] || null;
-  return ICON_SET[ICON_ALIASES[name] || name] || null;
+const ICON_CDN = 'https://cdn.jsdelivr.net/npm/lucide-static@1.79.0/icons/';
+function lucideName(name) { return name.startsWith('lucide/') ? name.slice(7) : (ICON_ALIASES[name] || name); }
+function iconKnown(name) { return ICON_NAMES.has(lucideName(name)); }
+function iconSvg(name) { const l = lucideName(name); return ICON_CORE[l] || ICON_LOADED.get(l) || null; }
+// Fetch the drawings a model needs and does not have yet. Failures are returned, not thrown:
+// the node is then drawn without its icon.
+async function loadIcons(model, loader) {
+  const need = [...new Set([...model.nodes.values()].filter(n => n.icon && !iconSvg(n.icon)).map(n => lucideName(n.icon)))];
+  const failed = [];
+  await Promise.all(need.map(async name => {
+    try {
+      const svg = await (loader || defaultIconLoader)(name);
+      const m = svg && /<svg[^>]*>([\s\S]*)<\/svg>/.exec(svg);
+      if (!m) throw new Error('no drawing');
+      ICON_LOADED.set(name, m[1].replace(/\s+/g, ' ').replace(/>\s+</g, '><').trim());
+    } catch (e) { failed.push(name); }
+  }));
+  return failed;
+}
+async function defaultIconLoader(name) {
+  if (IN_NODE) { const all = require('./lucide.js'); return all[name] ? `<svg>${all[name]}</svg>` : null; }
+  const r = await fetch(ICON_CDN + name + '.svg');
+  return r.ok ? r.text() : null;
 }
 function editDistance(a, b) {
   let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
@@ -32,14 +57,14 @@ function editDistance(a, b) {
 }
 function iconHint(name) {
   const q = name.replace(/^lucide\//, '');
-  const all = [...new Set([...Object.keys(ICON_ALIASES), ...Object.keys(ICON_SET)])];
+  const all = [...new Set([...Object.keys(ICON_ALIASES), ...ICON_NAMES])];
   const near = all.map(n => ({ n, d: n.includes(q) ? 0 : editDistance(q, n) })).filter(c => c.d <= 2)
     .sort((a, b) => a.d - b.d || a.n.length - b.n.length).slice(0, 5).map(c => c.n);
   return near.length ? ` Did you mean ${near.join(', ')}?` : '';
 }
 // the tags a node accepts: the fixed ones, `top`, and any icon name
 const NODE_TAG_SET = {
-  has: t => NODE_TAGS.has(t) || t === 'top' || !!iconSvg(t),
+  has: t => NODE_TAGS.has(t) || t === 'top' || iconKnown(t),
   hint: t => `Unknown tag "${t}" on a node. Use ${[...NODE_TAGS, 'top'].join(', ')}, or an icon name such as database, server, user, firewall.${iconHint(t)}`,
 };
 
@@ -1414,8 +1439,9 @@ async function compile(src, measure, ELK, opts) {
   if (model.errors.length) return { model, errors: model.errors };
   if (!model.nodes.size) return { model, errors: [], empty: true };
   for (const k of model.keys) k._tw = measure(k.text, FONT_NOTE);
+  const iconsFailed = await loadIcons(model, opts && opts.loadIcon);
   const rm = await layout(model, measure, ELK);
-  return { model, rm, errors: [], svg: render(rm, opts), standalone: () => render(rm, { ...opts, standalone: true }) };
+  return { model, rm, errors: [], warnings: iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), svg: render(rm, opts), standalone: () => render(rm, { ...opts, standalone: true }) };
 }
 
 if (typeof module !== 'undefined') module.exports = { parse, layout, render, compile, diagramCSS, standaloneCSS, PALETTE, FONT_NAME, FONT_NOTE };

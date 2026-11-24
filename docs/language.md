@@ -50,6 +50,9 @@ lb [loadbalancer top]: Load balancer pair | VRRP
 - `top` puts the icon above the text instead; the node gets taller instead of wider.
 - Icons are drawn in the diagram's ink colour whatever the node's state.
 - A name that does not exist is an error with a line number and close matches.
+- The drawings of the common names ship with the engine. Any other Lucide icon is fetched from
+  jsDelivr the first time a diagram uses it (Node reads it from `src/lucide.js`). If that fails, for
+  example offline, the node is drawn without its icon and the result carries a warning.
 - Common names: database, server, user, cloud, browser, queue, firewall, storage, loadbalancer,
   container, api, lock, mobile, internet, router, switch, wifi, vpn, dns, shield, laptop, monitor,
   printer, camera, cache, function, clock, document, bell, chart, settings, mail, key.
