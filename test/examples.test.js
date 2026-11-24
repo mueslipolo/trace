@@ -484,3 +484,33 @@ test('labels and titles stay off the links in the DMZ case', async () => {
   const ys = step.pts.filter((p, i) => i && Math.abs(p.y - step.pts[i - 1].y) < 0.5 && Math.abs(p.x - step.pts[i - 1].x) > 1).map(p => p.y);
   assert.ok(ys.length === 1 && step.lab.y + step.e.lab.h <= ys[0], 'the label sits above the horizontal step');
 });
+
+test('no link label is crossed by a link in any example', async () => {
+  for (const file of files) {
+    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
+    if (res.model.mode === 'sequence') continue;
+    for (const r of res.rm.edges) {
+      if (!r.lab || !r.e.lab || r.e.lifeline || r.e.divider) continue;
+      const w = r.e.lab.w, h = r.e.lab.h;
+      const x0 = r.lab.anchor === 'middle' ? r.lab.x - w / 2 : r.lab.anchor === 'end' ? r.lab.x - w : r.lab.x;
+      const b = { x: x0, y: r.lab.y, w, h };
+      for (const o of res.rm.edges) {
+        if (!o.pts) continue;
+        for (let i = 1; i < o.pts.length; i++) {
+          const a = o.pts[i - 1], p = o.pts[i];
+          assert.ok(!(Math.min(a.x, p.x) < b.x + b.w && b.x < Math.max(a.x, p.x) && Math.min(a.y, p.y) < b.y + b.h && b.y < Math.max(a.y, p.y)),
+            `${file}: the label "${r.e.label}" is crossed by the link ${o.e.a || ''} -> ${o.e.b || ''}`);
+        }
+      }
+    }
+  }
+});
+
+test('a label moves off a link that crosses it, and may wrap to two lines to fit', async () => {
+  // b -> c runs right past a -> d's label unless that label moves
+  const src = ['direction down', 'a: A', 'b: B', 'c: C', 'd: D', 'a -> d : a fairly long label for this link', 'b -> c : another'].join('\n');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const wide = await compile(['direction down', 'a: A', 'b: B', 'a -> b : 8443/tcp admins only', 'a -> b [dashed] : second'].join('\n'), measure, ELK, {});
+  assert.deepStrictEqual(wide.errors, []);
+});

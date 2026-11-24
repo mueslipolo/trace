@@ -108,6 +108,14 @@ sent it along that border) is moved to 12px from it, when that touches no node a
 link. The first and last stretch of a link stay on their nodes. `alignJogs` knows about borders too, so
 it does not put a step back where a border is. A node on a border sends its rail tap off the middle.
 
+Labels are placed last (`placeLabels`, after `alignJogs`). ELK keeps a label off the nodes but not off the
+other links, and it can leave one far from its own link. A label that a link, a node or another label runs
+through, or that sits more than 16px from its own link, moves to the nearest clear place along its own
+link: above or below a horizontal stretch, left or right of a vertical one, at several points along it,
+and also wrapped onto two lines when the one-line label has no room. A label that is clear is never
+touched. Frame titles and row and column titles are chosen at drawing time and avoid links, nodes and
+labels too; they scan along an edge for the free place nearest the corner or the middle.
+
 A last pass, `alignJogs`, runs on the chosen layout (after the choice, which is made on point counts it would change) and tidies links that have a single step: those that share a target (or source)
 get their steps at one height, in the middle of the gap, when that touches no node and runs along no
 other link. It changes no bend count.

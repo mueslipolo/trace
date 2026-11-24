@@ -640,6 +640,81 @@ async function layoutSequence(model, measure) {
   return rm;
 }
 
+// A link label that a link, a node or another label runs through moves to the nearest clear place along its
+// own link (above or below a horizontal stretch, left or right of a vertical one). Labels that are clear are
+// not touched, so a diagram that was fine stays exactly as it was. ELK keeps labels off nodes but not off
+// the other links, which is where the strike-throughs came from.
+function placeLabels(rm, measure) {
+  // a box for a label (its own size unless another shape is given)
+  const boxOf = (lab, e, shape) => {
+    const w = shape ? shape.w : e.lab.w, h = shape ? shape.h : e.lab.h;
+    const x0 = lab.anchor === 'middle' ? lab.x - w / 2 : lab.anchor === 'end' ? lab.x - w : lab.x;
+    return { x: x0, y: lab.y, w, h };
+  };
+  const hitSeg = (b, a, p) => Math.min(a.x, p.x) < b.x + b.w && b.x < Math.max(a.x, p.x) && Math.min(a.y, p.y) < b.y + b.h && b.y < Math.max(a.y, p.y);
+  const labelled = rm.edges.filter(r => r.lab && r.e.lab && r.pts && r.pts.length > 1 && !r.e.lifeline && !r.e.divider);
+  const placed = [];       // boxes of labels already settled
+  const collisions = (r, b) => {
+    let n = 0;
+    for (const o of rm.edges) {
+      if (!o.pts || o.e.lifeline && false) continue;
+      for (let i = 1; i < o.pts.length; i++) if (hitSeg(b, o.pts[i - 1], o.pts[i])) n++;
+    }
+    for (const nd of rm.nodes) if (nd.x !== undefined && b.x < nd.x + nd.w && nd.x < b.x + b.w && b.y < nd.y + nd.h && nd.y < b.y + b.h) n += 2;
+    for (const q of placed) if (b.x < q.x + q.w + 2 && q.x < b.x + b.w + 2 && b.y < q.y + q.h + 1 && q.y < b.y + b.h + 1) n += 2;
+    // a label belongs next to its own link: far from every stretch of it counts as a collision
+    let near = Infinity;
+    for (let i = 1; i < r.pts.length; i++) {
+      const a = r.pts[i - 1], p = r.pts[i];
+      const dx = Math.max(0, Math.min(a.x, p.x) - (b.x + b.w), b.x - Math.max(a.x, p.x));
+      const dy = Math.max(0, Math.min(a.y, p.y) - (b.y + b.h), b.y - Math.max(a.y, p.y));
+      near = Math.min(near, Math.hypot(dx, dy));
+    }
+    if (near > 16) n += 1;
+    return n;
+  };
+  for (const r of labelled) {
+    const w = r.e.lab.w, h = r.e.lab.h;
+    const cur = boxOf(r.lab, r.e);
+    if (collisions(r, cur) === 0) { placed.push(cur); continue; }
+    const cands = [];
+    // the same label on two lines is narrower: a second shape to try when the single line has no room
+    const words = r.e.lab.lines.length === 1 ? r.e.lab.lines[0].split(' ') : [];
+    let two = null;
+    if (measure && words.length > 1 && r.e.lab.w > 70) {
+      let best = 0, bestGap = Infinity;
+      for (let i = 1; i < words.length; i++) { const a = measure(words.slice(0, i).join(' '), FONT_NOTE), b = measure(words.slice(i).join(' '), FONT_NOTE); if (Math.abs(a - b) < bestGap) { bestGap = Math.abs(a - b); best = i; } }
+      const lines = [words.slice(0, best).join(' '), words.slice(best).join(' ')];
+      two = { lines, w: Math.ceil(Math.max(...lines.map(l => measure(l, FONT_NOTE)))) + 6, h: 2 * 13 + 2 };
+    }
+    for (let i = 1; i < r.pts.length; i++) {
+      const a = r.pts[i - 1], p = r.pts[i];
+      const horizontal = Math.abs(a.y - p.y) < 0.5, len = Math.hypot(p.x - a.x, p.y - a.y);
+      if (len < 18) continue;
+      for (const f of [0.5, 0.3, 0.7, 0.15, 0.85]) {
+        const mx = a.x + (p.x - a.x) * f, my = a.y + (p.y - a.y) * f;
+        for (const shape of two ? [null, two] : [null]) {
+          const hh = shape ? shape.h : h;
+          if (horizontal) cands.push({ shape, lab: { x: mx, y: my - 4 - hh, anchor: 'middle' } }, { shape, lab: { x: mx, y: my + 4, anchor: 'middle' } });
+          else cands.push({ shape, lab: { x: mx + 6, y: my - hh / 2, anchor: 'start' } }, { shape, lab: { x: mx - 6, y: my - hh / 2, anchor: 'end' } });
+        }
+      }
+    }
+    let best = null;
+    for (const c of cands) {
+      const b = boxOf(c.lab, r.e, c.shape);
+      const n = collisions(r, b);
+      const dist = Math.hypot(b.x + b.w / 2 - (cur.x + w / 2), b.y + b.h / 2 - (cur.y + h / 2));
+      const score = n * 1000 + dist + (c.shape ? 150 : 0);
+      if (!best || score < best.score) best = { score, n, lab: c.lab, b, shape: c.shape };
+    }
+    if (best && best.n < collisions(r, cur)) {
+      r.lab = best.lab; placed.push(best.b);
+      if (best.shape) r.e.lab = { ...r.e.lab, lines: best.shape.lines, w: best.shape.w, h: best.shape.h };
+    } else placed.push(cur);
+  }
+}
+
 // Keep links off frame borders: a stretch of link that runs along a frame's border closer than 8px
 // (ELK routed it before the frames were drawn tight around their members, or a node on a border sent it
 // along that border) moves to 12px from it, on the side it was on, when that touches no node and runs
@@ -709,6 +784,7 @@ async function layout(model, measure, ELK) {
   const rm = await chooseLayout(model, measure, ELK);
   clearFrames(rm);
   alignJogs(rm);
+  placeLabels(rm, measure);
   return rm;
 }
 
@@ -2263,14 +2339,25 @@ function render(rm, { standalone = false, idPrefix = 'tr' } = {}) {
       if (fr.titleLeft) spots.unshift({ x: fr.x + 10, y: fr.y + 17, a: 'start' });
       const clear = sp => {
         const x0 = sp.a === 'end' ? sp.x - tw : sp.x, y0 = sp.y - 11;
-        return !rm.nodes.some(n => n.x < x0 + tw + 4 && x0 - 4 < n.x + n.w && n.y < y0 + 14 && y0 < n.y + n.h) &&
+        const onLabel = rm.edges.some(r => r.lab && r.e.lab && (() => {
+          const b0 = r.lab.anchor === 'middle' ? r.lab.x - r.e.lab.w / 2 : r.lab.anchor === 'end' ? r.lab.x - r.e.lab.w : r.lab.x;
+          return b0 < x0 + tw + 4 && x0 - 4 < b0 + r.e.lab.w && r.lab.y < y0 + 14 && y0 < r.lab.y + r.e.lab.h;
+        })());
+        return !onLabel && !rm.nodes.some(n => n.x < x0 + tw + 4 && x0 - 4 < n.x + n.w && n.y < y0 + 14 && y0 < n.y + n.h) &&
           !rm.edges.some(r => r.pts && !r.e.lifeline && r.pts.some((q, i) => {
             if (!i) return false;
             const a = r.pts[i - 1];
             return Math.min(a.x, q.x) < x0 + tw + 4 && x0 - 4 < Math.max(a.x, q.x) && Math.min(a.y, q.y) < y0 + 14 && y0 < Math.max(a.y, q.y);
           }));
       };
-      const sp = spots.find(clear) || spots[0];
+      let sp = spots.find(clear);
+      if (!sp) {
+        // every corner is taken: the free place along the top edge, then the bottom edge, nearest the right
+        const out = [];
+        for (const [y, base] of [[fr.y + 20, 0], [fr.y + fr.h - 10, 1]]) for (let x = fr.x + fr.w - 12; x >= fr.x + 12 + tw; x -= 6) out.push({ x, y, a: 'end', base });
+        sp = out.find(clear);
+      }
+      sp = sp || spots[0];
       body.push(`<text class="ztitle muted" x="${r1(sp.x)}" y="${r1(sp.y)}" text-anchor="${sp.a}">${esc(fr.f.title)}</text>`);
     }
   }
