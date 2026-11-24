@@ -542,7 +542,10 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC) {
       if (!g || (g.axis === 'v') !== fh) continue;
       const first = g.items[0], last = g.items[g.items.length - 1];
       const ext = fh ? (last.ry + last.h) - first.ry : (last.rx + last.w) - first.rx;
-      if (!best || ext > best.ext) best = { g, ext, start: fh ? first.ry : first.rx };
+      // size to the stack this node feeds (links that leave it) when there is one, so those links run
+      // straight; a stack that feeds it only counts when nothing is downstream
+      const out = e.a === n.id;
+      if (!best || (out && !best.out) || (out === best.out && ext > best.ext)) best = { g, ext, start: fh ? first.ry : first.rx, out };
     }
     if (!best) continue;
     if (fh) n.h = Math.max(n.h, Math.round(best.ext));

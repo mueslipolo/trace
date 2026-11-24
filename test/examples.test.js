@@ -186,3 +186,23 @@ test('links written against the order of the nodes are laid out sensibly without
   try { without = await compile(src, measure, ELK, {}); } finally { delete process.env.TRACE_NOCYCLE; }
   assert.ok(bends(withCycle) < bends(without) * 0.8, `fewer bends when cycles are broken by declaration order (${bends(withCycle)} against ${bends(without)})`);
 });
+
+test('a span node is sized to the stack it feeds, so those links are straight even when a wider stack feeds it', async () => {
+  const src = [
+    'direction down',
+    'row {', '  p: A rather long label for the first source', '  q: Another quite long label for the second', '  r: And a third label that is long as well', '}',
+    'fw [span]: Gate',
+    'row {', '  x: X', '  y: Y', '  z: Z', '}',
+    'p -> fw', 'q -> fw', 'r -> fw', 'fw -> x', 'fw -> y', 'fw -> z',
+  ].join('\n');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const N = new Map(res.rm.nodes.map(n => [n.id, n]));
+  const xs = ['x', 'y', 'z'].map(id => N.get(id));
+  const lo = Math.min(...xs.map(n => n.x)), hi = Math.max(...xs.map(n => n.x + n.w));
+  assert.ok(Math.abs(N.get('fw').w - (hi - lo)) < 3, `the gate is as wide as the row it feeds (${N.get('fw').w} against ${hi - lo})`);
+  for (const { e, pts } of res.rm.edges) {
+    if (e.a !== 'fw') continue;
+    assert.ok(pts.every(p => Math.abs(p.x - pts[0].x) < 1), `fw -> ${e.b} is straight`);
+  }
+});
