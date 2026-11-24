@@ -112,6 +112,7 @@ Fix: put those two zones one after the other along the flow instead.
 | A long link looping round the whole diagram | a link written against the order of the nodes | declare the nodes in flow order, or use `<-` |
 | Two links that slide inward and bunch up at a node | the sources are further apart than the node is wide | tag the node `[span]` |
 | A firewall floating between two zones | the zones do not touch | `[bridge]`, and make them follow each other along the flow |
+| Four or more links with the same label to one node (token checks, health pings) | merged by the engine into one bus with the label once; nothing to do. Different labels stay separate links |
 | Many links to one monitoring or logging node spoil the picture | control-plane links mixed with the main flow | put that node in a `rail` |
 | Zones beside each other that should be stacked | a layout block you do not need | remove it |
 | Nodes that all look the same | nothing marks what they are | an icon, `[firewall]`, `[database]` |

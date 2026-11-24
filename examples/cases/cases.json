@@ -73,7 +73,7 @@
     "id": "hub",
     "title": "Microservices sharing one identity provider",
     "context": "A web and a mobile app reach seven services through a gateway; every one of them, the gateway and both apps also check a token with the same identity provider.",
-    "uses": "Icons and one zone. Nothing else on purpose: this is the study case for merging links.",
-    "gap": "Ten links arrive at one node and fan out into a comb of parallel lines with the same label ten times. Wanted: links to one target that carry the same meaning merge into one trunk that splits near the sources, with the label written once, as a hand would draw a bus. Not built yet."
+    "uses": "Icons and one zone, nothing else on purpose. The eight “validate token” links to the identity provider are merged automatically into one bus: a trunk at the provider, a line past the services, a short branch from each, a dot where a branch joins, and the label written once.",
+    "gap": "Merging is automatic when four or more links go to (or leave) one node with the same label and style; there is no way yet to ask for it on fewer links, or to switch it off. Branches that cannot run straight to the bus (Orders, Catalog, Search here) still take their old detour."
   }
 ]

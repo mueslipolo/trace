@@ -114,8 +114,8 @@ column of nodes keep table-level attachment only; a table generated from SQL or 
 - “Call back” links that run backwards into the previous column (k8s: web pods calling svc/cart)
   should loop around the column edge.
 - Fan-in to one point (CI “all green?”): optional join/bracket for a column's outgoing links.
-- Merging links that go to (or come from) one hub: study case `hub` in the showcase (ten links, one label ten
-  times). Idea to test: same target and same label merge into one trunk that splits near the sources, label
-  written once; automatic by default, with an escape hatch.
+- Done (first version): links that go to or leave one node with the same label and style, four or more, are merged
+  into a bus (`mergeHubs`; case `hub`). Left: an escape hatch to switch it off or force it on fewer links, merging
+  links with different labels, and re-routing branches that still detour.
 - A link style for “connection opened one way, traffic flows the other” (zero-trust connector).
 - Playground: share a diagram by link, syntax highlighting.

@@ -843,6 +843,117 @@ function clearFrames(rm) {
   }
 }
 
+// Links that go to (or come from) one node, say the same thing and look the same are merged into a bus: a
+// short trunk at the node, a line running along its side, and a branch from each of the others (a dot
+// where a branch meets the line in the middle of it). The text is written once. A hand would draw it so;
+// ten parallel lines into one box are hard to follow. Needs MIN links; a link that cannot reach the bus
+// without crossing a node stays as it was.
+function mergeHubs(rm, MIN = 4) {
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  const T = 8, TRUNK = 36;
+  rm.joins = [];
+  const nodeAt = (p) => rm.nodes.find(n => n.x !== undefined && !n.cols && !n.span && (
+    (Math.abs(p.y - n.y) <= T || Math.abs(p.y - n.y - n.h) <= T) && p.x >= n.x && p.x <= n.x + n.w ||
+    (Math.abs(p.x - n.x) <= T || Math.abs(p.x - n.x - n.w) <= T) && p.y >= n.y && p.y <= n.y + n.h));
+  const groups = new Map();
+  for (const r of rm.edges) {
+    const e = r.e;
+    if (e.rail || e.lifeline || e.divider || !r.pts || r.pts.length < 2 || e.a === e.b) continue;
+    for (const role of ['b', 'a']) {
+      const id = e[role];
+      const k = [id, role, e.label || '', (e.tags || []).join(','), !!e.dashed, !!e.start, !!e.end].join('|');
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(r);
+    }
+  }
+  const used = new Set();
+  const sorted = [...groups.entries()].sort((x, y) => y[1].length - x[1].length);
+  for (const [k, list0] of sorted) {
+    const list = list0.filter(r => !used.has(r));
+    if (list.length < MIN) continue;
+    const role = k.split('|')[1];
+    const hub = rm.nodes.find(n => n.id === list[0].e[role]);
+    if (!hub || hub.x === undefined || hub.cols || hub.span) continue;
+    const rev = role === 'a';
+    // every link seen as running toward the hub
+    const items = list.map(r => ({ r, P: (rev ? [...r.pts].reverse() : r.pts).map(p => ({ ...p })) }));
+    const sideOf = p => {
+      const d = [['top', Math.abs(p.y - hub.y), p.x >= hub.x && p.x <= hub.x + hub.w], ['bottom', Math.abs(p.y - hub.y - hub.h), p.x >= hub.x && p.x <= hub.x + hub.w],
+        ['left', Math.abs(p.x - hub.x), p.y >= hub.y && p.y <= hub.y + hub.h], ['right', Math.abs(p.x - hub.x - hub.w), p.y >= hub.y && p.y <= hub.y + hub.h]]
+        .filter(x => x[1] <= T && x[2]).sort((a, b) => a[1] - b[1]);
+      return d.length ? d[0][0] : null;
+    };
+    const count = {};
+    for (const it of items) { const sd = sideOf(it.P[it.P.length - 1]); if (sd) count[sd] = (count[sd] || 0) + 1; }
+    const side = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+    if (!side) continue;
+    const vert = side === 'top' || side === 'bottom';           // the trunk runs along y
+    const dir = side === 'left' || side === 'top' ? 1 : -1;     // direction of travel into the hub
+    const M = p => vert ? p.y : p.x, C = p => vert ? p.x : p.y;
+    const mk = (m, c) => vert ? { x: c, y: m } : { x: m, y: c };
+    const last = items.find(it => sideOf(it.P[it.P.length - 1]) === side).P;
+    const endM = M(last[last.length - 1]);
+    const trunkC = vert ? hub.x + hub.w / 2 : hub.y + hub.h / 2;
+    const hits = (a, b, skip) => rm.nodes.some(n => n.x !== undefined && !skip.has(n.id) && Math.min(a.x, b.x) < n.x + n.w - 0.5 && n.x + 0.5 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h - 0.5 && n.y + 0.5 < Math.max(a.y, b.y));
+    const ok = items.filter(it => sideOf(it.P[it.P.length - 1]) === side);
+    // the bus stands where the branches are short: just past the sources, as near to them as a free place allows
+    const build = busM => {
+      const out = [];
+      for (const it of ok) {
+        const P = it.P, skip = new Set([hub.id, it.r.e.a, it.r.e.b]);
+        const tryPath = (head, c) => {
+          const path = [...head, mk(busM, c), mk(busM, trunkC), mk(endM, trunkC)];
+          for (let i = Math.max(1, head.length); i < path.length; i++) if (hits(path[i - 1], path[i], skip)) return null;
+          return { it, path, c };
+        };
+        let got = null;
+        // 1. straight out of the source toward the bus
+        const a0 = P[0], a1 = P[1];
+        if ((vert ? eq(a0.x, a1.x) : eq(a0.y, a1.y)) && (M(a1) - M(a0)) * dir > 0 && (busM - M(a0)) * dir > 4) got = tryPath([a0], C(a0));
+        // 2. along its own route until it crosses the bus line
+        if (!got) {
+          let at = null;
+          for (let i = 1; i < P.length && !at; i++) {
+            const a = P[i - 1], b = P[i];
+            if (vert ? eq(a.x, b.x) : eq(a.y, b.y)) { if ((M(a) - busM) * dir <= 0.5 && (M(b) - busM) * dir >= -0.5) at = { i, c: C(a) }; }
+            else if (eq(M(a), busM)) at = { i: i - 1, c: C(a) };
+          }
+          if (at) got = tryPath(P.slice(0, at.i), at.c);
+        }
+        if (got) out.push(got);
+      }
+      return out;
+    };
+    const frameNear = m => rm.frames.some(f => vert ? (Math.abs(m - f.y) < 20 || Math.abs(m - f.y - f.h) < 20) : (Math.abs(m - f.x) < 20 || Math.abs(m - f.x - f.w) < 20));
+    const startMax = Math.max(...ok.map(it => M(it.P[0]) * dir)) ;
+    const near = Math.min(startMax + 24, endM * dir - TRUNK);
+    let plan = [], busM = endM - dir * TRUNK;
+    for (let m = near; m <= endM * dir - TRUNK + 0.1; m += 6) {
+      const bm = m * dir;
+      if (frameNear(bm)) continue;
+      const pl = build(bm);
+      if (pl.length > plan.length) { plan = pl; busM = bm; }
+    }
+    if (!plan.length && !frameNear(busM)) plan = build(busM);
+    if (plan.length < MIN) continue;
+    const cs = plan.map(x => x.c).concat(trunkC), lo = Math.min(...cs), hi = Math.max(...cs);
+    plan.forEach((x, i) => {
+      const r = x.it.r;
+      let out = x.path.filter((p, j, a) => j === 0 || Math.hypot(p.x - a[j - 1].x, p.y - a[j - 1].y) > 0.5);
+      out = simplifyPts(out);
+      r.pts = rev ? out.reverse() : out;
+      r.merged = true; r.mergeRep = i === 0; used.add(r);
+      if (x.c > lo + 0.5 && x.c < hi - 0.5 && !eq(x.c, trunkC)) rm.joins.push(mk(busM, x.c));
+      if (i) r.lab = null;
+    });
+    if (plan.some(x => x.c < trunkC - 0.5) && plan.some(x => x.c > trunkC + 0.5)) rm.joins.push(mk(busM, trunkC));
+    const keep = plan[0].it.r;
+    if (keep.lab && keep.e.lab) keep.lab = { x: (busM + endM) / 2, y: trunkC - 4 - keep.e.lab.h, anchor: 'middle' };
+  }
+  const seen = new Set();
+  rm.joins = rm.joins.filter(p => { const k = Math.round(p.x) + ',' + Math.round(p.y); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
 // Links that meet the same side of a node are kept at least `gap` px apart, so an arrowhead never touches
 // the line next to it. Only ends that can slide are moved: the last stretch (across the side) and the one
 // before it follow, and nothing moves when it would run into a node. Tables, span nodes and straight links
@@ -852,23 +963,22 @@ function spreadEnds(rm, gap = 22) {
   const T = 8;
   const ends = [];
   for (const r of rm.edges) {
-    if (r.e.rail || r.e.lifeline || !r.pts || r.pts.length < 2 || r.e.a === r.e.b) continue;
+    if (r.e.rail || r.e.lifeline || !r.pts || r.pts.length < 2 || r.e.a === r.e.b || (r.merged && !r.mergeRep)) continue;
     const q = simplifyPts(r.pts);
     r.pts = q;
     for (const end of [0, 1]) {
       const i = end ? q.length - 1 : 0, p = q[i];
       for (const n of rm.nodes) {
         if (n.x === undefined || n.cols || n.span) continue;
-        let side = null, pos;
-        if (Math.abs(p.y - n.y) <= T && p.x >= n.x && p.x <= n.x + n.w) { side = 'top'; pos = p.x; }
-        else if (Math.abs(p.y - n.y - n.h) <= T && p.x >= n.x && p.x <= n.x + n.w) { side = 'bottom'; pos = p.x; }
-        else if (Math.abs(p.x - n.x) <= T && p.y >= n.y && p.y <= n.y + n.h) { side = 'left'; pos = p.y; }
-        else if (Math.abs(p.x - n.x - n.w) <= T && p.y >= n.y && p.y <= n.y + n.h) { side = 'right'; pos = p.y; }
-        if (!side) continue;
+        const c = [['top', Math.abs(p.y - n.y), p.x >= n.x && p.x <= n.x + n.w, p.x], ['bottom', Math.abs(p.y - n.y - n.h), p.x >= n.x && p.x <= n.x + n.w, p.x],
+          ['left', Math.abs(p.x - n.x), p.y >= n.y && p.y <= n.y + n.h, p.y], ['right', Math.abs(p.x - n.x - n.w), p.y >= n.y && p.y <= n.y + n.h, p.y]]
+          .filter(x => x[1] <= T && x[2]).sort((a, b) => a[1] - b[1]);
+        if (!c.length) continue;
+        const side = c[0][0], pos = c[0][3];
         // the stretch leaving the node must run across the side, and a stretch before it must exist
         const nx = q[end ? i - 1 : i + 1], nn = q[end ? i - 2 : i + 2];
         const across = (side === 'top' || side === 'bottom') ? eq(p.x, nx.x) : eq(p.y, nx.y);
-        ends.push({ r, n, side, pos, i, nx, nn, movable: !!(across && nn), end });
+        ends.push({ r, n, side, pos, i, nx, nn, movable: !!(across && nn) && !r.merged, end });
         break;
       }
     }
@@ -924,6 +1034,7 @@ async function layout(model, measure, ELK) {
   clearFrames(rm);
   alignJogs(rm);
   simplifySnakes(rm);
+  mergeHubs(rm);
   spreadEnds(rm);
   placeLabels(rm, measure);
   return rm;
@@ -2614,6 +2725,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     }
   }
   for (const rl of rm.rails || []) for (const d of rl.dots || []) body.push(`<circle class="dot" cx="${r1(d.x)}" cy="${r1(d.y)}" r="2.6"/>`);
+  for (const d of rm.joins || []) body.push(`<circle class="dot" cx="${r1(d.x)}" cy="${r1(d.y)}" r="2.6"/>`);
   for (const n of rm.nodes) body.push(nodeSVG(n));
   body.push(...labels);
 

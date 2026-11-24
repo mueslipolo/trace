@@ -589,3 +589,18 @@ test('arrowheads on one side of a node are not crowded by the next link (office 
   }
   for (const [k, xs] of sides) { xs.sort((a, b) => a - b); for (let i = 1; i < xs.length; i++) assert.ok(xs[i] - xs[i - 1] >= 20, `${k}: arrows ${xs[i] - xs[i - 1]}px apart`); }
 });
+
+test('hub: eight links with the same label into one node are merged into a bus, with the label once', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/hub.trace'), 'utf8'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const merged = res.rm.edges.filter(r => r.merged);
+  assert.strictEqual(merged.length, 8);
+  const ends = merged.map(r => r.pts[r.pts.length - 1]);
+  for (const p of ends) assert.ok(Math.abs(p.x - ends[0].x) < 0.5 && Math.abs(p.y - ends[0].y) < 0.5, 'all end at one point');
+  assert.strictEqual(merged.filter(r => r.lab).length, 1, 'the label once');
+  assert.ok(res.rm.joins.length >= 3, 'dots where branches join');
+  assert.strictEqual((res.svg.match(/validate token/g) || []).length, 1);
+  // fewer than four links stay as they are
+  const few = await compile('a: A\nb: B\nc: C\nh: H\na -> h : x\nb -> h : x\nc -> h : x', measure, ELK, {});
+  assert.strictEqual(few.rm.edges.filter(r => r.merged).length, 0);
+});
