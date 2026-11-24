@@ -11,15 +11,21 @@ in the VPC, as in AWS reference diagrams), branch office (proxy beside the firew
 boundaries (store network right of workers, with the store network drawn to the right of the workers.
 Likely needs item 2 first, or ELK layer/position constraints on compound nodes.
 
-## 2. Draw frames after layout (stages A and B done)
+## 2. Draw frames after layout (done; see what is left below)
 
 Frames are placed three ways and the best valid result wins (see `docs/architecture.md`): per
 frame (each frame laid out by its own ELK run, composed with fixed ports), flat, and compound.
 Bridges and links into the middle of a stack are handled in the per-frame mode.
 
-Left:
-- Stage C: decide whether to remove `straightenSpans`, the flat mode and the compound fallback once
-  per-frame covers everything; keep compound while any example needs it.
+Stage C result (measured by link bends on all 17 examples): nothing can be removed yet.
+- Flat is valid and best for components, cicd, dmz, kafka and office (per-frame has 2 to 21 more
+  bends there). Per-frame is the only valid good result for data, k8s, hybrid, zerotrust and
+  network-boundaries. Compound never wins but is the guaranteed fallback.
+- `straightenSpans` still matters: without it office goes from 31 to 39 bends.
+
+Left, if someone wants to simplify:
+- Make per-frame as good as flat where flat is valid (probably needs span straightening and fewer
+  constraints between frames), then drop the flat mode and `straightenSpans`.
 - Links that name a frame are not supported per frame (compound handles them).
 - Links that run along a frame border (kafka in flat mode; the margin stub in zerotrust sits
   close to the border).
