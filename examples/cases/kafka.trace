@@ -1,0 +1,41 @@
+title "Order processing on Kafka"
+
+checkout: Checkout API
+
+frame orders "order service" [blue] {
+  store odb: orders DB | with outbox table
+  relay: Outbox relay | Debezium
+}
+
+frame kafka "Kafka" [grey] {
+  column "topics" {
+    store tOrders: orders.created
+    store tPay: payments.settled
+    store tShip: shipments.updated
+  }
+}
+
+column "consumers" {
+  payment: Payment service
+  inventory: Inventory service
+  shipping: Shipping service
+  notify: Notification service
+}
+
+column {
+  engine psp: Payment provider
+  store dlq [bad]: Dead-letter topic
+}
+
+checkout -> odb : one transaction
+odb -> relay : change stream
+relay -> tOrders
+tOrders -> payment
+tOrders -> inventory
+tOrders -> notify
+tPay <- payment : publishes
+tPay -> shipping : ship when paid
+tShip <- shipping : publishes
+tShip -> notify
+payment -> psp
+payment -> dlq [bad] : after 5 retries

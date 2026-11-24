@@ -1,0 +1,48 @@
+title "Kubernetes ingress, service mesh and egress"
+
+pill client: Clients
+clb: Cloud load balancer | L4, public IP
+
+frame cluster "cluster prod-eu-1" [blue] {
+  frame ingressns "namespace ingress" [grey] {
+    ingress [span]: Ingress controller | nginx, cert-manager TLS
+  }
+  frame shop "namespace shop" [green] {
+    column "services" {
+      svcweb: svc/web
+      svccart: svc/cart
+      svccat: svc/catalog
+    }
+    column "pods, envoy sidecar" {
+      podweb: web × 3
+      podcart: cart × 2
+      podcat: catalog × 2
+    }
+  }
+  frame datans "namespace data" [purple] {
+    column {
+      store redis: Redis
+      store pg: Postgres operator | 3 replicas
+    }
+  }
+  frame egressns "namespace egress" [orange] {
+    egw: Egress gateway | allow-list
+  }
+}
+column "outside" {
+  engine stripe: Stripe API
+  engine smtp: SMTP relay
+}
+
+client -> clb -> ingress
+ingress -> svcweb : /
+ingress -> svccart : /cart
+ingress -> svccat : /api/catalog
+svcweb -> podweb
+svccart -> podcart
+svccat -> podcat
+podcart -> redis
+podcat -> pg
+podcart -> egw [dashed] : mesh egress
+egw -> stripe : 443 only
+egw -> smtp

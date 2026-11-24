@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 376" role="img" aria-label="The engine model at run time: make_adapter builds an adapter instance from a backend's entry in the config file; its capabilities, engine version and health go into the worker table in Postgres. The Router, which also reads the breaker state in backend_state, offers only backends with a live worker that has the exact pair, and queues an attempt on a backend. The worker of that backend claims it by backend name, downloads the inputs and calls run on the adapter, which reaches its engine over HTTP, as a child process via the runner, or in-process. The worker uploads the outputs and completes the attempt, so the job succeeds; an AdapterError fails the attempt and goes back to the Router." xmlns:c2pa="http://c2pa.org/manifest">
+  <style>
+    .fg { fill: #1d2330; } .muted { fill: #5d6677; }
+    .box { fill: #ffffff; stroke: #1d2330; } .box.engine { fill: #f7f7f7; }
+    .store { fill: #fff8db; stroke: #9a6700; stroke-width: 1.4; }
+    .frame { fill: #eef7f1; stroke: #7fb38f; }
+    .arrow { stroke: #1d2330; fill: none; } .head { fill: #1d2330; }
+    .dash { stroke-dasharray: 4 3; }
+    .bad { stroke: #c62a2f; } .badt { fill: #c62a2f; } .ok { stroke: #1a7f37; } .okt { fill: #1a7f37; }
+    text { font: 12px Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .name { font-size: 13px; font-weight: 600; } .note { font-size: 11px; }
+    @media (prefers-color-scheme: dark) {
+      .fg { fill: #e3e6ec; } .muted { fill: #9aa3b2; }
+      .box { fill: #1b1e25; stroke: #c9ced8; } .box.engine { fill: #23262d; }
+      .store { fill: #33290f; stroke: #e5b94e; }
+      .frame { fill: #15241b; stroke: #4f8a62; }
+      .arrow { stroke: #c9ced8; } .head { fill: #c9ced8; }
+      .bad { stroke: #ff7b7b; } .badt { fill: #ff7b7b; } .ok { stroke: #5cc97a; } .okt { fill: #5cc97a; }
+    }
+  </style>
+  <defs>
+    <marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" class="head"/>
+    </marker>
+    <marker id="hb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" class="badt"/>
+    </marker>
+    <marker id="hk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" class="okt"/>
+    </marker>
+  </defs>
+
+  <!-- top lane: engine, breaker state -->
+  <rect class="box engine" x="370" y="16" width="120" height="40" rx="6"/>
+  <text class="name fg" x="430" y="41" text-anchor="middle">Engine</text>
+  <rect class="box" x="810" y="16" width="214" height="48" rx="6"/>
+  <text class="name fg" x="917" y="36" text-anchor="middle">backend_state</text>
+  <text class="note muted" x="917" y="52" text-anchor="middle">breaker open or closed</text>
+
+  <!-- row 1 -->
+  <rect class="box" x="20" y="136" width="150" height="60" rx="8"/>
+  <text class="name fg" x="95" y="158" text-anchor="middle">config file</text>
+  <text class="note muted" x="95" y="174" text-anchor="middle">backend name, adapter,</text>
+  <text class="note muted" x="95" y="187" text-anchor="middle">settings</text>
+  <rect class="box" x="210" y="136" width="120" height="60" rx="8"/>
+  <text class="name fg" x="270" y="171" text-anchor="middle">make_adapter</text>
+  <rect class="box" x="370" y="136" width="120" height="60" rx="8"/>
+  <text class="name fg" x="430" y="163" text-anchor="middle">Adapter</text>
+  <text class="note muted" x="430" y="179" text-anchor="middle">instance</text>
+  <rect class="store" x="640" y="136" width="130" height="60" rx="8"/>
+  <text class="name fg" x="705" y="163" text-anchor="middle">worker table</text>
+  <text class="note muted" x="705" y="179" text-anchor="middle">in Postgres</text>
+  <rect class="box" x="810" y="136" width="214" height="60" rx="8"/>
+  <text class="name fg" x="917" y="156" text-anchor="middle">Router</text>
+  <text class="note muted" x="917" y="172" text-anchor="middle">candidates need a live worker</text>
+  <text class="note muted" x="917" y="186" text-anchor="middle">with the exact pair</text>
+
+  <!-- row 2 -->
+  <rect class="box ok" x="20" y="310" width="150" height="50" rx="8"/>
+  <text class="name fg" x="95" y="340" text-anchor="middle">job succeeded</text>
+  <rect class="box" x="360" y="310" width="140" height="50" rx="8"/>
+  <text class="name fg" x="430" y="331" text-anchor="middle">worker of</text>
+  <text class="name fg" x="430" y="347" text-anchor="middle">that backend</text>
+  <rect class="box" x="890" y="310" width="134" height="50" rx="8"/>
+  <text class="name fg" x="957" y="340" text-anchor="middle">attempt queued</text>
+
+  <!-- registration -->
+  <path class="arrow" d="M170 166 L208 166" marker-end="url(#h)"/>
+  <path class="arrow" d="M330 166 L368 166" marker-end="url(#h)"/>
+  <path class="arrow" d="M490 166 L638 166" marker-end="url(#h)"/>
+  <text class="note muted" x="564" y="145" text-anchor="middle">capabilities,</text>
+  <text class="note muted" x="564" y="158" text-anchor="middle">engine_version, health</text>
+  <path class="arrow" d="M770 166 L808 166" marker-end="url(#h)"/>
+  <path class="arrow" d="M917 64 L917 134" marker-end="url(#h)"/>
+
+  <!-- adapter to engine -->
+  <path class="arrow dash" d="M430 136 L430 58" marker-end="url(#h)"/>
+  <text class="note muted" x="420" y="84" text-anchor="end">HTTP for Gotenberg,</text>
+  <text class="note muted" x="420" y="97" text-anchor="end">child process via runner for Pandoc, Jubarte and PdfCraft,</text>
+  <text class="note muted" x="420" y="110" text-anchor="end">in-process for the fakes</text>
+
+  <!-- attempt loop -->
+  <path class="arrow" d="M957 196 L957 308" marker-end="url(#h)"/>
+  <text class="note muted" x="965" y="256">attempt on</text>
+  <text class="note muted" x="965" y="269">a backend</text>
+  <path class="arrow" d="M890 335 L502 335" marker-end="url(#h)"/>
+  <text class="note muted" x="696" y="327" text-anchor="middle">claim by backend name</text>
+  <path class="arrow" d="M410 310 L410 198" marker-end="url(#h)"/>
+  <text class="note muted" x="402" y="250" text-anchor="end">download inputs,</text>
+  <text class="note muted" x="402" y="263" text-anchor="end">run(task, workdir)</text>
+  <path class="arrow ok" d="M360 335 L172 335" marker-end="url(#hk)"/>
+  <text class="note muted" x="266" y="314" text-anchor="middle">upload outputs,</text>
+  <text class="note muted" x="266" y="327" text-anchor="middle">complete the attempt</text>
+  <path class="arrow bad" d="M480 310 L480 262 L840 262 L840 198" marker-end="url(#hb)"/>
+  <text class="note badt" x="660" y="254" text-anchor="middle">AdapterError: fail_attempt</text>
+<metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYToyNDlhNDNlMi1jZWM4LTRlM2UtODlmMy01NTRhNmQwOGMwZTcAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaEx2yQlEeNjqOcbDecq++scAAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDoxZTljMWIyYi0wMjdkLTRjOWQtYjMyMi0zZjQwZDQ4MDllMDhscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNoMWvKYruHIZ+nVoje51/LXwAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggowQ6nsEeV254NLu7d6xOoaY//vcUr88YyDVvOM6UK0ykZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaLql+l0aV014WfYU4Pw6KqAAAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRMAAAAAAAAAAAAAAAAZGhhc2hYILGsfpS4ez2dJrVp9SNm4aeJUum+rQNzAZFdnyiB6wJDZG5hbWVuanVtYmYgbWFuaWZlc3RqZXhjbHVzaW9uc4GiZXN0YXJ0GRpeZmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOjI0OWE0M2UyLWNlYzgtNGUzZS04OWYzLTU1NGE2ZDA4YzBlNy9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOmQwMWQxMmFhLWJlNjctNDRmYS1iODM0LTg5M2FkNDIwNGYzNXJjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCCjBDqewR5Xbng0u7t3rE6hpj/+9xSvzxjINW84zpQrTKJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFgg+cEs7GFoQAD4deBGEwENvSDw+27Hz6g6q/VckWnnWPiiY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFggThDCc0aa/CtIGgbhZdV5J9RNDVTqdpp2R6tfE2kjOeZ0Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQM5dt80jNo/rTMv2ig+h3wNKPsUImshldVrq/0pXwNJxWs7jC1IaDtGZI2NiiYpcDb+K9rF54iTi+y2kE/5m4o0=</c2pa:manifest></metadata></svg>

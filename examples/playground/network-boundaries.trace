@@ -1,0 +1,37 @@
+title "Network boundaries"
+direction down
+
+# [bridge] sets a node on the border between its frame and the one feeding it
+
+client: API client
+ops: operator
+
+frame defaultnet "network default, routes out" [blue] {
+  api: api, console, fake-ok | purge, migrate, s3-init
+}
+frame workersnet "network workers, internal" [green] {
+  row {
+    store pg [bridge]: postgres
+    store s3 [bridge]: s3 | forwarder, TCP 8333 only
+  }
+  workers: engine workers | local engines inside: no socket
+}
+frame storenet "network store, internal" [purple] {
+  column {
+    gateway: s3-gateway | S3 API, checks the keys
+    store store: s3-store | filer, master, volume; no key check
+  }
+}
+frame converter "network converter, internal" [orange] {
+  engine gotenberg: gotenberg | port 3000
+}
+
+client -> api : HTTP 8000, Bearer key
+ops --> api : management ports, no auth
+api -> pg : postgres and s3 are on both networks
+api -> s3 : signed; the console holds no S3 keys
+pg <- workers
+s3 <- workers
+s3 -> gateway : also on store
+gateway -> store
+workers -> gotenberg : only worker-gotenberg is on converter

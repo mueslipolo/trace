@@ -1,0 +1,17 @@
+stateDiagram-v2
+    [*] --> created : PaymentIntent created
+    created --> authorized : card authorized
+    created --> failed : declined or 3DS failed
+    authorized --> captured : captured
+    authorized --> voided : voided or auth expired
+    captured --> partially_refunded : partial refund
+    partially_refunded --> partially_refunded : another partial refund
+    partially_refunded --> refunded : rest refunded
+    captured --> refunded : full refund
+    captured --> disputed : customer disputes
+    disputed --> captured : dispute won
+    disputed --> chargeback : dispute lost
+    failed --> [*]
+    voided --> [*]
+    refunded --> [*]
+    chargeback --> [*]

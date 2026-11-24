@@ -1,0 +1,34 @@
+title "Routing and fallback"
+direction down
+
+created: Job created
+ask validate: validate? | grant, pair, pinned backend, never
+refused [bad]: Request refused | 403, 415, 422
+candidates: candidates | order, filter, live workers only
+ask any: any candidate?
+nobackend [bad]: 503 no-backend-available | nothing is stored
+first: Attempt 1 on the first candidate
+ended: Attempt ends failed
+ask transient: error type transient?
+ask retry: same backend tried at most | max_retries times and still a candidate?
+same: Next attempt on the same backend
+ask fallback: fallback enabled?
+ask untried: a candidate not yet tried?
+next: Next attempt on the first such candidate
+jobfails [bad]: Job fails
+
+created -> validate
+validate -> refused [bad] : refused
+validate -> candidates : ok
+candidates -> any
+any -> nobackend [bad] : none
+any -> first : some
+first -> ended -> transient
+transient -> retry : yes
+transient -> fallback : no
+retry -> same : yes
+retry -> fallback : no
+fallback -> jobfails [bad] : no
+fallback -> untried : yes
+untried -> next : yes
+untried -> jobfails [bad] : no

@@ -1,0 +1,35 @@
+title "Components and data flow"
+
+client: Client\napplication
+
+frame api "api process" {
+  router: FastAPI app\nand Router
+}
+
+column {
+  box console: console | read-only operator view
+  store pg: Postgres
+  box purge: purge | retention pass
+  store s3: S3 bucket | files/ and jobs/
+}
+
+frame workers "worker processes, per backend" {
+  worker: Worker loop | keep-alive, sweep
+  column {
+    adapter: Adapter
+    engine eng: Engine
+  }
+}
+
+client -> router : HTTPS REST, API key
+router -> pg : create job and attempt; LISTEN for Prefer wait
+router -> s3 : put inputs, stream outputs
+
+# "<-" draws the arrow into pg but lays worker out after it
+pg <- worker : claim, lease, outcome, sweep
+s3 <- worker : get inputs, put outputs
+worker -> adapter -> eng
+
+console -> pg : read-only queries
+purge -> pg
+purge -> s3

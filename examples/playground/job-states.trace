@@ -1,0 +1,20 @@
+title "Job states"
+direction down
+
+start begin
+state queued: queued
+state running: running
+final cancelled: cancelled
+final succeeded [ok]: succeeded
+final failed [bad]: failed
+
+begin -> queued : created with attempt 1
+queued -> running : first attempt claimed
+queued -> cancelled : cancel
+queued -> failed : backend unavailable, no alternative after the grace
+running -> running : attempt failed, next attempt queued
+running -> succeeded [ok] : attempt succeeded
+running -> failed [bad] : last attempt failed, no next backend
+running -> cancelled : cancel
+
+key final : terminal state

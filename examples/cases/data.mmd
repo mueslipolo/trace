@@ -1,0 +1,18 @@
+flowchart LR
+    app[(App Postgres)] --> debezium["Debezium: CDC"]
+    logs["Clickstream: via Kafka"] --> flink["Flink: streaming"]
+    saas["SaaS tools: Salesforce, Stripe, Zendesk"] --> fivetran["Fivetran: hourly syncs"]
+    subgraph lake["lakehouse, Iceberg on S3"]
+        bronze[("bronze: raw, append-only")] -->|dbt| silver[("silver: cleaned, deduplicated")]
+        silver -->|dbt| gold[("gold: business marts")]
+    end
+    debezium --> bronze
+    flink --> bronze
+    fivetran --> bronze
+    silver --> dq["Data quality checks: Great Expectations"]
+    dq -->|fail| alert[Alert data on-call]
+    gold --> bi["BI dashboards: Looker"]
+    gold --> ml["ML features: Feast"]
+    gold --> rev["Reverse ETL: to CRM"]
+    airflow["Airflow: schedules dbt runs"] -.-> silver
+    airflow -.-> gold

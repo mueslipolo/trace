@@ -1,0 +1,19 @@
+title "Who may delete audit rows"
+direction down
+
+stmt: statement on audit_event
+ask who: connected as?
+app: SELECT and INSERT only | UPDATE, DELETE, TRUNCATE, DDL refused by privilege
+purge: SELECT, INSERT and DELETE
+ask trig: row trigger? | DELETE and habeas.audit_purge = on in this transaction
+deleted [ok]: row deleted | any row
+refuse [bad]: RAISE | audit_event is append-only
+owner [dashed]: outside the guarantee | can drop or disable the triggers, skip them with session_replication_role
+
+stmt -> who
+who -> app : habeas_app: api, worker, console
+who -> purge : habeas_purge: habeas purge
+who -> owner [dashed] : owner or superuser
+purge -> trig
+trig -> deleted [ok] : yes
+trig -> refuse [bad] : no

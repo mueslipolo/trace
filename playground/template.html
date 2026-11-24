@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trace playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --fg: #1d2330; --muted: #5d6677; --line: #dfe2e8; --accent: #2f6fd6;
+  --code-bg: #fbfbfc; --gutter: #a3aab6; --err: #c62a2f; --err-bg: #fdf0f0; --focus: #2f6fd6;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111217; --panel: #181b21; --fg: #e3e6ec; --muted: #9aa3b2; --line: #2a2e37; --accent: #6ea6ff;
+    --code-bg: #14161b; --gutter: #586070; --err: #ff7b7b; --err-bg: #2a1618; --focus: #6ea6ff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111217; --panel: #181b21; --fg: #e3e6ec; --muted: #9aa3b2; --line: #2a2e37; --accent: #6ea6ff;
+  --code-bg: #14161b; --gutter: #586070; --err: #ff7b7b; --err-bg: #2a1618; --focus: #6ea6ff;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0; min-height: 100%;
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+button, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.app {
+  max-width: 1480px; margin: 0 auto;
+  padding: 20px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px));
+}
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; margin-bottom: 16px; }
+.brand h1 { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; }
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 0.9rem; max-width: 64ch; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.select, .btn {
+  height: 34px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px;
+  padding: 0 12px; font-size: 0.875rem; cursor: pointer;
+}
+.select { padding-right: 28px; appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 15px, calc(100% - 10px) 15px; background-size: 5px 5px; background-repeat: no-repeat; }
+.btn:hover, .select:hover { border-color: var(--muted); }
+.btn.primary { background: var(--fg); color: var(--panel); border-color: var(--fg); font-weight: 600; }
+.btn[hidden] { display: none; }
+
+.panes { display: grid; grid-template-columns: minmax(340px, 5fr) 8fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 8px 14px; border-bottom: 1px solid var(--line); min-height: 46px; }
+.card-head h2 { margin: 0; font-size: 0.875rem; font-weight: 600; }
+.status { font-size: 0.8125rem; color: var(--muted); }
+.status.bad { color: var(--err); }
+
+.editor { position: relative; display: grid; grid-template-columns: auto 1fr; background: var(--code-bg); border-radius: 0 0 10px 10px; }
+.gutter, textarea.src {
+  font: 13px/20px "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  padding: 12px 0; margin: 0;
+}
+.gutter { color: var(--gutter); text-align: right; padding-left: 12px; padding-right: 10px; user-select: none; overflow: hidden; white-space: pre; height: 62vh; }
+.gutter .hit { color: var(--err); font-weight: 600; }
+textarea.src {
+  border: 0; resize: none; background: transparent; outline: none;
+  padding-right: 14px; height: 62vh; min-height: 280px; width: 100%;
+  white-space: pre; overflow: auto; tab-size: 2; caret-color: var(--accent);
+}
+textarea.src:focus-visible { outline: none; }
+.editor:focus-within { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--focus) 35%, transparent); }
+@media (max-width: 900px) { .gutter, textarea.src { height: 44vh; } }
+
+.errors { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.errors li { padding: 8px 14px; font-size: 0.8125rem; color: var(--err); background: var(--err-bg); }
+.errors li + li { border-top: 1px solid var(--line); }
+.errors button { all: unset; cursor: pointer; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; margin-right: 6px; }
+.errors:empty { display: none; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: transparent; height: 30px; padding: 0 10px; font-size: 0.8125rem; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--bg); color: var(--fg); font-weight: 600; }
+.seg + .seg { margin-left: 6px; }
+
+.stage { overflow: auto; border-radius: 0 0 10px 10px; padding: 18px; min-height: 280px; display: grid; place-items: start center; }
+.stage.fit svg { width: 100%; height: auto; max-width: 100%; }
+.stage svg { display: block; }
+.stage.stale svg { opacity: 0.45; transition: opacity .15s; }
+.empty { color: var(--muted); font-size: 0.875rem; padding: 40px 0; text-align: center; }
+
+.ref { margin-top: 16px; }
+.ref summary { cursor: pointer; padding: 12px 14px; font-weight: 600; font-size: 0.875rem; list-style-position: inside; }
+.ref-body { padding: 0 14px 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 4px 28px; }
+.ref h3 { font-size: 0.8125rem; margin: 10px 0 4px; }
+.ref pre {
+  margin: 0; padding: 8px 10px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+  font: 12px/18px "JetBrains Mono", ui-monospace, Menlo, monospace; overflow-x: auto;
+}
+.ref p { margin: 6px 0 0; font-size: 0.8125rem; color: var(--muted); }
+
+.copybox { margin: 0 14px 14px; }
+.copybox textarea { width: 100%; height: 120px; font: 11px/16px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); padding: 8px; }
+.copybox p { font-size: 0.8125rem; color: var(--muted); margin: 0 0 6px; }
+
+/* diagram colours: follow the page theme, or the preview toggle */
+.dgw { background: var(--panel); }
+.dgw[data-mode="light"] { background: #ffffff; }
+.dgw[data-mode="dark"] { background: #181b21; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<style id="dgcss"></style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Trace</h1>
+      <p>Write the diagram like Mermaid; get it drawn like your docs. Edit on the left, the drawing updates as you type.</p>
+    </div>
+    <div class="tools">
+      <label class="sr" for="ex" style="position:absolute;left:-9999px">Example</label>
+      <select id="ex" class="select" aria-label="Load an example"></select>
+      <button id="copy" class="btn">Copy SVG</button>
+      <button id="dl" class="btn primary" hidden>Download SVG</button>
+    </div>
+  </header>
+
+  <div class="panes">
+    <section class="card" aria-label="Source">
+      <div class="card-head">
+        <h2>Source</h2>
+        <span id="status" class="status" role="status" aria-live="polite"></span>
+      </div>
+      <div class="editor">
+        <div id="gutter" class="gutter" aria-hidden="true">1</div>
+        <textarea id="src" class="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Diagram source"></textarea>
+      </div>
+      <ul id="errors" class="errors"></ul>
+    </section>
+
+    <section class="card dgw" id="dgw" data-mode="auto" aria-label="Drawing">
+      <div class="card-head">
+        <h2>Drawing</h2>
+        <div>
+          <span class="seg" role="group" aria-label="Preview colours">
+            <button data-mode="auto" aria-pressed="true">Auto</button>
+            <button data-mode="light" aria-pressed="false">Light</button>
+            <button data-mode="dark" aria-pressed="false">Dark</button>
+          </span>
+          <span class="seg" role="group" aria-label="Zoom">
+            <button data-zoom="fit" aria-pressed="true">Fit</button>
+            <button data-zoom="1" aria-pressed="false">100%</button>
+          </span>
+        </div>
+      </div>
+      <div id="copybox" class="copybox" hidden>
+        <p>Copying is blocked in this view. The SVG is selected below: copy it with your keyboard.</p>
+        <textarea id="copytext" readonly aria-label="SVG source"></textarea>
+      </div>
+      <div id="stage" class="stage fit"><div class="empty">Loading the layout engine…</div></div>
+    </section>
+  </div>
+
+  <details class="card ref" open>
+    <summary>Syntax</summary>
+    <div class="ref-body">
+      <div>
+        <h3>Nodes</h3>
+<pre>api: FastAPI app | and Router
+store pg: Postgres
+ask ok: any candidate?
+failed [bad]: Job failed</pre>
+        <p>Name, then a colon, then the bold label; text after <code>|</code> becomes the muted note. Kinds: <code>box</code> (default), <code>store</code>, <code>engine</code>, <code>state</code>, <code>pill</code>, <code>ask</code>, <code>start</code>, <code>final</code>. Tags: <code>[ok]</code> <code>[bad]</code> <code>[dashed]</code> <code>[muted]</code>. Use <code>\n</code> to break a line.</p>
+      </div>
+      <div>
+        <h3>Links</h3>
+<pre>client -> api : HTTPS, API key
+ops --> api : no auth
+pg <- worker : claim, lease
+a -> b -> c
+x -> y [bad] : refused</pre>
+        <p><code>--></code> is dashed, <code><-></code> has two heads, <code>--</code> none. <code>pg <- worker</code> draws the arrow into <code>pg</code> but places <code>worker</code> after it: the way to put a node on the far side.</p>
+      </div>
+      <div>
+        <h3>Grouping</h3>
+<pre>frame api "api process" [blue] {
+  router: Router
+}
+column {
+  store pg: Postgres
+  store s3: S3
+}</pre>
+        <p>A <code>frame</code> draws a titled zone (<code>green</code>, <code>blue</code>, <code>orange</code>, <code>purple</code>, <code>grey</code>). A <code>column</code> stacks nodes top to bottom, a <code>row</code> side by side; links inside them run straight. Side-by-side columns of the same length line up row for row.</p>
+      </div>
+      <div>
+        <h3>Whole diagram</h3>
+<pre>direction down
+spacing 1.3
+title "Job states"
+key box [dashed] : planned
+key -> [bad] : failure path</pre>
+        <p><code>direction</code> is <code>right</code> (default) or <code>down</code>. Nodes keep the order you write them in, so reordering lines reorders the drawing. <code>#</code> starts a comment.</p>
+      </div>
+    </div>
+  </details>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"></script>
+<script>
+/*CORE*/
+</script>
+<script>
+/*EXAMPLES*/
+</script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const src = $('src'), gutter = $('gutter'), stage = $('stage'), statusEl = $('status'), errorsEl = $('errors');
+  const exSel = $('ex'), dgw = $('dgw');
+  const KEY = 'trace:src';
+
+  // diagram stylesheet: page theme, then the preview override
+  const L = PALETTE.light, D = PALETTE.dark;
+  $('dgcss').textContent =
+    diagramCSS(L, '.dg') +
+    `@media (prefers-color-scheme: dark){${diagramCSS(D, ':root:not([data-theme="light"]) .dg')}}` +
+    diagramCSS(D, ':root[data-theme="dark"] .dg') +
+    diagramCSS(L, '.dgw[data-mode="light"] .dg') +
+    diagramCSS(D, '.dgw[data-mode="dark"] .dg');
+
+  // text measuring for layout
+  const ctx = document.createElement('canvas').getContext('2d');
+  const cache = new Map();
+  function measure(text, font) {
+    const k = font + '\u0000' + text;
+    let v = cache.get(k);
+    if (v === undefined) { ctx.font = font; v = ctx.measureText(text).width; cache.set(k, v); }
+    return v;
+  }
+
+  EXAMPLES.forEach((ex, i) => {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = ex.name;
+    exSel.appendChild(o);
+  });
+  const custom = document.createElement('option');
+  custom.value = 'mine'; custom.textContent = 'Your draft';
+  exSel.appendChild(custom);
+
+  let saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  if (saved && saved.trim()) { src.value = saved; exSel.value = matchExample(saved); }
+  else { src.value = EXAMPLES[0].src; exSel.value = '0'; }
+
+  function matchExample(text) {
+    const i = EXAMPLES.findIndex(e => e.src === text);
+    return i >= 0 ? String(i) : 'mine';
+  }
+
+  exSel.addEventListener('change', () => {
+    if (exSel.value === 'mine') return;
+    if (exSel.value !== 'mine' && matchExample(src.value) === 'mine' && src.value.trim()) {
+      try { localStorage.setItem(KEY + ':draft', src.value); } catch (e) {}
+    }
+    src.value = EXAMPLES[+exSel.value].src;
+    changed();
+  });
+  custom.textContent = 'Your draft';
+  exSel.addEventListener('focus', () => {
+    let d = null; try { d = localStorage.getItem(KEY + ':draft'); } catch (e) {}
+    custom.disabled = !d && matchExample(src.value) !== 'mine';
+  });
+  exSel.addEventListener('change', () => {
+    if (exSel.value !== 'mine') return;
+    let d = null; try { d = localStorage.getItem(KEY + ':draft'); } catch (e) {}
+    if (d) { src.value = d; changed(); }
+  });
+
+  // editor helpers
+  let errLines = new Set();
+  function paintGutter() {
+    const n = src.value.split('\n').length;
+    let h = '';
+    for (let i = 1; i <= n; i++) h += errLines.has(i) ? `<span class="hit">${i}</span>\n` : i + '\n';
+    gutter.innerHTML = h;
+    gutter.scrollTop = src.scrollTop;
+  }
+  src.addEventListener('scroll', () => { gutter.scrollTop = src.scrollTop; });
+  src.addEventListener('keydown', e => {
+    if (e.key === 'Tab' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      const s = src.selectionStart, t = src.selectionEnd;
+      src.setRangeText('  ', s, t, 'end');
+      changed();
+    }
+  });
+  function goToLine(n) {
+    const lines = src.value.split('\n');
+    let pos = 0;
+    for (let i = 0; i < n - 1; i++) pos += lines[i].length + 1;
+    src.focus();
+    src.setSelectionRange(pos, pos + (lines[n - 1] || '').length);
+    src.scrollTop = Math.max(0, (n - 4) * 20);
+  }
+
+  // compiling
+  let timer = 0, run = 0, last = null;
+  function changed() {
+    try { localStorage.setItem(KEY, src.value); } catch (e) {}
+    exSel.value = matchExample(src.value);
+    paintGutter();
+    clearTimeout(timer);
+    timer = setTimeout(draw, 180);
+  }
+  src.addEventListener('input', changed);
+
+  async function draw() {
+    const id = ++run;
+    if (typeof ELK === 'undefined') {
+      stage.innerHTML = '<div class="empty">The layout engine didn’t load. Check your connection and reload the page.</div>';
+      return;
+    }
+    let res;
+    try {
+      res = await compile(src.value, measure, ELK, { idPrefix: 'tr' });
+    } catch (err) {
+      if (id !== run) return;
+      showErrors([{ line: 0, msg: 'The layout engine couldn’t place this diagram: ' + (err && err.message ? err.message : err) }]);
+      return;
+    }
+    if (id !== run) return;
+    if (res.errors.length) { showErrors(res.errors); return; }
+    errLines = new Set(); paintGutter();
+    errorsEl.innerHTML = '';
+    stage.classList.remove('stale');
+    if (res.empty) {
+      last = null;
+      stage.innerHTML = '<div class="empty">Nothing to draw yet. Add a line like <code>a -> b : hello</code>.</div>';
+      statusEl.textContent = ''; statusEl.className = 'status';
+      return;
+    }
+    last = res;
+    stage.innerHTML = res.svg;
+    const n = res.model.nodes.size, l = res.model.edges.length;
+    statusEl.textContent = `${n} ${n === 1 ? 'node' : 'nodes'}, ${l} ${l === 1 ? 'link' : 'links'}`;
+    statusEl.className = 'status';
+  }
+
+  function showErrors(errs) {
+    errLines = new Set(errs.map(e => e.line).filter(Boolean));
+    paintGutter();
+    errorsEl.innerHTML = '';
+    for (const e of errs) {
+      const li = document.createElement('li');
+      if (e.line) {
+        const b = document.createElement('button');
+        b.textContent = 'Line ' + e.line;
+        b.addEventListener('click', () => goToLine(e.line));
+        li.appendChild(b);
+      }
+      li.appendChild(document.createTextNode(e.msg));
+      errorsEl.appendChild(li);
+    }
+    statusEl.textContent = errs.length === 1 ? '1 problem' : errs.length + ' problems';
+    statusEl.className = 'status bad';
+    if (last) stage.classList.add('stale');
+  }
+
+  // preview controls
+  document.querySelectorAll('[data-mode]').forEach(b => {
+    if (b.tagName !== 'BUTTON') return;
+    b.addEventListener('click', () => {
+      dgw.dataset.mode = b.dataset.mode;
+      document.querySelectorAll('button[data-mode]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    });
+  });
+  document.querySelectorAll('button[data-zoom]').forEach(b => {
+    b.addEventListener('click', () => {
+      stage.classList.toggle('fit', b.dataset.zoom === 'fit');
+      document.querySelectorAll('button[data-zoom]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    });
+  });
+
+  // export
+  function fileName() {
+    const t = (last && last.model.title) || 'diagram';
+    return (t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'diagram') + '.svg';
+  }
+  function svgText() { return last ? last.standalone() : ''; }
+  $('copy').addEventListener('click', async () => {
+    if (!last) return;
+    const txt = svgText();
+    const btn = $('copy');
+    try {
+      await navigator.clipboard.writeText(txt);
+      btn.textContent = 'Copied';
+      setTimeout(() => { btn.textContent = 'Copy SVG'; }, 1400);
+      $('copybox').hidden = true;
+    } catch (e) {
+      $('copybox').hidden = false;
+      const ta = $('copytext');
+      ta.value = txt; ta.focus(); ta.select();
+    }
+  });
+  (async () => {
+    if (!window.claude || typeof window.claude.use !== 'function') return;
+    let dl = null;
+    try { dl = await window.claude.use('downloads'); } catch (e) { dl = null; }
+    if (!dl) return;
+    const btn = $('dl');
+    btn.hidden = false;
+    btn.addEventListener('click', async () => {
+      if (!last) return;
+      try {
+        await dl.save({ filename: fileName(), data: svgText() });
+      } catch (err) {
+        const code = err && err.code;
+        if (code === 'declined' || code === 'rate_limited') return;
+        if (code === 'host_unavailable' || code === 'unavailable' || code === 'not_granted' || code === 'capability_disabled' || code === 'capability_removed') {
+          btn.hidden = true;
+        }
+      }
+    });
+  })();
+
+  paintGutter();
+  const fontsReady = document.fonts
+    ? Promise.all([document.fonts.load(FONT_NAME), document.fonts.load(FONT_NOTE), document.fonts.load('600 11.5px Inter')]).catch(() => {})
+    : Promise.resolve();
+  Promise.race([fontsReady, new Promise(r => setTimeout(r, 2500))]).then(() => { cache.clear(); draw(); });
+  if (document.fonts) document.fonts.addEventListener('loadingdone', () => { cache.clear(); draw(); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+flowchart LR
+    client([Clients]) --> clb["Cloud load balancer: L4, public IP"]
+    subgraph cluster[cluster prod-eu-1]
+        subgraph ingressns[namespace ingress]
+            ingress["Ingress controller: nginx, cert-manager TLS"]
+        end
+        subgraph shop[namespace shop]
+            svcweb[svc/web] --> podweb["web x3 + envoy"]
+            svccart[svc/cart] --> podcart["cart x2 + envoy"]
+            svccat[svc/catalog] --> podcat["catalog x2 + envoy"]
+        end
+        subgraph datans[namespace data]
+            pg[("Postgres operator: 3 replicas")]
+            redis[(Redis)]
+        end
+        subgraph egressns[namespace egress]
+            egw["Egress gateway: allow-list"]
+        end
+    end
+    clb --> ingress
+    ingress -->|/| svcweb
+    ingress -->|/cart| svccart
+    ingress -->|/api/catalog| svccat
+    podweb -->|gRPC| svccart
+    podcart --> redis
+    podcat --> pg
+    podcart -.-> egw
+    egw -->|443 only| stripe[Stripe API]
+    egw --> smtp[SMTP relay]

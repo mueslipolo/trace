@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mermaid and Trace, ten real diagrams</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --fg: #1d2330; --muted: #5d6677; --line: #dfe2e8; --accent: #2f6fd6; --code-bg: #fbfbfc;
+  color-scheme: light; box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #111217; --panel: #181b21; --fg: #e3e6ec; --muted: #9aa3b2; --line: #2a2e37; --accent: #6ea6ff; --code-bg: #14161b; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #111217; --panel: #181b21; --fg: #e3e6ec; --muted: #9aa3b2; --line: #2a2e37; --accent: #6ea6ff; --code-bg: #14161b; color-scheme: dark; }
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+main { max-width: 1280px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-right, 0px)) 64px max(16px, env(safe-area-inset-left, 0px)); }
+h1 { font-size: 1.6rem; margin: 0 0 6px; letter-spacing: -0.01em; }
+.lede { color: var(--muted); max-width: 72ch; margin: 0; }
+.summary { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px; margin: 22px 0 10px; }
+.summary h2 { font-size: 1.05rem; margin: 0 0 8px; }
+.summary p { margin: 8px 0; max-width: 80ch; }
+.summary ol { margin: 8px 0 4px; padding-left: 1.3em; max-width: 80ch; }
+.summary li { margin: 4px 0; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; margin: 22px 0 6px; }
+.toc { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: 0.875rem; counter-reset: c; }
+.toc li { counter-increment: c; }
+.toc li::before { content: counter(c, decimal-leading-zero) " "; color: var(--muted); font-variant-numeric: tabular-nums; }
+.toc a { text-decoration: none; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); flex: none; }
+.seg button { border: 0; background: transparent; height: 32px; padding: 0 12px; font: inherit; font-size: 0.8125rem; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--bg); color: var(--fg); font-weight: 600; }
+.case { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin-top: 22px; padding: 18px 20px 14px; }
+.case-head { display: flex; gap: 14px; align-items: baseline; }
+.num { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; font-size: 0.9rem; flex: none; }
+.case h2 { margin: 0; font-size: 1.15rem; }
+.context { margin: 4px 0 0; color: var(--muted); max-width: 90ch; font-size: 0.925rem; }
+.pair { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }
+.panel { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.panel figcaption { font-size: 0.8125rem; font-weight: 600; color: var(--muted); padding: 7px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.canvas { overflow-x: auto; padding: 14px; }
+.canvas pre.mermaid { margin: 0; background: transparent; display: flex; justify-content: center; }
+.canvas.tr { display: grid; place-items: start center; }
+.canvas.tr svg { display: block; }
+body.fit .canvas.tr svg { width: 100%; height: auto; }
+.wait { color: var(--muted); font-size: 0.875rem; padding: 24px 0; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 4px 28px; margin-top: 12px; }
+.notes p { margin: 4px 0; font-size: 0.9rem; max-width: 70ch; }
+.src { margin-top: 8px; }
+.src summary { cursor: pointer; color: var(--accent); font-size: 0.875rem; padding: 4px 0; }
+.src-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin-top: 8px; }
+.src h3 { font-size: 0.8125rem; margin: 0 0 4px; color: var(--muted); }
+.src pre { margin: 0; padding: 10px 12px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; font: 12px/18px "JetBrains Mono", ui-monospace, Menlo, monospace; overflow-x: auto; max-height: 520px; }
+.dgw { background: var(--panel); }
+</style>
+<style id="dgcss"></style>
+</head>
+<body class="fit">
+<main>
+  <h1>Mermaid and Trace, ten real diagrams</h1>
+  <p class="lede">Ten diagrams of the kind that end up in real docs, five of them networks with proxies, firewalls and zones. Each is written twice: once in Mermaid, rendered as Mermaid draws it, and once in Trace. Both sources are under each case. To edit one, paste its Trace source into the <a href="https://claude.ai/artifact/UyWYevFBxieJjwBuVxg1bV" target="_blank" rel="noopener">playground</a>.</p>
+
+  <section class="summary" aria-labelledby="sum">
+    <h2 id="sum">What the ten cases showed</h2>
+    <p>Trace is clearly ahead where the diagram has a regular shape: stacks of parallel things (backends, app servers, VLANs, pipeline stages) line up row for row, firewalls sit on the zone border they guard, and the style needs no per-diagram work. Mermaid's real weakness shows on the network diagrams: subgraphs can't share a border, so a firewall between two zones always ends up inside one of them or floating between them.</p>
+    <p>Writing the ten also showed what's missing. In order of how often it came up:</p>
+    <ol>
+      <li><b>Frame placement.</b> Subnet tiers as horizontal bands in a VPC, the store network beside the workers, the proxy beside the firewall. Something like <code>frame pub above priv</code> or <code>proxy beside fw</code>. (Hybrid cloud, branch office, last time’s network boundaries.)</li>
+      <li><b>Frames that don’t fight alignment.</b> The layout engine keeps frames centred on each other, which can pull a spanning node out of line with the stack it feeds. The fix is to draw frames after layout rather than hand them to the engine. (Branch office, analytics platform.)</li>
+      <li><b>Side rails for the control plane.</b> Logging, scheduling and monitoring links that touch everything should run along a lane at the edge instead of across the flow. (The SIEM in the DMZ, Airflow and quality checks in the analytics platform.)</li>
+      <li><b>Row alignment across columns.</b> Keep a topic level with its consumer to remove crossings. (Kafka.)</li>
+      <li><b>Sequence diagrams.</b> Not attempted here; they need their own layout mode.</li>
+    </ol>
+  </section>
+
+  <div class="toolbar">
+    <ul class="toc">@@NAV@@</ul>
+    <span class="seg" role="group" aria-label="Trace drawing size">
+      <button data-size="fit" aria-pressed="true">Fit width</button>
+      <button data-size="actual" aria-pressed="false">Actual size</button>
+    </span>
+  </div>
+@@CARDS@@
+</main>
+<script src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"></script>
+<script>
+/*CORE*/
+</script>
+<script>
+/*CASES*/
+(function () {
+  const L = PALETTE.light, D = PALETTE.dark;
+  document.getElementById('dgcss').textContent =
+    diagramCSS(L, '.dg') +
+    `@media (prefers-color-scheme: dark){${diagramCSS(D, ':root:not([data-theme="light"]) .dg')}}` +
+    diagramCSS(D, ':root[data-theme="dark"] .dg');
+  const ctx = document.createElement('canvas').getContext('2d');
+  const cache = new Map();
+  function measure(text, font) {
+    const k = font + '\u0000' + text;
+    let v = cache.get(k);
+    if (v === undefined) { ctx.font = font; v = ctx.measureText(text).width; cache.set(k, v); }
+    return v;
+  }
+  document.querySelectorAll('button[data-size]').forEach(b => b.addEventListener('click', () => {
+    document.body.classList.toggle('fit', b.dataset.size === 'fit');
+    document.querySelectorAll('button[data-size]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  async function drawAll() {
+    const slots = document.querySelectorAll('.canvas.tr');
+    if (typeof ELK === 'undefined') {
+      slots.forEach(s => { s.innerHTML = '<div class="wait">The layout engine didn’t load. Reload the page to try again.</div>'; });
+      return;
+    }
+    cache.clear();
+    for (const slot of slots) {
+      const c = CASES[+slot.dataset.case];
+      try {
+        const r = await compile(c.trace, measure, ELK, { idPrefix: 'c' + slot.dataset.case });
+        if (r.errors.length) { slot.innerHTML = '<div class="wait"></div>'; slot.firstChild.textContent = 'Line ' + r.errors[0].line + ': ' + r.errors[0].msg; continue; }
+        slot.innerHTML = r.svg;
+      } catch (e) {
+        slot.innerHTML = '<div class="wait"></div>';
+        slot.firstChild.textContent = 'The layout engine couldn’t place this one.';
+      }
+    }
+  }
+  const ready = document.fonts
+    ? Promise.all([document.fonts.load(FONT_NAME), document.fonts.load(FONT_NOTE), document.fonts.load('600 11.5px Inter')]).catch(() => {})
+    : Promise.resolve();
+  Promise.race([ready, new Promise(r => setTimeout(r, 2500))]).then(drawAll);
+})();
+</script>
+</body>
+</html>

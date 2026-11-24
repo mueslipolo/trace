@@ -1,0 +1,24 @@
+flowchart LR
+    emp(["Employee laptop: managed device"]) --> proxy
+    contractor(["Contractor: browser only"]) --> proxy
+    subgraph idp[identity]
+        sso["SSO / IdP: SAML, OIDC"] --> mfa["MFA: WebAuthn"]
+        posture["Device posture: MDM signals"]
+    end
+    subgraph edge[access edge]
+        proxy["Identity-aware proxy: per-request policy"]
+    end
+    proxy -->|redirect to sign in| sso
+    posture -.->|device health| proxy
+    subgraph private["private network, no inbound ports"]
+        connector["App connector: outbound tunnel"]
+        wiki[Wiki]
+        git[Git server]
+        admin[Admin console]
+    end
+    proxy -->|over the tunnel| connector
+    connector --> wiki
+    connector --> git
+    connector -->|admins only| admin
+    emp -.->|until Q3| vpn["Legacy VPN: being retired"]
+    vpn -.-> git

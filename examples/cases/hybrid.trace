@@ -1,0 +1,52 @@
+title "Hybrid cloud: datacenter to AWS"
+
+frame dc "on-prem datacenter" [grey] {
+  column {
+    ad: Active Directory
+    erp: ERP | Oracle
+  }
+  core: Core switch
+  dcfw: Datacenter firewall | IPsec peer
+}
+
+pill users: Internet users
+
+frame aws "AWS eu-west-1" [orange] {
+  tgw [bridge]: Transit gateway
+  frame vpc "VPC 10.20.0.0/16" [blue] {
+    frame pub "public subnets" [green] {
+      igw: Internet gateway
+      alb: Application load balancer
+    }
+    frame priv "private subnets" [green] {
+      column {
+        app1: app ASG | az-a
+        app2: app ASG | az-b
+      }
+      nat: NAT gateway
+    }
+    frame dbs "database subnets" [purple] {
+      column {
+        store rds: RDS primary
+        store rdss: RDS standby
+      }
+    }
+  }
+}
+pill internet: Internet | egress
+
+ad -> core
+erp -> core
+core -> dcfw
+dcfw -> tgw : Direct Connect 10 Gb
+dcfw --> tgw : IPsec VPN, backup
+users -> igw -> alb
+alb -> app1
+alb -> app2
+app1 -> rds
+app2 -> rds
+rds -> rdss : sync replication
+tgw <- app1 [muted] : LDAP to AD
+app1 -> nat
+app2 -> nat
+nat -> internet

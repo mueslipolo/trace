@@ -1,0 +1,25 @@
+title "The vocabulary"
+
+client: Client
+job: Job
+file: File
+other: Earlier job
+attempt: Attempt
+worker: Worker
+backend: Backend
+adapter: Adapter
+engine engine: Engine
+capability: Capabilities
+
+client -> job : creates
+client -> file : uploads
+job -> file : reads inputs from
+job -> other : can read outputs of
+job -> attempt : runs as
+attempt -> worker : is claimed by
+worker -> backend : serves one
+worker -> adapter : calls
+backend -> adapter : uses
+adapter -> engine : drives
+adapter -> capability : declares
+job <- capability [muted] : decide which backends are candidates for

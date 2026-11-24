@@ -1,0 +1,28 @@
+flowchart TD
+    isp1(["ISP A: fiber 1 Gb"]) --> r1[Edge router A]
+    isp2(["ISP B: LTE backup"]) -.-> r2[Edge router B]
+    subgraph edge[edge]
+        r1 --> fw{{"Firewall HA pair: active / passive"}}
+        r2 -.-> fw
+    end
+    subgraph core[core]
+        coresw["Core switch stack: L3, inter-VLAN routing"]
+        proxy["Web proxy: TLS inspection, category filter"]
+        nac["NAC: 802.1X, RADIUS"]
+    end
+    fw --> coresw
+    subgraph access[access layer]
+        staff["VLAN 10: staff"]
+        voip["VLAN 20: VoIP phones"]
+        guest["VLAN 30: guest, internet only"]
+        iot["VLAN 40: printers, cameras"]
+    end
+    coresw --> staff
+    coresw --> voip
+    coresw --> guest
+    coresw --> iot
+    staff -->|web traffic| proxy
+    proxy -->|inspected egress| fw
+    guest -.->|straight out, isolated| fw
+    nac -.->|assigns VLAN| staff
+    iot -->|blocked| proxy

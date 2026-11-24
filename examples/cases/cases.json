@@ -1,0 +1,72 @@
+[
+  {
+    "id": "dmz",
+    "title": "Three-tier network behind a DMZ",
+    "context": "Internet traffic passes provider DDoS scrubbing and a CDN, then three firewalls in turn: into the DMZ, into the app zone, into the data zone. A management VLAN collects logs.",
+    "uses": "Each firewall is a [bridge]: it sits on the border it guards, half in each zone, which is how network engineers draw them. [span] makes each firewall as tall as the column behind it, so every rule fans out on a straight line.",
+    "gap": "The SIEM and its three log links are left out: links from all three firewalls into one management box cut across every zone. Trace needs a way to say “collect these on a side rail”, the way a hand-drawn diagram routes a bus along the bottom."
+  },
+  {
+    "id": "k8s",
+    "title": "Kubernetes ingress, service mesh and egress",
+    "context": "A cloud load balancer feeds an ingress controller; services route to sidecar-injected pods across namespaces; outbound calls must leave through an egress gateway with an allow-list.",
+    "uses": "Nested frames for cluster and namespaces; two titled columns side by side, so each service lines up with its pods row by row; [span] lets the ingress controller feed all three services on straight lines.",
+    "gap": "The web pods call svc/cart, a link that runs backwards into the column before it. Trace draws it, but the detour is ugly, so it is left out here; a “call back” style that loops around the column edge would help."
+  },
+  {
+    "id": "zerotrust",
+    "title": "Zero-trust access to internal apps",
+    "context": "Users never join the network. An identity-aware proxy checks SSO, MFA and device posture on every request; an app connector inside the private network dials out, so there are no inbound ports. The legacy VPN is still there for one app.",
+    "uses": "The connector is a [bridge] on the private network’s border: the picture says “this is the only way in”. proxy <- posture keeps the posture check above the flow while the arrow still points at the proxy.",
+    "gap": "Mermaid and Trace both struggle to show “the connector dials out, then traffic flows in”. A two-headed or reversed-flow link style (arrow one way, label for the opposite connection direction) would say it better than a label."
+  },
+  {
+    "id": "hybrid",
+    "title": "Hybrid cloud: datacenter to AWS",
+    "context": "An on-prem datacenter reaches an AWS VPC through a transit gateway, over Direct Connect with an IPsec VPN as backup. Public, private and database subnets; apps still authenticate against on-prem Active Directory.",
+    "uses": "Four levels of nesting (region, VPC, subnet tiers) and a transit gateway as a [bridge] on the AWS border, where the datacenter link lands. tgw <- app1 sends the LDAP call back to the datacenter without turning the whole layout around.",
+    "gap": "Subnet tiers should stack as horizontal bands spanning the VPC, as in AWS reference diagrams; Trace places them by flow, so they land wherever the links put them. This is the frame placement hint from last time: “frame pub above priv”."
+  },
+  {
+    "id": "office",
+    "title": "Branch office LAN with dual ISPs",
+    "context": "Two internet links (fiber and LTE backup), a firewall HA pair, a core switch doing inter-VLAN routing, a TLS-inspecting web proxy for staff, and four access VLANs, with guests isolated and sent straight out.",
+    "uses": "Top-down, with the two ISPs and the four VLANs as titled rows; [span] stretches the core switch across all four VLANs. fw <- proxy and fw <- guest send inspected and guest traffic back up to the firewall without breaking the layering.",
+    "gap": "The four trunks jog sideways. The layout engine keeps the core and access frames centred on each other instead of lining the switch up with the VLANs, and Trace only slides a frame back into line when nothing is in the way (here the guest bypass is). The proxy would also sit better beside the firewall, which needs a placement hint."
+  },
+  {
+    "id": "cicd",
+    "title": "CI/CD with canary releases",
+    "context": "Every commit is built and checked in parallel; green builds are signed and pushed, deployed to staging, approved, then rolled out to production through a canary that rolls back on its own if SLOs slip.",
+    "uses": "[span] on the build step fans out to the three parallel checks on straight lines; red and green paths come from link tags; dev <- gate sends the failure back to the developer while keeping the pipeline flowing left to right.",
+    "gap": "The fan-in to “all green?” converges on one point; hand-drawn pipelines often show the parallel stage as a bracket. A column could offer a “join” option that merges its outgoing links."
+  },
+  {
+    "id": "kafka",
+    "title": "Order processing on Kafka",
+    "context": "Checkout writes the order and an outbox row in one transaction; a relay publishes it; payment, inventory, shipping and notifications react to topics and publish their own events. Poison messages end in a dead-letter topic.",
+    "uses": "Topics and consumers as two columns facing each other, so reading and publishing are both horizontal; tPay <- payment draws “publishes” as an arrow into the topic while the consumer stays on the right.",
+    "gap": "Links between the two columns cross freely; nothing tells the layout to keep each topic level with its main consumer. A way to pin rows across columns (“align tPay with payment”) would remove most crossings."
+  },
+  {
+    "id": "payment",
+    "title": "Payment lifecycle",
+    "context": "The states a card payment moves through, from creation to capture, refunds, voids and disputes.",
+    "uses": "Start dot, rounded states, double-bordered end states and coloured paths, without Mermaid’s separate end markers; captured <- disputed keeps the “dispute won” loop from flipping the layout.",
+    "gap": "Self-loops (another partial refund) are still small and tucked against the box. A proper loop shape with room for its label is on the list."
+  },
+  {
+    "id": "data",
+    "title": "Analytics platform, sources to dashboards",
+    "context": "Operational data arrives by CDC, streaming and SaaS syncs, lands in a lakehouse in bronze, silver and gold layers built by dbt, and feeds BI, ML features and reverse ETL. Airflow schedules the dbt runs; quality checks gate silver.",
+    "uses": "Sources, ingestion and consumers as titled columns that line up row for row; bronze and gold are [span] nodes meeting the columns on either side; Airflow’s control links are muted so the data flow stays dominant.",
+    "gap": "Without the lakehouse frame, bronze and gold line up exactly with the columns beside them; with it, the layout engine nudges the frame and the links jog. Airflow and the quality checks are control-plane, and would sit better on a lane below the pipeline: the same “side rail” need as the SIEM in the DMZ case."
+  },
+  {
+    "id": "incident",
+    "title": "Incident response",
+    "context": "From an alert to a postmortem: triage, severity, paging and escalation, an incident commander, mitigation loops and status updates.",
+    "uses": "Decisions as pills ending in a question mark, the happy path drawn plain, the escalation red and the dead ends muted; mitigate <- fixed draws the retry loop without the layout treating it as a new step.",
+    "gap": "Close to what a careful hand would draw. The one tell is label placement on vertical links, which still takes a row of its own."
+  }
+]

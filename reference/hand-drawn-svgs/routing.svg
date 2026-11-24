@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 930 740" role="img" aria-label="Routing and fallback: a created job is validated (grant, pair, pinned backend, never) or refused with 403, 415 or 422; the candidates are ordered and filtered to live workers; with none the request gets 503 no-backend-available and nothing is stored, otherwise attempt 1 runs on the first candidate. When an attempt fails, a transient error retries the same backend while it was tried at most max_retries times and is still a candidate; otherwise, if fallback is enabled, the next attempt goes to the first candidate not yet tried, and the job fails when fallback is off or none is left." xmlns:c2pa="http://c2pa.org/manifest">
+  <style>
+    .fg { fill: #1d2330; } .muted { fill: #5d6677; }
+    .zone-default { fill: #eef2f8; stroke: #8aa0c2; } .zone-workers { fill: #eef7f1; stroke: #7fb38f; }
+    .zone-converter { fill: #fbf1e6; stroke: #d0a06a; } .zone-store { fill: #f3effb; stroke: #a78fd6; }
+    .box { fill: #ffffff; stroke: #1d2330; } .box.bridge, .store { fill: #fff8db; stroke: #9a6700; stroke-width: 1.6; }
+    .box.obs, .dashed { stroke-dasharray: 4 3; } .box.engine { fill: #f7f7f7; }
+    .box.ok { stroke: #1a7f37; stroke-width: 1.6; } .box.bad { stroke: #c62a2f; stroke-width: 1.6; }
+    .arrow { stroke: #1d2330; fill: none; } .head { fill: #1d2330; }
+    .arrow.ok { stroke: #1a7f37; } .head-ok { fill: #1a7f37; } .arrow.bad { stroke: #c62a2f; } .head-bad { fill: #c62a2f; }
+    text { font: 12px Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .zt { font-size: 12px; font-weight: 700; letter-spacing: .04em; } .name { font-size: 12.5px; font-weight: 600; }
+    .note { font-size: 11px; }
+    .frame { fill: #eef7f1; stroke: #7fb38f; } .step { fill: #ffffff; stroke: #8b93a3; } .step.filter { fill: #e8e4fb; stroke: #7a4fd6; }
+    @media (prefers-color-scheme: dark) {
+      .fg { fill: #e3e6ec; } .muted { fill: #9aa3b2; }
+      .zone-default { fill: #18202d; stroke: #4f6a94; } .zone-workers { fill: #15241b; stroke: #4f8a62; }
+      .zone-converter { fill: #2a1f14; stroke: #a3743d; } .zone-store { fill: #211a33; stroke: #7d62b8; }
+      .box { fill: #1b1e25; stroke: #c9ced8; } .box.bridge, .store { fill: #33290f; stroke: #e5b94e; }
+      .box.engine { fill: #23262d; } .box.ok { stroke: #5cc97a; } .box.bad { stroke: #ff7b7b; }
+      .arrow { stroke: #c9ced8; } .head { fill: #c9ced8; }
+      .arrow.ok { stroke: #5cc97a; } .head-ok { fill: #5cc97a; } .arrow.bad { stroke: #ff7b7b; } .head-bad { fill: #ff7b7b; }
+      .frame { fill: #15241b; stroke: #4f8a62; } .step { fill: #1b1e25; stroke: #6b7385; } .step.filter { fill: #261d45; stroke: #b195ff; }
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" class="head"/>
+    </marker>
+    <marker id="ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" class="head-ok"/>
+    </marker>
+    <marker id="bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" class="head-bad"/>
+    </marker>
+  </defs>
+  <rect class="box" x="220.0" y="20" width="160" height="36" rx="6"/>
+  <text class="name fg" x="300.0" y="42" text-anchor="middle">Job created</text>
+  <path class="arrow" d="M300 56 L300 86" marker-end="url(#a)"/>
+  <rect class="box" x="140.0" y="86" width="320" height="40" rx="20.0"/>
+  <text class="name fg" x="300.0" y="103" text-anchor="middle">validate?</text>
+  <text class="note muted" x="300.0" y="117" text-anchor="middle">grant · pair · pinned backend · never</text>
+  <path class="arrow bad" d="M460 106 L560 106" marker-end="url(#bad)"/>
+  <text class="note muted" x="510" y="98" text-anchor="middle">refused</text>
+  <rect class="box bad" x="560" y="88" width="200" height="36" rx="6"/>
+  <text class="name fg" x="660.0" y="103" text-anchor="middle">Request refused</text>
+  <text class="note muted" x="660.0" y="117" text-anchor="middle">403 · 415 · 422</text>
+  <path class="arrow" d="M300 126 L300 160" marker-end="url(#a)"/>
+  <text class="note muted" x="308" y="147" text-anchor="start">ok</text>
+  <rect class="box" x="170.0" y="160" width="260" height="40" rx="6"/>
+  <text class="name fg" x="300.0" y="177" text-anchor="middle">candidates</text>
+  <text class="note muted" x="300.0" y="191" text-anchor="middle">order · filter · live workers only</text>
+  <path class="arrow" d="M300 200 L300 232" marker-end="url(#a)"/>
+  <rect class="box" x="200.0" y="232" width="200" height="36" rx="18.0"/>
+  <text class="name fg" x="300.0" y="254" text-anchor="middle">any candidate?</text>
+  <path class="arrow bad" d="M400 250 L560 250" marker-end="url(#bad)"/>
+  <text class="note muted" x="480" y="242" text-anchor="middle">none</text>
+  <rect class="box bad" x="560" y="228" width="230" height="44" rx="6"/>
+  <text class="name fg" x="675.0" y="247" text-anchor="middle">503 no-backend-available</text>
+  <text class="note muted" x="675.0" y="261" text-anchor="middle">nothing is stored</text>
+  <path class="arrow" d="M300 268 L300 302" marker-end="url(#a)"/>
+  <text class="note muted" x="308" y="289" text-anchor="start">some</text>
+  <rect class="box" x="170.0" y="302" width="260" height="36" rx="6"/>
+  <text class="name fg" x="300.0" y="324" text-anchor="middle">Attempt 1 on the first candidate</text>
+  <path class="arrow" d="M300 338 L300 370" marker-end="url(#a)"/>
+  <rect class="box" x="200.0" y="370" width="200" height="36" rx="6"/>
+  <text class="name fg" x="300.0" y="392" text-anchor="middle">Attempt ends failed</text>
+  <path class="arrow" d="M300 406 L300 438" marker-end="url(#a)"/>
+  <rect class="box" x="190.0" y="438" width="220" height="36" rx="18.0"/>
+  <text class="name fg" x="300.0" y="460" text-anchor="middle">error type transient?</text>
+  <path class="arrow" d="M410 456 L520 456" marker-end="url(#a)"/>
+  <text class="note muted" x="465" y="448" text-anchor="middle">yes</text>
+  <rect class="box" x="520" y="430" width="320" height="52" rx="26.0"/>
+  <text class="name fg" x="680.0" y="453" text-anchor="middle">same backend tried at most</text>
+  <text class="note muted" x="680.0" y="467" text-anchor="middle">max_retries times and still a candidate?</text>
+  <path class="arrow" d="M760 482 L760 534" marker-end="url(#a)"/>
+  <text class="note muted" x="768" y="512" text-anchor="start">yes</text>
+  <rect class="box" x="620" y="534" width="280" height="36" rx="6"/>
+  <text class="name fg" x="760.0" y="556" text-anchor="middle">Next attempt on the same backend</text>
+  <path class="arrow" d="M600 482 L410 544" marker-end="url(#a)"/>
+  <text class="note muted" x="520" y="524" text-anchor="middle">no</text>
+  <path class="arrow" d="M300 474 L300 534" marker-end="url(#a)"/>
+  <text class="note muted" x="308" y="508" text-anchor="start">no</text>
+  <rect class="box" x="200.0" y="534" width="200" height="36" rx="18.0"/>
+  <text class="name fg" x="300.0" y="556" text-anchor="middle">fallback enabled?</text>
+  <path class="arrow" d="M300 570 L300 610" marker-end="url(#a)"/>
+  <text class="note muted" x="308" y="594" text-anchor="start">yes</text>
+  <rect class="box" x="180.0" y="610" width="240" height="36" rx="18.0"/>
+  <text class="name fg" x="300.0" y="632" text-anchor="middle">a candidate not yet tried?</text>
+  <path class="arrow" d="M300 646 L300 684" marker-end="url(#a)"/>
+  <text class="note muted" x="308" y="669" text-anchor="start">yes</text>
+  <rect class="box" x="130.0" y="684" width="340" height="36" rx="6"/>
+  <text class="name fg" x="300.0" y="706" text-anchor="middle">Next attempt on the first such candidate</text>
+  <path class="arrow bad" d="M200 552 L90 552 L90 610" marker-end="url(#bad)"/>
+  <text class="note muted" x="145" y="544" text-anchor="middle">no</text>
+  <path class="arrow bad" d="M180 628 L150 628" marker-end="url(#bad)"/>
+  <text class="note muted" x="170" y="620" text-anchor="middle">no</text>
+  <rect class="box bad" x="30" y="610" width="120" height="36" rx="6"/>
+  <text class="name fg" x="90.0" y="632" text-anchor="middle">Job fails</text>
+<metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYToyNWZjNWJmZS1mYzBlLTRlOGYtODJhOC1mZmRkMzUzZTU4MDMAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaNubrn7SvNs7kdTowsvS0y0AAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDpjN2E4NDhlNy1jZDkxLTRmZjMtOTM4MC1jNDEyYTBlNDI0OWZscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNoTPIfADqKmWRT3mtHajoDJAAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFgglCk7TVfmHR/SuCRAQZGSnJjQ38FN+mAtze4TGqglUY2kZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaBwdUKxon3aPUBOheWthlHkAAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRMAAAAAAAAAAAAAAAAZGhhc2hYIPnNU4nHF4Hx0r8uqNrW56qZpwWQD4lJ1rldVSnJx0oiZG5hbWVuanVtYmYgbWFuaWZlc3RqZXhjbHVzaW9uc4GiZXN0YXJ0GSBGZmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOjI1ZmM1YmZlLWZjMGUtNGU4Zi04MmE4LWZmZGQzNTNlNTgwMy9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOmVjNzVjNDRkLWNhMmMtNGM3YS04Mzc2LWE3MTE4OGYxMDcwMnJjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCCUKTtNV+YdH9K4JEBBkZKcmNDfwU36YC3N7hMaqCVRjaJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFggUmD6FZu58VsJ1C+T+H6pfdEaijN1cAkb4KDwt5pqjaOiY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFggCzoMDmzoilSgj9IOQE2+F9B2qibz5qhp+8ezMNTRPJl0Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQOYWhR8AzMwp4eOcETMlrGY3ucX+IMRZgSzqw+L/VB8LQKv9GWGQH9CtKROrBtoGC2GBAoREidgOuZngtcd8ylE=</c2pa:manifest></metadata></svg>

@@ -1,0 +1,20 @@
+flowchart LR
+    checkout[Checkout API] -->|one transaction| odb
+    subgraph orders[order service]
+        odb[("orders DB: with outbox table")] -->|change stream| relay["Outbox relay: Debezium"]
+    end
+    subgraph kafka[Kafka]
+        tOrders[(orders.created)]
+        tPay[(payments.settled)]
+        tShip[(shipments.updated)]
+    end
+    relay --> tOrders
+    tOrders --> payment[Payment service]
+    tOrders --> inventory[Inventory service]
+    payment --> psp[Payment provider]
+    payment -->|publishes| tPay
+    tPay -->|ship when paid| shipping[Shipping service]
+    shipping -->|publishes| tShip
+    tShip --> notify[Notification service]
+    tOrders --> notify
+    payment -->|after 5 retries| dlq[(Dead-letter topic)]

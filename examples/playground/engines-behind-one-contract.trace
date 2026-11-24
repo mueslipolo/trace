@@ -1,0 +1,55 @@
+title "Engines behind one contract"
+
+client: Client
+op: Operation | convert, merge, split
+# [span] stretches the router to the height of the column it feeds
+router [span]: Router | grants\nroute preference lists\nlive workers\nbreaker state
+
+column "backends" {
+  b1: gotenberg
+  b2: pandoc
+  b3: jubarte | testing
+  b4: pdfcraft
+  b5 [dashed]: OCR, Tika,\nPDF tools
+  b6: fake-* | testing
+}
+column "adapters" {
+  a1: gotenberg
+  a2: pandoc
+  a3: jubarte
+  a4: pdfcraft
+  a5 [dashed]: not written
+  a6: fake
+}
+column "engines" {
+  engine e1: Gotenberg | with LibreOffice
+  engine e2: Pandoc
+  engine e3: Jubarte
+  engine e4: PdfCraft
+  engine e5 [dashed]: planned engines
+  engine e6: no engine
+}
+
+client -> op : operation, formats, options
+op -> router
+router -> b1
+router -> b2
+router -> b3
+router -> b4
+router -> b5 [dashed]
+router -> b6
+b1 -> a1
+b2 -> a2
+b3 -> a3
+b4 -> a4
+b5 -> a5 [dashed]
+b6 -> a6
+a1 -> e1 : HTTP, converter network
+a2 -> e2 : child process via runner
+a3 -> e3 : child process via runner
+a4 -> e4 : child process via runner
+a5 -> e5 [dashed]
+a6 -> e6 : in-process
+
+key box : built
+key box [dashed] : planned

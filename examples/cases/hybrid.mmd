@@ -1,0 +1,40 @@
+flowchart LR
+    subgraph dc[on-prem datacenter]
+        ad[Active Directory]
+        erp["ERP: Oracle"]
+        core[Core switch]
+        dcfw{{"Datacenter firewall: IPsec peer"}}
+        ad --> core
+        erp --> core
+        core --> dcfw
+    end
+    dcfw -->|Direct Connect 10 Gb| tgw
+    dcfw -.->|IPsec VPN, backup| tgw
+    subgraph aws[AWS eu-west-1]
+        tgw[Transit gateway]
+        subgraph vpc["VPC 10.20.0.0/16"]
+            subgraph pub[public subnets]
+                igw[Internet gateway]
+                alb[Application load balancer]
+                nat[NAT gateway]
+            end
+            subgraph priv[private subnets]
+                app1[app ASG, az-a]
+                app2[app ASG, az-b]
+            end
+            subgraph dbs[database subnets]
+                rds[("RDS primary")]
+                rdss[("RDS standby")]
+            end
+        end
+    end
+    users([Internet users]) --> igw --> alb
+    alb --> app1
+    alb --> app2
+    app1 --> rds
+    app2 --> rds
+    rds -->|sync replication| rdss
+    app1 -->|LDAP| tgw
+    app1 --> nat
+    app2 --> nat
+    nat --> internet([Internet, egress])

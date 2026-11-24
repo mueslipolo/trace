@@ -1,0 +1,22 @@
+{
+  "name": "trace-diagrams",
+  "version": "0.1.0",
+  "description": "Trace: write diagrams like Mermaid, get them drawn like a careful hand would.",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "src/trace.js",
+  "scripts": {
+    "render": "node tools/render.js",
+    "snapshots": "node tools/snapshots.js",
+    "build:playground": "node tools/build-playground.js",
+    "build:compare": "node tools/build-compare.js",
+    "build": "npm run build:playground && npm run build:compare",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "elkjs": "0.9.3"
+  },
+  "optionalDependencies": {
+    "@resvg/resvg-js": "2.6.2"
+  }
+}

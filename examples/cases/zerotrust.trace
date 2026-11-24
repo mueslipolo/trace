@@ -1,0 +1,44 @@
+title "Zero-trust access to internal apps"
+
+column "users" {
+  pill emp: Employee laptop | managed device
+  pill contractor: Contractor | browser only
+}
+
+frame edge "access edge" [orange] {
+  proxy: Identity-aware proxy | per-request policy
+}
+
+frame idp "identity" [purple] {
+  row {
+    sso: SSO / IdP | SAML, OIDC
+    mfa: MFA | WebAuthn
+  }
+  posture: Device posture | MDM signals
+}
+
+frame private "private network, no inbound ports" [blue] {
+  connector [bridge span]: App connector | dials out to the edge
+  column "apps" {
+    wiki: Wiki
+    git: Git server
+    admin [bad]: Admin console
+  }
+}
+
+vpn [dashed]: Legacy VPN | being retired
+
+emp -> proxy
+contractor -> proxy
+proxy -> sso : redirect to sign in
+sso -> mfa
+proxy <- posture [muted] : device health
+proxy -> connector : over the tunnel
+connector -> wiki
+connector -> git
+connector -> admin [bad] : admins only
+emp --> vpn : until Q3
+vpn --> git
+
+key -> [bad] : restricted
+key box [dashed] : being retired
