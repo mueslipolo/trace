@@ -146,6 +146,7 @@ textarea.src:focus-visible { outline: none; }
     <div class="tools">
       <label class="sr" for="ex" style="position:absolute;left:-9999px">Example</label>
       <select id="ex" class="select" aria-label="Load an example"></select>
+      <button id="share" class="btn" title="Copy a link that opens this diagram">Share link</button>
       <button id="copy" class="btn">Copy SVG</button>
       <button id="dl" class="btn primary" hidden>Download SVG</button>
     </div>
@@ -180,7 +181,7 @@ textarea.src:focus-visible { outline: none; }
         </div>
       </div>
       <div id="copybox" class="copybox" hidden>
-        <p>Copying is blocked in this view. The SVG is selected below: copy it with your keyboard.</p>
+        <p>Copying is blocked in this view. What you asked for is selected below: copy it with your keyboard.</p>
         <textarea id="copytext" readonly aria-label="SVG source"></textarea>
       </div>
       <div id="stage" class="stage fit"><div class="empty">Loading the layout engine…</div></div>
@@ -538,6 +539,37 @@ key -> [bad] : failure path</pre>
     }));
     if (id === galRun && failed) { galNote.textContent += ' Drawings need a network connection; the names still work.'; }
   }
+
+  // ---- share a diagram by link: the source travels in the part of the URL after #d=, compressed when the
+  // browser can (z...), else plain (p...). Nothing is sent anywhere. (A host that rewrites the address,
+  // such as an embedded viewer, may drop it.)
+  const b64 = bytes => { let s = ''; bytes.forEach(b => { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  const unb64 = t => Uint8Array.from(atob(t.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+  async function encodeShare(text) {
+    const bytes = new TextEncoder().encode(text);
+    if (typeof CompressionStream === 'function') {
+      try { return 'z' + b64(new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer())); } catch (e) { /* plain below */ }
+    }
+    return 'p' + b64(bytes);
+  }
+  async function decodeShare(s) {
+    const bytes = unb64(s.slice(1));
+    if (s[0] === 'z') return new TextDecoder().decode(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    return new TextDecoder().decode(bytes);
+  }
+  $('share').addEventListener('click', async () => {
+    const btn = $('share');
+    const link = location.href.split('#')[0] + '#d=' + await encodeShare(src.value);
+    try { await navigator.clipboard.writeText(link); btn.textContent = 'Link copied'; setTimeout(() => { btn.textContent = 'Share link'; }, 1400); $('copybox').hidden = true; }
+    catch (e) { $('copybox').hidden = false; const ta = $('copytext'); ta.value = link; ta.focus(); ta.select(); }
+    try { history.replaceState(null, '', link); } catch (e) { /* a sandboxed frame may refuse */ }
+  });
+  (async () => {
+    const m = /^#d=([zp][A-Za-z0-9_-]+)$/.exec(location.hash);
+    if (!m) return;
+    try { src.value = await decodeShare(m[1]); exSel.value = matchExample(src.value); changed(); }
+    catch (e) { statusEl.textContent = 'That link could not be read'; statusEl.className = 'status bad'; }
+  })();
 
   paintGutter();
   const fontsReady = document.fonts
