@@ -79,6 +79,12 @@ in the rail along the bus, and adds the links as ordinary entries in `rm.edges`:
 per link, and an arrow from the bus into each node in the rail. Taps that would cross a node produce
 warnings through `rm.notes`.
 
+Before that, `clearFrames` keeps links off frame borders: a stretch in the middle of a link that runs
+along a border closer than 8px (ELK routed it before the frames were drawn tight, or a node on a border
+sent it along that border) is moved to 12px from it, when that touches no node and runs along no other
+link. The first and last stretch of a link stay on their nodes. `alignJogs` knows about borders too, so
+it does not put a step back where a border is. A node on a border sends its rail tap off the middle.
+
 A last pass, `alignJogs`, runs on the chosen layout (after the choice, which is made on point counts it would change) and tidies links that have a single step: those that share a target (or source)
 get their steps at one height, in the middle of the gap, when that touches no node and runs along no
 other link. It changes no bend count.

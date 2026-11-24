@@ -400,10 +400,74 @@ function sizeLabel(text, measure) {
 
 // ---------------------------------------------------------------- layout
 
+// Keep links off frame borders: a stretch of link that runs along a frame's border closer than 8px
+// (ELK routed it before the frames were drawn tight around their members, or a node on a border sent it
+// along that border) moves to 12px from it, on the side it was on, when that touches no node and runs
+// along no other link. Only the middle of a link moves: the first and last stretch stay on their nodes.
+function clearFrames(rm) {
+  if (!rm.frames.length) return;
+  const NEAR = 8, GOAL = 12, MIN = 12;
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  for (const r of rm.edges) {
+    if (r.e.rail || !r.pts || r.pts.length < 4) continue;
+    const q = simplifyPts(r.pts);
+    if (q.length < 4) continue;
+    let changed = false;
+    for (let k = 1; k < q.length - 2; k++) {
+      const a = q[k], b = q[k + 1];
+      const horizontal = eq(a.y, b.y), vertical = eq(a.x, b.x);
+      if (horizontal === vertical) continue;
+      const A = horizontal ? 'y' : 'x', B = horizontal ? 'x' : 'y';
+      const lo = Math.min(a[B], b[B]), hi = Math.max(a[B], b[B]);
+      for (const f of rm.frames) {
+        const sides = horizontal ? [f.y, f.y + f.h] : [f.x, f.x + f.w];
+        const along = horizontal ? [f.x, f.x + f.w] : [f.y, f.y + f.h];
+        if (Math.min(hi, along[1]) - Math.max(lo, along[0]) < MIN) continue;
+        const border = sides.find(v => Math.abs(a[A] - v) < NEAR);
+        if (border === undefined) continue;
+        // which side of the border to be on: where it already is, or either when exactly on it
+        const dirs = Math.abs(a[A] - border) < 0.5 ? [-1, 1] : [Math.sign(a[A] - border)];
+        let moved = false;
+        for (const [dir, goal] of dirs.flatMap(d => [12, 10, 14, 16].map(g => [d, g]))) {
+          const target = border + dir * goal, delta = target - a[A];
+          const prev = q[k - 1], next = q[k + 2];
+          // the stretches on either side stretch or shrink: they must keep their direction
+          const prevLen = a[A] + delta - prev[A], nextLen = next[A] - (b[A] + delta);
+          if (Math.sign(prevLen) !== Math.sign(a[A] - prev[A]) || Math.abs(prevLen) < 4) continue;
+          if (Math.sign(nextLen) !== Math.sign(next[A] - b[A]) || Math.abs(nextLen) < 4) continue;
+          const seg = horizontal ? { x1: lo, x2: hi, y1: target, y2: target } : { x1: target, x2: target, y1: lo, y2: hi };
+          if (rm.nodes.some(n => n.x !== undefined && seg.x1 < n.x + n.w && n.x < seg.x2 && seg.y1 < n.y + n.h && n.y < seg.y2)) continue;
+          // no other frame border near the new place
+          if (rm.frames.some(g => g !== f && (horizontal ? [g.y, g.y + g.h] : [g.x, g.x + g.w]).some(v => Math.abs(v - target) < NEAR) &&
+            Math.min(hi, (horizontal ? g.x + g.w : g.y + g.h)) - Math.max(lo, (horizontal ? g.x : g.y)) >= MIN)) continue;
+          // not along another link
+          const clash = rm.edges.some(o => {
+            if (o === r || !o.pts) return false;
+            for (let i = 1; i < o.pts.length; i++) {
+              const u = o.pts[i - 1], w = o.pts[i];
+              if (horizontal && eq(u.y, w.y) && Math.abs(u.y - target) < 3 && Math.min(u.x, w.x) < hi && lo < Math.max(u.x, w.x)) return true;
+              if (!horizontal && eq(u.x, w.x) && Math.abs(u.x - target) < 3 && Math.min(u.y, w.y) < hi && lo < Math.max(u.y, w.y)) return true;
+            }
+            return false;
+          });
+          if (clash) continue;
+          a[A] = target; b[A] = target;
+          changed = true;
+          moved = true;
+          break;
+        }
+        if (moved) continue;
+      }
+    }
+    if (changed) r.pts = q;
+  }
+}
+
 // The tidy-up runs on the layout that was chosen, after the choice: it changes the number of points in a
 // link without changing how it looks, and the choice is made on those counts.
 async function layout(model, measure, ELK) {
   const rm = await chooseLayout(model, measure, ELK);
+  clearFrames(rm);
   alignJogs(rm);
   return rm;
 }
@@ -1344,7 +1408,17 @@ function placeRails(rm, model, flowH) {
       const o = model.nodes.get(other);
       if (!o || o.x === undefined || (o.parent && o.parent.type === 'rail')) continue;
       const used = taps.filter(t => t.o === o).length;
-      const c = (horiz ? o.x + o.w / 2 : o.y + o.h / 2) + (used ? (used % 2 ? 1 : -1) * 8 * Math.ceil(used / 2) : 0);
+      let c = (horiz ? o.x + o.w / 2 : o.y + o.h / 2) + (used ? (used % 2 ? 1 : -1) * 8 * Math.ceil(used / 2) : 0);
+      // a node on the border between two frames (a bridge) would send its tap along that border: take the
+      // tap off the middle, towards whichever side of the node is clear of every border
+      const nearBorder = v => rm.frames.some(f => horiz
+        ? (Math.abs(v - f.x) < 7 || Math.abs(v - f.x - f.w) < 7) && o.y < f.y + f.h && f.y < o.y + o.h + 200
+        : (Math.abs(v - f.y) < 7 || Math.abs(v - f.y - f.h) < 7) && o.x < f.x + f.w && f.x < o.x + o.w + 200);
+      if (nearBorder(c)) {
+        const lo = (horiz ? o.x : o.y) + 6, hi = (horiz ? o.x + o.w : o.y + o.h) - 6, span = hi - lo;
+        const pick = [c - span / 4, c + span / 4, c - span / 3, c + span / 3].find(v => v >= lo && v <= hi && !nearBorder(v));
+        if (pick !== undefined) c = pick;
+      }
       const edge = side === 'bottom' ? o.y + o.h : side === 'top' ? o.y : side === 'right' ? o.x + o.w : o.x;
       const nodePt = horiz ? { x: c, y: edge } : { x: edge, y: c };
       const busPt = horiz ? { x: c, y: busAt } : { x: busAt, y: c };
@@ -1469,18 +1543,19 @@ function straightenSpans(rm, model, flowH) {
 // channel assignment put it: right under one source, near the target for another. Put the steps of the
 // links that share a target (or a source) at one height, in the middle of the gap between them, so the
 // bends line up. Skipped for a group when that would touch a node or run along another link.
+function simplifyPts(pts) {
+  const o = [{ ...pts[0] }];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = o[o.length - 1], b = pts[i], c = pts[i + 1];
+    if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) continue;
+    if ((Math.abs(a.x - b.x) < 0.5 && Math.abs(b.x - c.x) < 0.5) || (Math.abs(a.y - b.y) < 0.5 && Math.abs(b.y - c.y) < 0.5)) continue;
+    o.push({ ...b });
+  }
+  o.push({ ...pts[pts.length - 1] });
+  return o;
+}
 function alignJogs(rm) {
-  const simp = pts => {
-    const o = [pts[0]];
-    for (let i = 1; i < pts.length - 1; i++) {
-      const a = o[o.length - 1], b = pts[i], c = pts[i + 1];
-      if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) continue;
-      if ((Math.abs(a.x - b.x) < 0.5 && Math.abs(b.x - c.x) < 0.5) || (Math.abs(a.y - b.y) < 0.5 && Math.abs(b.y - c.y) < 0.5)) continue;
-      o.push(b);
-    }
-    o.push(pts[pts.length - 1]);
-    return o;
-  };
+  const simp = simplifyPts;
   const eq = (a, b) => Math.abs(a - b) < 0.5;
   // single-step links: kind 'v' (vertical, horizontal, vertical: the step has a y) or 'h' (the step has an x)
   const zs = [];
@@ -1506,7 +1581,17 @@ function alignJogs(rm) {
     // the gap every link in the group can put its step in
     const lo = Math.max(...fresh.map(z => z.lo)) + 10, hi = Math.min(...fresh.map(z => z.hi)) - 10;
     if (lo > hi) continue;
-    const c = (lo + hi) / 2;
+    // the middle of the gap, unless a frame border is there: then the place in the gap farthest from borders
+    const borderGap = v => Math.min(Infinity, ...rm.frames.filter(f => fresh.some(z => kind === 'v'
+      ? Math.min(z.q[0].x, z.q[3].x) < f.x + f.w && f.x < Math.max(z.q[0].x, z.q[3].x)
+      : Math.min(z.q[0].y, z.q[3].y) < f.y + f.h && f.y < Math.max(z.q[0].y, z.q[3].y)))
+      .flatMap(f => kind === 'v' ? [Math.abs(v - f.y), Math.abs(v - f.y - f.h)] : [Math.abs(v - f.x), Math.abs(v - f.x - f.w)]));
+    let c = (lo + hi) / 2;
+    if (borderGap(c) < 10) {
+      let best = c, gap = borderGap(c);
+      for (let i = 0; i <= 12; i++) { const v = lo + (hi - lo) * i / 12, g = borderGap(v); if (g > gap + 0.5 || (Math.abs(g - gap) <= 0.5 && Math.abs(v - (lo + hi) / 2) < Math.abs(best - (lo + hi) / 2))) { best = v; gap = g; } }
+      c = best;
+    }
     // the new steps must clear every node and not run along another link
     const steps = fresh.map(z => kind === 'v'
       ? { x1: Math.min(z.q[0].x, z.q[3].x), x2: Math.max(z.q[0].x, z.q[3].x), y1: c, y2: c }

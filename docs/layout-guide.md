@@ -113,6 +113,10 @@ Fix: put those two zones one after the other along the flow instead.
 | Zones beside each other that should be stacked | a layout block you do not need | remove it |
 | Nodes that all look the same | nothing marks what they are | an icon, `[firewall]`, `[database]` |
 
+Links keep clear of frame borders by themselves (a stretch within 8px of a border moves to 12px). Two
+cases stay: a link that leaves its node already running along a border, and a link between two nodes that
+both sit on the same border.
+
 ## 7. Things that are not layout, and are always worth doing
 
 - **Ports and protocols on the links**: `lb -> fw2 : 443/tcp`. They cost nothing and make a network

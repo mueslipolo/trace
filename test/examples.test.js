@@ -301,3 +301,26 @@ test('the simple form of a case with a rail has plain nodes and links', () => {
   assert.match(text, /fw -> siem : 514\/udp/);
   assert.strictEqual(stats.rails, 1);
 });
+
+test('no link runs along a frame border in the middle of its path', async () => {
+  const simp = pts => { const o = [pts[0]]; for (let i = 1; i < pts.length - 1; i++) { const a = o[o.length - 1], b = pts[i], c = pts[i + 1]; if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) continue; if ((Math.abs(a.x - b.x) < 0.5 && Math.abs(b.x - c.x) < 0.5) || (Math.abs(a.y - b.y) < 0.5 && Math.abs(b.y - c.y) < 0.5)) continue; o.push(b); } o.push(pts[pts.length - 1]); return o; };
+  for (const file of files) {
+    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
+    for (const { e, pts } of res.rm.edges) {
+      if (e.rail) continue;
+      const q = simp(pts);
+      for (let k = 1; k < q.length - 2; k++) {   // not the first or last stretch: those stay on their nodes
+        const a = q[k], b = q[k + 1];
+        for (const f of res.rm.frames) {
+          if (Math.abs(a.y - b.y) < 0.5) {
+            const ov = Math.min(Math.max(a.x, b.x), f.x + f.w) - Math.max(Math.min(a.x, b.x), f.x);
+            for (const by of [f.y, f.y + f.h]) assert.ok(!(Math.abs(a.y - by) < 8 && ov > 12), `${file}: ${e.a} -> ${e.b} runs along the ${f.f.id} frame`);
+          } else if (Math.abs(a.x - b.x) < 0.5) {
+            const ov = Math.min(Math.max(a.y, b.y), f.y + f.h) - Math.max(Math.min(a.y, b.y), f.y);
+            for (const bx of [f.x, f.x + f.w]) assert.ok(!(Math.abs(a.x - bx) < 8 && ov > 12), `${file}: ${e.a} -> ${e.b} runs along the ${f.f.id} frame`);
+          }
+        }
+      }
+    }
+  }
+});
