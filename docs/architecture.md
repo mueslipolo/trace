@@ -116,6 +116,13 @@ and also wrapped onto two lines when the one-line label has no room. A label tha
 touched. Frame titles and row and column titles are chosen at drawing time and avoid links, nodes and
 labels too; they scan along an edge for the free place nearest the corner or the middle.
 
+`align` has two parts. For nodes in two stacks the stacks are padded (before layout) and one is slid the last
+bit afterwards. For single nodes and nodes in zones (`alignLoose`) the node, or the outermost zone round it
+that does not hold the other node, slides with its contents; both go through one `slide` helper that refuses a
+move that would touch a node or cross a link, and the link between the two nodes is redrawn straight.
+`simplifySnakes` collapses a link that goes across, down, across, down, across into one run across the gap
+(down, across, down) when that run is clear of nodes and other links, at the place farthest from frame borders.
+
 A last pass, `alignJogs`, runs on the chosen layout (after the choice, which is made on point counts it would change) and tidies links that have a single step: those that share a target (or source)
 get their steps at one height, in the middle of the gap, when that touches no node and runs along no
 other link. It changes no bend count.

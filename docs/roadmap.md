@@ -71,8 +71,9 @@ Measured on the Kafka case: it does not remove crossings (4 with or without), an
 other links between the stacks, so the case does not use it. The earlier claim here, that it removes
 most crossings, was wrong. It is for a clear one-to-one pair.
 
-Left: aligning a node that is not in a row or column (the layout only tries to keep the link
-straight); aligning across stacks that are in different frames with a bridge between.
+Done since: aligning single nodes, and nodes inside zones (the zone slides as a whole).
+
+Left: aligning across stacks that are in different frames with a bridge between.
 
 ## Equal sizes (done: `same-width`, `same-height`)
 

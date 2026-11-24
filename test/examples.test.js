@@ -255,7 +255,7 @@ test('align says what to write when it cannot work', async () => {
   const same = await compile('column {\n  a: A\n  b: B\n}\na -> b\nalign a b', measure, ELK, {});
   assert.match(same.warnings.join('|'), /already in line/);
   const loose = await compile('a -> b\nalign a b', measure, ELK, {});
-  assert.match(loose.warnings.join('|'), /only nodes in a row or column/);
+  assert.deepStrictEqual(loose.warnings, [], 'two single nodes are aligned too');
 });
 
 test('rails: syntax errors say what to write', async () => {
@@ -548,4 +548,29 @@ test('links can say how many at each end, and are drawn with crow\'s feet instea
   assert.match(err, /cardinality as in n-1, 1-1, 0n-1/);
   const plain = await compile('a -> b', measure, ELK, {});
   assert.ok(/marker-end/.test(plain.svg), 'an ordinary link keeps its arrowhead');
+});
+
+test('align puts single nodes, and nodes inside zones, level (the zone moves as a whole)', async () => {
+  // the CI/CD case: in its second row the registry and the approval are centred, but the nodes inside the
+  // titled staging zone sit lower than the zone's centre
+  const src = fs.readFileSync(path.join(root, 'examples/cases/cicd.trace'), 'utf8').replace(/\nalign [^\n]*/g, '');
+  const plain = await compile(src, measure, ELK, {});
+  const res = await compile(src + '\nalign registry deploy e2e approve\n', measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const cy = (r, id) => { const n = r.rm.nodes.find(x => x.id === id); return n.y + n.h / 2; };
+  assert.ok(Math.max(...['deploy', 'e2e', 'approve'].map(id => Math.abs(cy(plain, id) - cy(plain, 'registry')))) > 3, 'not level without align');
+  for (const id of ['deploy', 'e2e', 'approve']) assert.ok(Math.abs(cy(res, id) - cy(res, 'registry')) < 1, `${id} is level with the registry`);
+  const f = res.rm.frames.find(x => x.f.id === 'staging');
+  for (const id of ['deploy', 'e2e']) { const n = res.rm.nodes.find(x => x.id === id); assert.ok(n.x >= f.x && n.x + n.w <= f.x + f.w && n.y >= f.y && n.y + n.h <= f.y + f.h, `${id} stays inside the zone`); }
+  assert.deepStrictEqual(res.warnings, []);
+});
+
+test('a link with one step more than it needs takes the shorter route (down, across, down)', async () => {
+  const F = (id, a, b) => `frame ${id} "${id}" {\n  ${a}\n  ${b}\n}\n`;
+  const src = `column {\n  row {\n${F('top', 'a: A', 'b: B')}  }\n  row {\n${F('bottom', 'c: C', 'd: D')}  }\n}\nb -> c : hop`;
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const link = res.rm.edges.find(r => r.e.label === 'hop');
+  const q = link.pts.filter((p, i, a) => i === 0 || i === a.length - 1 || !((Math.abs(a[i - 1].x - p.x) < .5 && Math.abs(p.x - a[i + 1].x) < .5) || (Math.abs(a[i - 1].y - p.y) < .5 && Math.abs(p.y - a[i + 1].y) < .5)));
+  assert.ok(q.length <= 4, `at most two vertical runs (${q.length - 1} runs)`);
 });

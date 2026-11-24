@@ -254,6 +254,11 @@ the link between them is drawn as one straight line. They need a link between th
 and each pair of stacks can have one such pair. `align a b c` keeps `a` with `b` and `b` with `c`. If it
 cannot be done without touching another node, the diagram is left as laid out and says so.
 
+It also works on single nodes and on nodes inside zones: `align registry deploy e2e approve` slides the
+registry, the staging zone (with Deploy and E2E in it) and the approval until all four nodes are level, and
+draws the links between them straight. A node inside a zone moves with its whole zone, so its contents stay
+inside it; a zone is only moved when the other node is not inside it.
+
 Use it for a clear one-to-one pair between two stacks of different lengths, such as an order and its
 invoice. It does not reduce crossings: a fan of links between two stacks crosses the same way level or not.
 

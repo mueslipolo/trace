@@ -646,6 +646,51 @@ async function layoutSequence(model, measure) {
   return rm;
 }
 
+// A link that goes across, down, across, down, across (or down, across, down, across, down) has one step more
+// than it needs: ELK's channel assignment put two runs side by side where one would do. When one run in the
+// gap, at the place farthest from frame borders, is clear of nodes and other links, the link takes that.
+function simplifySnakes(rm) {
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  for (const r of rm.edges) {
+    if (r.e.rail || r.e.lifeline || !r.pts || r.pts.length < 6) continue;
+    const q = simplifyPts(r.pts);
+    if (q.length !== 6) continue;
+    const vertical = eq(q[0].x, q[1].x) && eq(q[1].y, q[2].y) && eq(q[2].x, q[3].x) && eq(q[3].y, q[4].y) && eq(q[4].x, q[5].x);
+    const horizontal = eq(q[0].y, q[1].y) && eq(q[1].x, q[2].x) && eq(q[2].y, q[3].y) && eq(q[3].x, q[4].x) && eq(q[4].y, q[5].y);
+    if (vertical === horizontal) continue;
+    const A = vertical ? 'y' : 'x', B = vertical ? 'x' : 'y';       // A runs along the link's direction, B across
+    const a0 = q[0][A], a5 = q[5][A], dir = Math.sign(a5 - a0);
+    if (!dir) continue;
+    // the two runs across, and a few places between them
+    const m1 = q[1][A], m2 = q[3][A];
+    if (Math.sign(m1 - a0) !== dir || Math.sign(a5 - m2) !== dir) continue;
+    const cands = [m1, m2, (m1 + m2) / 2, (a0 + a5) / 2].filter(v => Math.sign(v - a0) === dir && Math.sign(a5 - v) === dir && Math.abs(v - a0) > 8 && Math.abs(a5 - v) > 8);
+    const borderGap = v => Math.min(Infinity, ...rm.frames.filter(f => (vertical
+      ? Math.min(q[0].x, q[5].x) < f.x + f.w && f.x < Math.max(q[0].x, q[5].x)
+      : Math.min(q[0].y, q[5].y) < f.y + f.h && f.y < Math.max(q[0].y, q[5].y)))
+      .flatMap(f => vertical ? [Math.abs(v - f.y), Math.abs(v - f.y - f.h)] : [Math.abs(v - f.x), Math.abs(v - f.x - f.w)]));
+    const segs = v => vertical
+      ? [{ x1: q[0].x, x2: q[0].x, y1: Math.min(a0, v), y2: Math.max(a0, v) }, { x1: Math.min(q[0].x, q[5].x), x2: Math.max(q[0].x, q[5].x), y1: v, y2: v }, { x1: q[5].x, x2: q[5].x, y1: Math.min(a5, v), y2: Math.max(a5, v) }]
+      : [{ y1: q[0].y, y2: q[0].y, x1: Math.min(a0, v), x2: Math.max(a0, v) }, { y1: Math.min(q[0].y, q[5].y), y2: Math.max(q[0].y, q[5].y), x1: v, x2: v }, { y1: q[5].y, y2: q[5].y, x1: Math.min(a5, v), x2: Math.max(a5, v) }];
+    const clear = v => segs(v).every(sg => !rm.nodes.some(n => n.x !== undefined && sg.x1 < n.x + n.w - 0.5 && n.x + 0.5 < sg.x2 + (sg.x1 === sg.x2 ? 0.01 : 0) && sg.y1 < n.y + n.h - 0.5 && n.y + 0.5 < sg.y2 + (sg.y1 === sg.y2 ? 0.01 : 0))) &&
+      // only the new run across can lie along another link: the first and last run are where they were
+      !segs(v).filter((sg, i) => i === 1).some(sg => rm.edges.some(o => {
+        if (o === r || !o.pts) return false;
+        for (let i = 1; i < o.pts.length; i++) {
+          const u = o.pts[i - 1], w = o.pts[i];
+          if (sg.y1 === sg.y2 && eq(u.y, w.y) && Math.abs(u.y - sg.y1) < 3 && Math.min(u.x, w.x) < sg.x2 && sg.x1 < Math.max(u.x, w.x)) return true;
+          if (sg.x1 === sg.x2 && eq(u.x, w.x) && Math.abs(u.x - sg.x1) < 3 && Math.min(u.y, w.y) < sg.y2 && sg.y1 < Math.max(u.y, w.y)) return true;
+        }
+        return false;
+      }));
+    let best = null;
+    for (const v of cands) { if (!clear(v)) continue; const g = Math.min(borderGap(v), 40); if (!best || g > best.g + 0.5) best = { v, g }; }
+    if (!best) continue;
+    const v = best.v;
+    r.pts = vertical ? [q[0], { x: q[0].x, y: v }, { x: q[5].x, y: v }, q[5]] : [q[0], { x: v, y: q[0].y }, { x: v, y: q[5].y }, q[5]];
+  }
+}
+
 // A link label that a link, a node or another label runs through moves to the nearest clear place along its
 // own link (above or below a horizontal stretch, left or right of a vertical one). Labels that are clear are
 // not touched, so a diagram that was fine stays exactly as it was. ELK keeps labels off nodes but not off
@@ -804,6 +849,7 @@ async function layout(model, measure, ELK) {
   const rm = await chooseLayout(model, measure, ELK);
   clearFrames(rm);
   alignJogs(rm);
+  simplifySnakes(rm);
   placeLabels(rm, measure);
   return rm;
 }
@@ -1013,12 +1059,13 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   // their stacks; with the link between them straightened, the stacks line up on that link
   model.alignNotes = [];
   model.alignPairs = [];
+  model.alignLoose = [];
   const padded = new Set();
   for (const al of model.aligns) {
     const A = model.nodes.get(al.a), B = model.nodes.get(al.b);
     const ga = A && A.parent && A.parent.type === 'group' ? A.parent : null;
     const gb = B && B.parent && B.parent.type === 'group' ? B.parent : null;
-    if (!ga || !gb) { model.alignNotes.push(`align ${al.a} ${al.b}: only nodes in a row or column can be aligned this way (the layout tries to keep the link straight)`); continue; }
+    if (!ga || !gb) { model.alignLoose.push({ A, B }); continue; }
     if (ga === gb) { model.alignNotes.push(`align ${al.a} ${al.b}: both are in the same ${ga.axis === 'v' ? 'column' : 'row'}, so they are already in line`); continue; }
     if ((ga.axis === 'v') !== (gb.axis === 'v')) { model.alignNotes.push(`align ${al.a} ${al.b}: one is in a row and the other in a column`); continue; }
     if (padded.has(ga) || padded.has(gb)) { model.alignNotes.push(`align ${al.a} ${al.b}: one of these stacks is already lined up with another; only one pair per two stacks can be level`); continue; }
@@ -1653,72 +1700,114 @@ function compactBridges(rm, model, flowH) {
 // draw the link between the two nodes as a straight line. A pair that cannot be slid without touching
 // a node or crossing a link is left as it is, and said so.
 function alignRows(rm, model) {
+  const within = (a, b) => { for (let q = a; q; q = q.parent) if (q === b) return true; return false; };
+  // Slide a region along X by dd: its nodes, the stacks in it, the frames in it; the links with a point in its
+  // box move with it and get a small step where they enter it. Refused (false) when the moved box would touch
+  // a node outside it, or a link that does not touch it would cross it.
+  function slide(inRegion, box, X, Y, dd, stacks, frames) {
+    const moved = { ...box, [X]: box[X] + dd };
+    const hits = [...model.nodes.values()].some(o => o.x !== undefined && !inRegion(o) &&
+      o.x < moved.x + moved.w && moved.x < o.x + o.w && o.y < moved.y + moved.h && moved.y < o.y + o.h);
+    if (hits) return false;
+    const inside = q => q.x >= box.x - 0.5 && q.x <= box.x + box.w + 0.5 && q.y >= box.y - 0.5 && q.y <= box.y + box.h + 0.5;
+    const cuts = rm.edges.some(r => {
+      if (r.pts.some(inside)) return false;
+      for (let i = 1; i < r.pts.length; i++) {
+        const q = r.pts[i - 1], w = r.pts[i];
+        const x1 = Math.min(q.x, w.x), x2 = Math.max(q.x, w.x), y1 = Math.min(q.y, w.y), y2 = Math.max(q.y, w.y);
+        if (x1 < moved.x + moved.w && moved.x < x2 + 0.01 && y1 < moved.y + moved.h && moved.y < y2 + 0.01) return true;
+      }
+      return false;
+    });
+    if (cuts) return false;
+    for (const o of model.nodes.values()) if (o.x !== undefined && inRegion(o)) o[X] += dd;
+    for (const g of stacks) g[X] += dd;
+    for (const f of frames) f[X] += dd;
+    for (const r of rm.edges) {
+      const flags = r.pts.map(inside);
+      if (!flags.some(Boolean)) continue;
+      const out = [];
+      r.pts.forEach((q, i) => {
+        const n = { ...q };
+        if (flags[i]) n[X] += dd;
+        if (i > 0 && flags[i] !== flags[i - 1]) {
+          const prev = out[out.length - 1];
+          if (Math.abs(prev[X] - n[X]) > 0.5 && Math.abs(r.pts[i - 1][X] - q[X]) < 0.5) {
+            const m = (prev[Y] + n[Y]) / 2;
+            out.push({ [X]: prev[X], [Y]: m }, { [X]: n[X], [Y]: m });
+          }
+        }
+        out.push(n);
+      });
+      r.pts = out;
+      if (r.lab && inside({ x: r.lab.x, y: r.lab.y })) r.lab[X] += dd;
+    }
+    return true;
+  }
+  // the link between two nodes that are now level: one straight line from the near side of one to the other
+  function straighten(A, B, X, Y, W, L) {
+    const r = rm.edges.find(o => (o.e.a === A.id && o.e.b === B.id) || (o.e.a === B.id && o.e.b === A.id));
+    if (!r) return;
+    const lo = A[Y] + A[L] <= B[Y] ? [A, B] : B[Y] + B[L] <= A[Y] ? [B, A] : null;
+    if (!lo) return;
+    const [first, second] = lo;
+    const c = A[X] + A[W] / 2, a0 = first[Y] + first[L], a1 = second[Y];
+    const line = [{ [X]: c, [Y]: a0 }, { [X]: c, [Y]: a1 }].map(q => ({ x: Y === 'x' ? q[Y] : q[X], y: Y === 'x' ? q[X] : q[Y] }));
+    const blocked = [...model.nodes.values()].some(o => o !== A && o !== B && o.x !== undefined &&
+      o[X] < c + 1 && c - 1 < o[X] + o[W] && o[Y] < a1 && a0 < o[Y] + o[L]);
+    if (blocked) return;
+    r.pts = r.e.a === first.id ? line : line.reverse();
+    if (r.lab) { r.lab = { ...r.lab, anchor: 'middle', x: (a0 + a1) / 2, y: c - 6 - (r.e.lab ? r.e.lab.h : 0) }; }
+  }
+
+  // pairs inside two stacks (the stacks were padded; slide one the last bit)
   for (const al of model.alignPairs || []) {
     const { A, B, ga, gb, vert } = al;
     if (A.x === undefined || B.x === undefined) continue;
-    const X = vert ? 'y' : 'x', Y = vert ? 'x' : 'y', W = vert ? 'h' : 'w';
-    const mid = n => n[X] + n[W] / 2;
-    const d = mid(A) - mid(B);
+    const X = vert ? 'y' : 'x', Y = vert ? 'x' : 'y', W = vert ? 'h' : 'w', L = vert ? 'w' : 'h';
+    const d = (A[X] + A[W] / 2) - (B[X] + B[W] / 2);
     if (Math.abs(d) >= 0.5) {
       let done = false;
       for (const [g, dd] of [[gb, d], [ga, -d]]) {
-        const inRegion = it => it.parent === g;
-        const box = { x: g.x, y: g.y, w: g.w, h: g.h };
-        const moved = { ...box, [X]: box[X] + dd };
-        const hits = [...model.nodes.values()].some(o => o.x !== undefined && !inRegion(o) &&
-          o.x < moved.x + moved.w && moved.x < o.x + o.w && o.y < moved.y + moved.h && moved.y < o.y + o.h);
-        if (hits) continue;
-        const inside = p => p.x >= box.x - 0.5 && p.x <= box.x + box.w + 0.5 && p.y >= box.y - 0.5 && p.y <= box.y + box.h + 0.5;
-        const cuts = rm.edges.some(r => {
-          if (r.pts.some(inside)) return false;
-          for (let i = 1; i < r.pts.length; i++) {
-            const p = r.pts[i - 1], q = r.pts[i];
-            const x1 = Math.min(p.x, q.x), x2 = Math.max(p.x, q.x), y1 = Math.min(p.y, q.y), y2 = Math.max(p.y, q.y);
-            if (x1 < moved.x + moved.w && moved.x < x2 + 0.01 && y1 < moved.y + moved.h && moved.y < y2 + 0.01) return true;
-          }
-          return false;
-        });
-        if (cuts) continue;
-        for (const o of model.nodes.values()) if (o.x !== undefined && inRegion(o)) o[X] += dd;
-        g[X] += dd;
-        for (const r of rm.edges) {
-          const flags = r.pts.map(inside);
-          if (!flags.some(Boolean)) continue;
-          const out = [];
-          r.pts.forEach((p, i) => {
-            const q = { ...p };
-            if (flags[i]) q[X] += dd;
-            if (i > 0 && flags[i] !== flags[i - 1]) {
-              const prev = out[out.length - 1];
-              if (Math.abs(prev[X] - q[X]) > 0.5 && Math.abs(r.pts[i - 1][X] - p[X]) < 0.5) {
-                const m = (prev[Y] + q[Y]) / 2;
-                out.push({ [X]: prev[X], [Y]: m }, { [X]: q[X], [Y]: m });
-              }
-            }
-            out.push(q);
-          });
-          r.pts = out;
-          if (r.lab && inside({ x: r.lab.x, y: r.lab.y })) r.lab[X] += dd;
-        }
-        done = true;
-        break;
+        if (slide(it => it.parent === g, { x: g.x, y: g.y, w: g.w, h: g.h }, X, Y, dd, [g], [])) { done = true; break; }
       }
       if (!done) { (model.alignNotes = model.alignNotes || []).push(`align ${A.id} ${B.id}: they could not be brought level without touching another node or link, so they are left as laid out`); continue; }
     }
-    // the link between them: a straight line from the near side of one to the near side of the other
-    const r = rm.edges.find(o => (o.e.a === A.id && o.e.b === B.id) || (o.e.a === B.id && o.e.b === A.id));
-    if (!r) continue;
-    const lo = A[Y] + A[vert ? 'w' : 'h'] <= B[Y] ? [A, B] : B[Y] + B[vert ? 'w' : 'h'] <= A[Y] ? [B, A] : null;
-    if (!lo) continue;
-    const [first, second] = lo;
-    const c = mid(A), a0 = first[Y] + first[vert ? 'w' : 'h'], a1 = second[Y];
-    const seg = { [X]: c, [Y]: a0 };
-    const line = [{ [X]: c, [Y]: a0 }, { [X]: c, [Y]: a1 }].map(q => ({ x: vert ? q[Y] : q[X], y: vert ? q[X] : q[Y] }));
-    const blocked = [...model.nodes.values()].some(o => o !== A && o !== B && o.x !== undefined &&
-      o[X] < c + 1 && c - 1 < o[X] + o[W] && o[Y] < a1 && a0 < o[Y] + o[vert ? 'w' : 'h']);
-    if (blocked) continue;
-    r.pts = r.e.a === first.id ? line : line.reverse();
-    if (r.lab) { r.lab = { ...r.lab, [Y]: (a0 + a1) / 2, [X]: c - (r.e.lab ? r.e.lab.h + 6 : 0), anchor: vert ? 'middle' : 'middle' }; if (vert) { r.lab.x = (a0 + a1) / 2; r.lab.y = c - 6 - (r.e.lab ? r.e.lab.h : 0); } else { r.lab.x = (a0 + a1) / 2; r.lab.y = c - 6 - (r.e.lab ? r.e.lab.h : 0); } }
+    straighten(A, B, X, Y, W, L);
+  }
+
+  // pairs of single nodes, or nodes in zones: the node, or the outermost zone round it that does not hold the
+  // other one, slides (with everything in it) until the two nodes are level
+  for (const al of model.alignLoose || []) {
+    const { A, B } = al;
+    if (A.x === undefined || B.x === undefined) continue;
+    const dx = Math.abs((A.x + A.w / 2) - (B.x + B.w / 2)), dy = Math.abs((A.y + A.h / 2) - (B.y + B.h / 2));
+    const vert = dx >= dy;       // side by side: level means the same y
+    const X = vert ? 'y' : 'x', Y = vert ? 'x' : 'y', W = vert ? 'h' : 'w', L = vert ? 'w' : 'h';
+    const d = (A[X] + A[W] / 2) - (B[X] + B[W] / 2);
+    if (Math.abs(d) >= 0.5) {
+      const regionOf = (n, other) => {
+        let frame = null;
+        for (let q = n.parent; q; q = q.parent) if (q.type === 'frame') { if (within(other, q)) break; frame = q; }
+        return frame;
+      };
+      const tries = [[B, A, d], [A, B, -d]].map(([n, other, dd]) => ({ n, F: regionOf(n, other), dd }));
+      // the smaller region first: a single node before a zone
+      tries.sort((p, q) => (p.F ? 1 : 0) - (q.F ? 1 : 0));
+      let done = false;
+      for (const { n, F, dd } of tries) {
+        const members = F ? [...model.nodes.values()].filter(o => o.x !== undefined && within(o, F)) : [n];
+        const pad = F ? 20 : 0;
+        const x1 = Math.min(...members.map(o => o.x)) - pad, y1 = Math.min(...members.map(o => o.y)) - (F ? 36 : 0);
+        const x2 = Math.max(...members.map(o => o.x + o.w)) + pad, y2 = Math.max(...members.map(o => o.y + o.h)) + pad;
+        const box = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+        const stacks = model.groups.filter(g => g.x !== undefined && g.items.length && members.includes(g.items[0]));
+        const frames = rm.frames.filter(f => F && within(f.f, F));
+        if (slide(F ? (o => within(o, F)) : (o => o === n), box, X, Y, dd, stacks, frames)) { done = true; break; }
+      }
+      if (!done) { (model.alignNotes = model.alignNotes || []).push(`align ${A.id} ${B.id}: they could not be brought level without touching another node or link, so they are left as laid out`); continue; }
+    }
+    straighten(A, B, X, Y, W, L);
   }
 }
 

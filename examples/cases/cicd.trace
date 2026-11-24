@@ -45,3 +45,5 @@ approve -> canary [ok] : yes
 canary -> slo
 slo -> full [ok] : yes
 slo -> rollback [bad] : no
+
+align registry deploy e2e approve
