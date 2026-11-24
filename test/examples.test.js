@@ -574,3 +574,18 @@ test('a link with one step more than it needs takes the shorter route (down, acr
   const q = link.pts.filter((p, i, a) => i === 0 || i === a.length - 1 || !((Math.abs(a[i - 1].x - p.x) < .5 && Math.abs(p.x - a[i + 1].x) < .5) || (Math.abs(a[i - 1].y - p.y) < .5 && Math.abs(p.y - a[i + 1].y) < .5)));
   assert.ok(q.length <= 4, `at most two vertical runs (${q.length - 1} runs)`);
 });
+
+test('arrowheads on one side of a node are not crowded by the next link (office case)', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/office.trace'), 'utf8'), measure, ELK, {});
+  const sides = new Map();
+  for (const { e, pts } of res.rm.edges) {
+    const p = pts[pts.length - 1];
+    for (const id of [e.b]) {
+      const n = res.rm.nodes.find(x => x.id === id);
+      if (!n) continue;
+      const side = Math.abs(p.y - n.y) < 8 ? 'top' : Math.abs(p.y - n.y - n.h) < 8 ? 'bottom' : null;
+      if (side) { const k = id + side; sides.set(k, [...(sides.get(k) || []), p.x]); }
+    }
+  }
+  for (const [k, xs] of sides) { xs.sort((a, b) => a - b); for (let i = 1; i < xs.length; i++) assert.ok(xs[i] - xs[i - 1] >= 20, `${k}: arrows ${xs[i] - xs[i - 1]}px apart`); }
+});

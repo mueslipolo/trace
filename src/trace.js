@@ -843,6 +843,80 @@ function clearFrames(rm) {
   }
 }
 
+// Links that meet the same side of a node are kept at least `gap` px apart, so an arrowhead never touches
+// the line next to it. Only ends that can slide are moved: the last stretch (across the side) and the one
+// before it follow, and nothing moves when it would run into a node. Tables, span nodes and straight links
+// keep their places.
+function spreadEnds(rm, gap = 22) {
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  const T = 8;
+  const ends = [];
+  for (const r of rm.edges) {
+    if (r.e.rail || r.e.lifeline || !r.pts || r.pts.length < 2 || r.e.a === r.e.b) continue;
+    const q = simplifyPts(r.pts);
+    r.pts = q;
+    for (const end of [0, 1]) {
+      const i = end ? q.length - 1 : 0, p = q[i];
+      for (const n of rm.nodes) {
+        if (n.x === undefined || n.cols || n.span) continue;
+        let side = null, pos;
+        if (Math.abs(p.y - n.y) <= T && p.x >= n.x && p.x <= n.x + n.w) { side = 'top'; pos = p.x; }
+        else if (Math.abs(p.y - n.y - n.h) <= T && p.x >= n.x && p.x <= n.x + n.w) { side = 'bottom'; pos = p.x; }
+        else if (Math.abs(p.x - n.x) <= T && p.y >= n.y && p.y <= n.y + n.h) { side = 'left'; pos = p.y; }
+        else if (Math.abs(p.x - n.x - n.w) <= T && p.y >= n.y && p.y <= n.y + n.h) { side = 'right'; pos = p.y; }
+        if (!side) continue;
+        // the stretch leaving the node must run across the side, and a stretch before it must exist
+        const nx = q[end ? i - 1 : i + 1], nn = q[end ? i - 2 : i + 2];
+        const across = (side === 'top' || side === 'bottom') ? eq(p.x, nx.x) : eq(p.y, nx.y);
+        ends.push({ r, n, side, pos, i, nx, nn, movable: !!(across && nn), end });
+        break;
+      }
+    }
+  }
+  const groups = new Map();
+  for (const e of ends) { const k = e.n.id + '|' + e.side; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); }
+  const hitsNode = (x1, y1, x2, y2, skip) => rm.nodes.some(n => n.x !== undefined && n !== skip[0] && n !== skip[1] &&
+    Math.min(x1, x2) < n.x + n.w - 0.5 && n.x + 0.5 < Math.max(x1, x2) && Math.min(y1, y2) < n.y + n.h - 0.5 && n.y + 0.5 < Math.max(y1, y2));
+  for (const [, list] of groups) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => a.pos - b.pos);
+    if (!list.some((e, k) => k && list[k].pos - list[k - 1].pos < gap - 0.5)) continue;
+    const horiz = list[0].side === 'top' || list[0].side === 'bottom';
+    const n = list[0].n, lo = (horiz ? n.x : n.y) + 6, hi = (horiz ? n.x + n.w : n.y + n.h) - 6;
+    // wanted positions: push apart from the middle of the crowd
+    const want = list.map(e => e.pos);
+    for (let pass = 0; pass < 20; pass++) {
+      let moved = false;
+      for (let k = 1; k < want.length; k++) {
+        const d = want[k] - want[k - 1];
+        if (d >= gap - 0.01) continue;
+        const a = list[k - 1], b = list[k], need = gap - d;
+        if (a.movable && b.movable) { want[k - 1] -= need / 2; want[k] += need / 2; }
+        else if (b.movable) want[k] += need;
+        else if (a.movable) want[k - 1] -= need;
+        else continue;
+        moved = true;
+      }
+      if (!moved) break;
+    }
+    if (want.some(v => v < lo || v > hi)) continue;
+    const todo = [];
+    let ok = true;
+    list.forEach((e, k) => {
+      if (!ok || !e.movable || Math.abs(want[k] - e.pos) < 0.5) return;
+      const q = e.r.pts, ni = e.end ? e.i - 1 : e.i + 1, nj = e.end ? e.i - 2 : e.i + 2;
+      const np = horiz ? { x: want[k], y: q[e.i].y } : { x: q[e.i].x, y: want[k] };
+      const nm = horiz ? { x: want[k], y: q[ni].y } : { x: q[ni].x, y: want[k] };
+      const other = q[nj], skip = [e.r.src || null, e.r.dst || null];
+      // the stretch across the side, and the stretch before it that now ends in a new place
+      if (hitsNode(np.x, np.y, nm.x, nm.y, skip) || hitsNode(nm.x, nm.y, other.x, other.y, skip)) { ok = false; return; }
+      todo.push({ q, i: e.i, ni, np, nm });
+    });
+    if (!ok) continue;
+    for (const t of todo) { t.q[t.i] = t.np; t.q[t.ni] = t.nm; }
+  }
+}
+
 // The tidy-up runs on the layout that was chosen, after the choice: it changes the number of points in a
 // link without changing how it looks, and the choice is made on those counts.
 async function layout(model, measure, ELK) {
@@ -850,6 +924,7 @@ async function layout(model, measure, ELK) {
   clearFrames(rm);
   alignJogs(rm);
   simplifySnakes(rm);
+  spreadEnds(rm);
   placeLabels(rm, measure);
   return rm;
 }
