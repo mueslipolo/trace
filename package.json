@@ -22,6 +22,8 @@
     "@resvg/resvg-js": "2.6.2"
   },
   "devDependencies": {
-    "lucide-static": "1.79.0"
+    "@expo-google-fonts/inter": "0.4.2",
+    "lucide-static": "1.79.0",
+    "opentype.js": "2.0.0"
   }
 }

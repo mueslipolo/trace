@@ -103,12 +103,13 @@ column of nodes keep table-level attachment only; a table generated from SQL or 
 
 - Split `src/trace.js` into modules (parse, measure, layout, postprocess, render) without breaking
   the inline-in-a-page build.
-- Real font metrics in Node (Inter advance widths via a font file), so snapshots match the browser.
+- Done: real Inter metrics in Node (`tools/measure.js`, devDependencies `@expo-google-fonts/inter` and
+  `opentype.js`; no kerning, about a percent), PNGs drawn with the same font (`tools/png.js`), and the CLI
+  takes `out.png`, `--dark`, `--light`, `--zoom` and `--watch`.
 - Labels placed above horizontal links consistently (ELK sometimes puts them below).
 - Edge labels in direction down take a whole row; find a placement that sits beside the link.
 - “Call back” links that run backwards into the previous column (k8s: web pods calling svc/cart)
   should loop around the column edge.
 - Fan-in to one point (CI “all green?”): optional join/bracket for a column's outgoing links.
 - A link style for “connection opened one way, traffic flows the other” (zero-trust connector).
-- CLI: watch mode, PNG output, `--dark`.
 - Playground: share a diagram by link, syntax highlighting.

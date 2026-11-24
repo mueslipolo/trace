@@ -6,12 +6,7 @@ const path = require('path');
 const ELK = require('elkjs/lib/elk.bundled.js');
 const { compile } = require('../src/trace.js');
 const { measure } = require('./measure.js');
-let Resvg = null;
-try { ({ Resvg } = require('@resvg/resvg-js')); } catch (e) { /* PNGs are optional */ }
-// resvg needs a font to draw text: use DejaVu when it is installed (a stand-in for Inter, a little wider),
-// otherwise the PNGs have shapes and no text
-const FONT_DIR = '/usr/share/fonts/truetype/dejavu/';
-const FONT_FILES = ['DejaVuSans.ttf', 'DejaVuSans-Bold.ttf'].map(f => FONT_DIR + f).filter(f => fs.existsSync(f));
+const { toPng, available } = require('./png.js');
 
 (async () => {
   const root = path.join(__dirname, '..');
@@ -26,15 +21,10 @@ const FONT_FILES = ['DejaVuSans.ttf', 'DejaVuSans-Bold.ttf'].map(f => FONT_DIR +
       if (res.errors.length) { failed++; console.log(`✗ ${group}/${f}: line ${res.errors[0].line}: ${res.errors[0].msg}`); continue; }
       const svg = res.standalone();
       fs.writeFileSync(path.join(outDir, name + '.svg'), svg);
-      if (Resvg) {
-        // resvg ignores prefers-color-scheme and paint-order, so drop the halo for a readable PNG
-        const forPng = svg.replace(/ halo/g, '').replace(/font:12px Inter,[^}]*\}/g, 'font-family:"DejaVu Sans";font-size:12px}');
-        const png = new Resvg(forPng, { background: 'white', fitTo: { mode: 'zoom', value: 1.25 }, font: FONT_FILES.length ? { loadSystemFonts: false, fontFiles: FONT_FILES, defaultFontFamily: 'DejaVu Sans' } : undefined }).render().asPng();
-        fs.writeFileSync(path.join(outDir, name + '.png'), png);
-      }
+      if (available()) fs.writeFileSync(path.join(outDir, name + '.png'), toPng(svg, { zoom: 1.25 }));
       console.log(`✓ ${group}/${name}  ${Math.round(res.rm.width)}×${Math.round(res.rm.height)}`);
     }
   }
-  if (!Resvg) console.log('(install @resvg/resvg-js for PNG snapshots)');
+  if (!available()) console.log('(install @resvg/resvg-js for PNG snapshots)');
   process.exit(failed ? 1 : 0);
 })();

@@ -2216,7 +2216,9 @@ function diagramCSS(p, scope) {
     `${s}.head{fill:${p.line}}${s}.head-ok{fill:${p.ok}}${s}.head-bad{fill:${p.bad}}${s}.head-muted{fill:${p.soft}}`;
 }
 
-function standaloneCSS() {
+// theme 'light' or 'dark' fixes the palette; without one the SVG follows prefers-color-scheme
+function standaloneCSS(theme) {
+  if (theme === 'light' || theme === 'dark') return diagramCSS(PALETTE[theme], '');
   return diagramCSS(PALETTE.light, '') + `@media (prefers-color-scheme: dark){${diagramCSS(PALETTE.dark, '')}}`;
 }
 
@@ -2318,7 +2320,7 @@ function headId(e, pfx) {
   return pfx + 'a';
 }
 
-function render(rm, { standalone = false, idPrefix = 'tr' } = {}) {
+function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) {
   const pfx = idPrefix + '-';
   const model = rm.model;
   let W = Math.ceil(rm.width), H = Math.ceil(rm.height);
@@ -2430,8 +2432,10 @@ function render(rm, { standalone = false, idPrefix = 'tr' } = {}) {
     return `<marker id="${pfx}${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" class="${c}"/></marker>`;
   }).join('');
   const aria = esc(model.title || describe(model));
-  const style = standalone ? `<style>${standaloneCSS()}</style>` : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="dg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${aria}">${style}<defs>${defs}</defs>${body.join('')}</svg>`;
+  const style = standalone ? `<style>${standaloneCSS(theme)}</style>` : '';
+  // a fixed theme has its own ground, so the file reads the same on any background
+  const ground = standalone && theme ? `<rect width="${W}" height="${H}" fill="${PALETTE[theme].panel}"/>` : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="dg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${aria}">${style}<defs>${defs}</defs>${ground}${body.join('')}</svg>`;
 }
 
 function keySVG(k, x, y, pfx) {
@@ -2472,7 +2476,7 @@ async function compile(src, measure, ELK, opts) {
   for (const k of model.keys) k._tw = measure(k.text, FONT_NOTE);
   const iconsFailed = await loadIcons(model, opts && opts.loadIcon);
   const rm = model.mode === 'sequence' ? await layoutSequence(model, measure) : await layout(model, measure, ELK);
-  return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || [])], svg: render(rm, opts), standalone: () => render(rm, { ...opts, standalone: true }) };
+  return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || [])], svg: render(rm, opts), standalone: theme => render(rm, { ...opts, standalone: true, theme: typeof theme === 'string' ? theme : null }) };
 }
 
 if (typeof module !== 'undefined') module.exports = { parse, layout, render, compile, diagramCSS, standaloneCSS, PALETTE, FONT_NAME, FONT_NOTE, withIcon };

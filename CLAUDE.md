@@ -37,7 +37,7 @@ npm test                 # parse + layout + invariants for every example
 npm run simplify         # regenerate examples/cases/simple/ from the full cases
 npm run snapshots        # out/**/*.svg, plus .png if @resvg/resvg-js installed
 npm run build            # dist/playground.html and dist/showcase.html
-node tools/render.js examples/cases/dmz.trace out.svg
+node tools/render.js examples/cases/dmz.trace out.svg     # also out.png, --dark, --zoom 2, --watch
 ```
 
 ## How to work on layout
