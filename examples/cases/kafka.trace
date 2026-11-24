@@ -35,9 +35,9 @@ relay -> tOrders
 tOrders -> payment
 tOrders -> inventory
 tOrders -> notify
-tPay <- payment : publishes
+tPay <- payment [dashed] : publishes
 tPay -> shipping : ship when paid
-tShip <- shipping : publishes
+tShip <- shipping [dashed] : publishes
 tShip -> notify
 payment -> psp
 payment -> dlq [bad] : after 5 retries
