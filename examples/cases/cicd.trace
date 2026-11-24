@@ -1,32 +1,33 @@
 title "CI/CD with canary releases"
 
-dev [user]: Developer push
-
-frame ci "CI, every commit" [blue] {
-  build [span container]: Build | cached Docker layers
-  column {
-    unit [flask-conical]: Unit tests
-    lint [list-checks]: Lint + typecheck
-    sast [shield]: SAST + dependency scan
+column {
+  row {
+    dev [user]: Developer push
+    frame ci "CI, every commit" [blue] {
+      build [span container]: Build | cached Docker layers
+      column {
+        unit [flask-conical]: Unit tests
+        lint [list-checks]: Lint + typecheck
+        sast [shield]: SAST + dependency scan
+      }
+      ask gate: all green?
+    }
+    store registry [package]: Image registry | signed with cosign
   }
-  ask gate: all green?
+  row {
+    frame staging "staging" [green] {
+      deploy [rocket]: Deploy | Helm
+      e2e [monitor-check]: E2E + smoke tests
+    }
+    ask approve: release approved?
+    frame prod "production" [orange] {
+      canary [bird]: Canary 5%
+      ask slo: SLOs held 30 min?
+      full [ok server]: Roll out 100%
+    }
+    rollback [bad undo-2]: Automatic rollback
+  }
 }
-
-store registry [package]: Image registry | signed with cosign
-
-frame staging "staging" [green] {
-  deploy [rocket]: Deploy | Helm
-  e2e [monitor-check]: E2E + smoke tests
-}
-
-ask approve: release approved?
-
-frame prod "production" [orange] {
-  canary [bird]: Canary 5%
-  ask slo: SLOs held 30 min?
-  full [ok server]: Roll out 100%
-}
-rollback [bad undo-2]: Automatic rollback
 
 dev -> build
 build -> unit

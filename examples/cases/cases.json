@@ -24,8 +24,8 @@
     "id": "hybrid",
     "title": "Hybrid cloud: datacenter to AWS",
     "context": "An on-prem datacenter reaches an AWS VPC through a transit gateway, over Direct Connect with an IPsec VPN as backup. Public, private and database subnets; apps still authenticate against on-prem Active Directory.",
-    "uses": "Four levels of nesting (region, VPC, subnet tiers) and a transit gateway as a [bridge] on the AWS border, where the datacenter link lands. tgw <- app1 sends the LDAP call back to the datacenter without turning the whole layout around.",
-    "gap": "Subnet tiers should stack as horizontal bands spanning the VPC, as in AWS reference diagrams; Trace places them by flow, so they land wherever the links put them. This is the frame placement hint from last time: “frame pub above priv”."
+    "uses": "Four levels of nesting (region, VPC, subnet tiers) and a transit gateway as a [bridge] on the AWS border, where the datacenter link lands. tgw <- app1 sends the LDAP call back to the datacenter without turning the whole layout around. A column holds the three subnet tiers as bands inside the VPC, the way AWS reference diagrams draw them, and same-width makes the bands one width.",
+    "gap": "The tiers are bands now, but the links between them (load balancer to the two app nodes, app nodes to the database) still leave and re-enter by the left side of each band."
   },
   {
     "id": "office",
@@ -38,8 +38,8 @@
     "id": "cicd",
     "title": "CI/CD with canary releases",
     "context": "Every commit is built and checked in parallel; green builds are signed and pushed, deployed to staging, approved, then rolled out to production through a canary that rolls back on its own if SLOs slip.",
-    "uses": "[span] on the build step fans out to the three parallel checks on straight lines; red and green paths come from link tags; dev <- gate sends the failure back to the developer while keeping the pipeline flowing left to right.",
-    "gap": "The fan-in to “all green?” converges on one point; hand-drawn pipelines often show the parallel stage as a bracket. A column could offer a “join” option that merges its outgoing links."
+    "uses": "[span] on the build step fans out to the three parallel checks on straight lines; red and green paths come from link tags; dev <- gate sends the failure back to the developer while keeping the pipeline flowing left to right. A column of two rows folds the pipeline into build and test on top, staging and release below, so it is 1,640 wide instead of 2,460 and the text stays legible when the page is fitted to a screen.",
+    "gap": "The fan-in to “all green?” converges on one point; hand-drawn pipelines often show the parallel stage as a bracket. A column could offer a “join” option that merges its outgoing links. The link from the registry back to the staging deploy has to run across the page, because a row cannot flow right to left yet (a snake)."
   },
   {
     "id": "kafka",

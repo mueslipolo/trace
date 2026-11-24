@@ -14,6 +14,7 @@ pill users [user]: Internet users
 frame aws "AWS eu-west-1" [orange] {
   tgw [bridge router]: Transit gateway
   frame vpc "VPC 10.20.0.0/16" [blue] {
+   column {
     frame pub "public subnets" [green] {
       igw [internet]: Internet gateway
       alb [loadbalancer]: Application load balancer
@@ -31,6 +32,7 @@ frame aws "AWS eu-west-1" [orange] {
         store rdss [database]: RDS standby
       }
     }
+   }
   }
 }
 pill internet [internet]: Internet | egress
@@ -51,3 +53,5 @@ tgw <- app1 [muted] : LDAPS 636 to AD
 app1 -> nat : any/tcp
 app2 -> nat : any/tcp
 nat -> internet : 443/tcp egress
+
+same-width pub priv dbs

@@ -1,7 +1,6 @@
 title "CI/CD with canary releases"
 
 dev: Developer push
-
 frame ci "CI, every commit" [blue] {
   build: Build | cached Docker layers
   unit: Unit tests
@@ -9,16 +8,12 @@ frame ci "CI, every commit" [blue] {
   sast: SAST + dependency scan
   ask gate: all green?
 }
-
 store registry: Image registry | signed with cosign
-
 frame staging "staging" [green] {
   deploy: Deploy | Helm
   e2e: E2E + smoke tests
 }
-
 ask approve: release approved?
-
 frame prod "production" [orange] {
   canary: Canary 5%
   ask slo: SLOs held 30 min?
