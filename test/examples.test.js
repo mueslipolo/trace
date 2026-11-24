@@ -456,3 +456,31 @@ test('tables sit in frames and take links to a column from outside the frame', a
   const u = N.get('users');
   assert.ok(Math.abs(link.pts[link.pts.length - 1].y - (u.y + u.headH + u.rowH * 1.5)) < 1.5, 'from outside the frame it still lands on the name row');
 });
+
+test('labels and titles stay off the links in the DMZ case', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/dmz.trace'), 'utf8'), measure, ELK, {});
+  const seg = (r, fn) => r.pts.some((p, i) => i && fn(r.pts[i - 1], p));
+  const crosses = (x0, x1, y0, y1) => res.rm.edges.some(r => !r.e.lifeline && seg(r, (a, p) => Math.min(a.x, p.x) < x1 && x0 < Math.max(a.x, p.x) && Math.min(a.y, p.y) < y1 && y0 < Math.max(a.y, p.y)));
+  // a row or column title is not crossed by a link
+  for (const g of res.model.groups.filter(g => g.title)) {
+    const m = res.svg.match(new RegExp(`<text class="note muted" x="([\\d.]+)" y="([\\d.]+)"[^>]*>${g.title}</text>`));
+    const cx = +m[1], cy = +m[2], w = g.titleW;
+    assert.ok(!crosses(cx - w / 2, cx + w / 2, cy - 11, cy + 3), `the title "${g.title}" is not crossed by a link`);
+  }
+  // a frame title is not crossed either
+  for (const fr of res.rm.frames) {
+    const m = res.svg.match(new RegExp(`<text class="ztitle muted" x="([\\d.]+)" y="([\\d.]+)" text-anchor="(\\w+)">${fr.f.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</text>`));
+    const x = +m[1], y = +m[2], w = fr.f.titleW, a = m[3];
+    const x0 = a === 'end' ? x - w : x;
+    assert.ok(!crosses(x0, x0 + w, y - 11, y + 3), `the title of ${fr.f.id} is not crossed by a link`);
+  }
+  // the log links' labels are past the zones, between their borders and the bus
+  const right = Math.max(...res.rm.frames.map(f => f.x + f.w));
+  const taps = res.rm.edges.filter(r => r.e.b === 'logs' && r.e.a !== 'logs');
+  assert.strictEqual(taps.length, 3);
+  for (const t of taps) assert.ok(t.lab.x - t.e.lab.w / 2 >= right - 1, 'a rail label is clear of the zones');
+  // a step's label is above the step, not on it
+  const step = res.rm.edges.find(r => r.e.a === 'api1' && r.e.b === 'fw3');
+  const ys = step.pts.filter((p, i) => i && Math.abs(p.y - step.pts[i - 1].y) < 0.5 && Math.abs(p.x - step.pts[i - 1].x) > 1).map(p => p.y);
+  assert.ok(ys.length === 1 && step.lab.y + step.e.lab.h <= ys[0], 'the label sits above the horizontal step');
+});

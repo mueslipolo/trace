@@ -1704,12 +1704,16 @@ function placeRails(rm, model, flowH) {
     const T = 22 + (sinks.length ? 18 + (horiz ? sh : sw) : 0) + PAD;
     // the band's other dimension: the whole diagram, and enough for the nodes in the rail
     const need = sinks.reduce((t, n) => t + (horiz ? n.w : n.h) + 16, 0) + 120;
+    // beside the diagram the labels of the links sit between its last border and the bus, so that gap grows
+    // with the widest label
+    const labW = Math.max(0, ...links.map(e => e.lab ? e.lab.w : 0));
+    const gap = horiz ? GAP : Math.max(GAP, labW + 18 - 22);
     const L = Math.max(horiz ? x2 - x1 : y2 - y1, need);
     let band;
-    if (side === 'bottom') band = { x: x1, y: y2 + GAP, w: L, h: T };
-    else if (side === 'right') band = { x: x2 + GAP, y: y1, w: T, h: L };
-    else if (side === 'top') { shiftAll(0, T + GAP); band = { x: x1, y: y1, w: L, h: T }; }
-    else { shiftAll(T + GAP, 0); band = { x: x1, y: y1, w: T, h: L }; }
+    if (side === 'bottom') band = { x: x1, y: y2 + gap, w: L, h: T };
+    else if (side === 'right') band = { x: x2 + gap, y: y1, w: T, h: L };
+    else if (side === 'top') { shiftAll(0, T + gap); band = { x: x1, y: y1, w: L, h: T }; }
+    else { shiftAll(T + gap, 0); band = { x: x1, y: y1, w: T, h: L }; }
     const diagram = { x: horiz ? band.x : band.x, y: band.y };
     // the bus: along the side of the band that faces the diagram
     const busAt = side === 'bottom' ? band.y + 22 : side === 'top' ? band.y + band.h - 22 : side === 'right' ? band.x + 22 : band.x + band.w - 22;
@@ -1776,7 +1780,16 @@ function placeRails(rm, model, flowH) {
       // the link's own look (dashes, colour, label), with the arrow where the link points
       const syn = { ...t.e, start: false, end: t.e.railFrom ? t.e.end : false };
       let lab = null;
-      if (t.e.lab) lab = horiz ? { x: t.c + 6, y: (t.pts[0].y + t.pts[1].y) / 2 - t.e.lab.h / 2, anchor: 'start' } : { x: (t.pts[0].x + t.pts[1].x) / 2, y: t.c - 6 - t.e.lab.h, anchor: 'middle' };
+      if (t.e.lab) {
+        if (horiz) lab = { x: t.c + 6, y: (t.pts[0].y + t.pts[1].y) / 2 - t.e.lab.h / 2, anchor: 'start' };
+        else {
+          // between the border of the last frame the link crosses and the bus, where no zone title is
+          const x0 = Math.min(t.pts[0].x, t.pts[1].x), x1 = Math.max(t.pts[0].x, t.pts[1].x);
+          const past = Math.max(x0, ...rm.frames.filter(f => f.y < t.c && t.c < f.y + f.h && f.x + f.w > x0 && f.x < x1).map(f => f.x + f.w));
+          const room = x1 - past;
+          lab = room >= t.e.lab.w + 8 ? { x: (past + x1) / 2, y: t.c - 6 - t.e.lab.h, anchor: 'middle' } : { x: (x0 + x1) / 2, y: t.c - 6 - t.e.lab.h, anchor: 'middle' };
+        }
+      }
       out.push({ e: syn, pts: t.pts, lab });
     }
     for (const t of sinkLinks) {
@@ -1944,9 +1957,13 @@ function alignJogs(rm) {
       const [p0, , , p3] = z.q;
       const old = z.q[1][kind === 'v' ? 'y' : 'x'];
       z.r.pts = kind === 'v' ? [p0, { x: p0.x, y: c }, { x: p3.x, y: c }, p3] : [p0, { x: c, y: p0.y }, { x: c, y: p3.y }, p3];
-      // a label that sat on the old step moves with it
-      const lab = z.r.lab;
-      if (lab && Math.abs((kind === 'v' ? lab.y : lab.x) - old) < 24) lab[kind === 'v' ? 'y' : 'x'] += c - old;
+      // a label that sat on the old step moves with it, and sits beside the new one (above a horizontal step,
+      // to the right of a vertical one), never on the line
+      const lab = z.r.lab, eh = z.r.e.lab ? z.r.e.lab.h : 14;
+      if (lab && Math.abs((kind === 'v' ? lab.y : lab.x) - old) < 40) {
+        if (kind === 'v') { lab.x = (p0.x + p3.x) / 2; lab.anchor = 'middle'; lab.y = c - 4 - eh; }
+        else { lab.x = c + 6; lab.anchor = 'start'; lab.y = (p0.y + p3.y) / 2 - eh / 2; }
+      }
       used.add(z);
     }
   }
@@ -2246,7 +2263,12 @@ function render(rm, { standalone = false, idPrefix = 'tr' } = {}) {
       if (fr.titleLeft) spots.unshift({ x: fr.x + 10, y: fr.y + 17, a: 'start' });
       const clear = sp => {
         const x0 = sp.a === 'end' ? sp.x - tw : sp.x, y0 = sp.y - 11;
-        return !rm.nodes.some(n => n.x < x0 + tw + 4 && x0 - 4 < n.x + n.w && n.y < y0 + 14 && y0 < n.y + n.h);
+        return !rm.nodes.some(n => n.x < x0 + tw + 4 && x0 - 4 < n.x + n.w && n.y < y0 + 14 && y0 < n.y + n.h) &&
+          !rm.edges.some(r => r.pts && !r.e.lifeline && r.pts.some((q, i) => {
+            if (!i) return false;
+            const a = r.pts[i - 1];
+            return Math.min(a.x, q.x) < x0 + tw + 4 && x0 - 4 < Math.max(a.x, q.x) && Math.min(a.y, q.y) < y0 + 14 && y0 < Math.max(a.y, q.y);
+          }));
       };
       const sp = spots.find(clear) || spots[0];
       body.push(`<text class="ztitle muted" x="${r1(sp.x)}" y="${r1(sp.y)}" text-anchor="${sp.a}">${esc(fr.f.title)}</text>`);
@@ -2263,7 +2285,23 @@ function render(rm, { standalone = false, idPrefix = 'tr' } = {}) {
   }
   for (const g of model.groups) {
     if (!g.title || g.x === undefined) continue;
-    body.push(`<text class="note muted" x="${r1(g.x + g.w / 2)}" y="${r1(g.y + 13)}" text-anchor="middle">${esc(g.title)}</text>`);
+    // the title goes in the middle of the top edge; if a link runs through it, at the free place nearest the
+    // middle along the top edge, else along the bottom edge, else in the middle anyway
+    const tw = g.titleW || g.title.length * 6;
+    const crossed = (x0, x1, y0, y1) => rm.edges.some(r => r.pts && r.pts.some((p, i) => {
+      if (!i) return false;
+      const a = r.pts[i - 1];
+      return Math.min(a.x, p.x) < x1 && x0 < Math.max(a.x, p.x) && Math.min(a.y, p.y) < y1 && y0 < Math.max(a.y, p.y);
+    }));
+    const mid = g.x + g.w / 2;
+    let spot = null;
+    for (const [base, ty] of [[g.y, g.y + 13], [g.y + g.h - 14, g.y + g.h - 4]]) {
+      const free = [];
+      for (let cx = g.x + tw / 2 + 4; cx <= g.x + g.w - tw / 2 - 4; cx += 4) if (!crossed(cx - tw / 2 - 3, cx + tw / 2 + 3, base + 3, base + 17)) free.push(cx);
+      if (free.length) { spot = { x: free.reduce((m, v) => Math.abs(v - mid) < Math.abs(m - mid) ? v : m), y: ty }; break; }
+    }
+    if (!spot) spot = { x: mid, y: g.y + 13 };
+    body.push(`<text class="note muted" x="${r1(spot.x)}" y="${r1(spot.y)}" text-anchor="middle">${esc(g.title)}</text>`);
   }
   const labels = [];
   for (const { e, pts, lab } of rm.edges) {
