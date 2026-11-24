@@ -58,6 +58,12 @@ Where a firewall or gateway belongs to two zones, tag it `[bridge]`. It is drawn
 half in each zone, and the two frames are made to touch. `[span]` makes a node as wide (or tall) as
 the stack it links to, so the links fan out on straight lines.
 
+`[span]` also fixes links that squeeze together. Two sources side by side feeding one node (the Internet
+users and Partner APIs feeding DDoS scrubbing) are further apart than the node is wide, so their
+links slide inward and bunch up at its edge. Tag the node `[span]` and it grows as wide as the row of
+sources, with one attachment point under each: both links drop straight. A span node is sized to the
+stack it *feeds*; a wider stack on the other side attaches in proportion and its links may jog.
+
 Both need the zones to be next to each other along the flow. If the two zones end up beside each
 other in a row or column block, a bridge between them has no shared border and is drawn as an
 ordinary node.
@@ -87,6 +93,7 @@ Fix: put those two zones one after the other along the flow instead.
 | A strip many times wider than tall, text tiny at page width | too many steps in a row | `direction down`, or let it fold; or rows of frames |
 | A link that leaves a box sideways and comes back | siblings stacked along the flow | swap `column` and `row` (section 3) |
 | A long link looping round the whole diagram | a link written against the order of the nodes | declare the nodes in flow order, or use `<-` |
+| Two links that slide inward and bunch up at a node | the sources are further apart than the node is wide | tag the node `[span]` |
 | A firewall floating between two zones | the zones do not touch | `[bridge]`, and make them follow each other along the flow |
 | Zones beside each other that should be stacked | a layout block you do not need | remove it |
 | Nodes that all look the same | nothing marks what they are | an icon, `[firewall]`, `[database]` |
@@ -121,6 +128,7 @@ Fix: put those two zones one after the other along the flow instead.
 | Top-down, stacks as rows, one column of zones (layout block) | 786 x 1,282 | 54 |
 | The same without the layout block around the zones | 786 x 1,168 | 25 |
 | Sources centred over the first zone (a column block holding them and that zone) | 795 x 1,220 | 44 |
+| The node they feed is a `[span]`, so both links drop straight | 830 x 1,224 | 30 |
 
 The last two versions are the plain top-down diagram with rows inside the zones, icons, `[bridge]` and
 `[span]`, the last with the sources centred. They are the best looking. (The plain version has fewer bends but its firewalls are

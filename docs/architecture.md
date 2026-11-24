@@ -66,6 +66,12 @@ a cycle, and ELK's default breaks it wherever it likes. Every layout is then als
 `cycleBreaking: MODEL_ORDER`, which reverses exactly those links; that is what `<-` asks for by hand.
 It has to win by the same 3% margin. A diagram without such a link is laid out once, as before.
 
+A layout block (lane) places its children with ELK's `SIMPLE` strategy so a grid stays tidy, but that
+leaves the placeholders for link labels where they fall and zig-zags the links between children. For a
+diagram with blocks both `SIMPLE` and `NETWORK_SIMPLEX` are tried and the better (by the same cost) is
+kept, `SIMPLE` unless the other wins by 3%. Links into a `[span]` node that sits inside a frame are
+given a port on the frame at the span node's own attachment point, so they stay straight.
+
 `TRACE_LAYOUT=hier|flat|compound` forces one mode; `TRACE_NOWRAP=1` turns folding off;
 `TRACE_NOCYCLE=1` skips the declaration-order variant. Today per-frame or flat wins for every example that has frames except the ones where compound has
 fewer bends.

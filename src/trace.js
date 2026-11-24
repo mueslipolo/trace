@@ -382,10 +382,25 @@ async function layout(model, measure, ELK) {
   const modes = { hier: [false, true], hierwrap: [false, true, true], flat: [true, false], compound: [false, false] };
   // rows and columns that hold frames (lanes) only exist in the per-frame mode; if that cannot place
   // the diagram, the others draw it without the lanes
+  // cost: link bends, plus how small the text gets when the drawing is fitted to a page 1100px wide
+  const cost = (rm, bends) => bends + 160 * (1 - Math.min(1, 1100 / rm.width));
+  const bendsOf = rm => rm.edges.reduce((t, e) => t + Math.max(0, e.pts.length - 2), 0);
   const hasLane = (function f(c) { return c.items.some(i => i.type === 'lane' || (i.items && f(i))); })(model.root);
   if (hasLane && !env.TRACE_LAYOUT) {
-    const h = await layoutOnce(model, measure, ELK, false, true);
-    if (h) return h;
+    // A block is a grid, so its children are placed simply (no sliding to straighten links). When the
+    // children are linked, ELK's normal placement can draw those links straighter; try both and keep the
+    // better one, preferring the simple one unless the other wins by a margin.
+    const cands = [];
+    for (const lp of ['SIMPLE', 'NETWORK_SIMPLEX']) {
+      const h = await layoutOnce(model, measure, ELK, false, true, false, undefined, lp);
+      if (!h) break;
+      cands.push({ lp, rm: h, cost: cost(h, bendsOf(h)) });
+    }
+    if (cands.length) {
+      let best = cands[0];
+      for (const c of cands.slice(1)) if (c.cost < best.cost * 0.97) best = c;
+      return best === cands[cands.length - 1] ? best.rm : layoutOnce(model, measure, ELK, false, true, false, undefined, best.lp);
+    }
     const rm = await layoutOnce(model, measure, ELK, false, false);
     rm.notes = ['This diagram could not be placed in the rows and columns you wrote, so they were ignored.'];
     return rm;
@@ -394,8 +409,6 @@ async function layout(model, measure, ELK) {
   if (forced) return (await layoutOnce(model, measure, ELK, forced[0], forced[1])) || layoutOnce(model, measure, ELK, false, false);
   const tried = [];
   let last = null;
-  // cost: link bends, plus how small the text gets when the drawing is fitted to a page 1100px wide
-  const cost = (rm, bends) => bends + 160 * (1 - Math.min(1, 1100 / rm.width));
   // A link written against the order of the nodes (a -> b, with b above a) makes a cycle. ELK can break
   // cycles by declaration order, which is what `<-` asks for by hand: when such a link exists, every
   // layout is also tried that way (it has to win by a margin, so a fine diagram keeps its layout).
@@ -424,7 +437,7 @@ async function layout(model, measure, ELK) {
   return best.id === last ? best.rm : layoutOnce(model, measure, ELK, modes[best.m][0], modes[best.m][1], modes[best.m][2], best.cyc);
 }
 
-async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC) {
+async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   const S = model.spacing;
   if (HIER && (model.edges.some(e => model.frames.has(e.a) || model.frames.has(e.b)))) return null;
   const flowH = model.direction === 'RIGHT';
@@ -891,10 +904,15 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC) {
           const T = rq.T, L = lay.get(T);
           const p = { id: rq.pid, width: 0, height: 0, layoutOptions: { 'elk.port.side': rq.side } };
           if (rq.fixed) { p.x = rq.fixed.x; p.y = rq.fixed.y; if (!eports.has(T)) eports.set(T, []); eports.get(T).push(p); return; }
-          if (rq.side === 'WEST') { p.x = 0; p.y = rq.mp.y + rq.m.h / 2 + off; }
-          if (rq.side === 'EAST') { p.x = L.w; p.y = rq.mp.y + rq.m.h / 2 + off; }
-          if (rq.side === 'NORTH') { p.x = rq.mp.x + rq.m.w / 2 + off; p.y = 0; }
-          if (rq.side === 'SOUTH') { p.x = rq.mp.x + rq.m.w / 2 + off; p.y = L.h; }
+          // a [span] node has its own attachment point for each link (level with the member of the stack
+          // on the other end); the port on the frame lines up with it so the link runs straight
+          const sp = rq.m.span && rq.m.ports && rq.m.ports.find(q => q.id === rq.pid);
+          const alongX = sp ? rq.mp.x + sp.x : rq.mp.x + rq.m.w / 2 + off;
+          const alongY = sp ? rq.mp.y + sp.y : rq.mp.y + rq.m.h / 2 + off;
+          if (rq.side === 'WEST') { p.x = 0; p.y = alongY; }
+          if (rq.side === 'EAST') { p.x = L.w; p.y = alongY; }
+          if (rq.side === 'NORTH') { p.x = alongX; p.y = 0; }
+          if (rq.side === 'SOUTH') { p.x = alongX; p.y = L.h; }
           if (!eports.has(T)) eports.set(T, []);
           eports.get(T).push(p);
         });
@@ -932,7 +950,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC) {
       if (isLane) {
         opts['elk.partitioning.activate'] = 'true';
         // a lane is a grid, not a flow diagram: line its children up instead of sliding them to straighten links
-        opts['elk.layered.nodePlacement.strategy'] = 'SIMPLE';
+        opts['elk.layered.nodePlacement.strategy'] = LANEP || 'SIMPLE';
         opts['elk.separateConnectedComponents'] = 'false'; // unlinked children still follow the lane's order
       }
       const r = await elk.layout({ id: Fr ? prefix(Fr) + Fr.id : 'root', layoutOptions: opts, children, edges });

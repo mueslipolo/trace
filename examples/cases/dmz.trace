@@ -7,7 +7,7 @@ column {
     pill partners [handshake]: Partner APIs
   }
   frame edge "edge, provider managed" [grey] {
-    ddos [shield]: DDoS scrubbing
+    ddos [span shield]: DDoS scrubbing
     cdn [cloud]: CDN + WAF | TLS termination, bot rules
   }
 }
