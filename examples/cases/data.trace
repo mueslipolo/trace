@@ -1,15 +1,15 @@
 title "Analytics platform, sources to dashboards"
 
 column "sources" {
-  store app: App Postgres
-  logs: Clickstream | via Kafka
-  saas: SaaS tools | Salesforce, Stripe, Zendesk
+  store app [database]: App Postgres
+  logs [mouse-pointer-click]: Clickstream | via Kafka
+  saas [cloud]: SaaS tools | Salesforce, Stripe, Zendesk
 }
 
 column "ingestion" {
-  debezium: Debezium | CDC
-  flink: Flink | streaming
-  fivetran: Fivetran | hourly syncs
+  debezium [database-zap]: Debezium | CDC
+  flink [waves]: Flink | streaming
+  fivetran [refresh-cw]: Fivetran | hourly syncs
 }
 
 frame lake "lakehouse, Iceberg on S3" [blue] {
@@ -19,14 +19,14 @@ frame lake "lakehouse, Iceberg on S3" [blue] {
 }
 
 column "consumers" {
-  bi: BI dashboards | Looker
-  ml: ML features | Feast
-  rev: Reverse ETL | to CRM
+  bi [chart]: BI dashboards | Looker
+  ml [brain]: ML features | Feast
+  rev [send]: Reverse ETL | to CRM
 }
 
-airflow [muted]: Airflow | schedules dbt runs
-dq: Data quality checks | Great Expectations
-alert [bad]: Alert data on-call
+airflow [muted calendar-clock]: Airflow | schedules dbt runs
+dq [list-checks]: Data quality checks | Great Expectations
+alert [bad bell]: Alert data on-call
 
 app -> debezium
 logs -> flink

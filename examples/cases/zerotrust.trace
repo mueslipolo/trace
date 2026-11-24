@@ -1,32 +1,32 @@
 title "Zero-trust access to internal apps"
 
 column "users" {
-  pill emp: Employee laptop | managed device
-  pill contractor: Contractor | browser only
+  pill emp [laptop]: Employee laptop | managed device
+  pill contractor [user]: Contractor | browser only
 }
 
 frame edge "access edge" [orange] {
-  proxy: Identity-aware proxy | per-request policy
+  proxy [shield]: Identity-aware proxy | per-request policy
 }
 
 frame idp "identity" [purple] {
   row {
-    sso: SSO / IdP | SAML, OIDC
-    mfa: MFA | WebAuthn
+    sso [key]: SSO / IdP | SAML, OIDC
+    mfa [mobile]: MFA | WebAuthn
   }
-  posture: Device posture | MDM signals
+  posture [monitor]: Device posture | MDM signals
 }
 
 frame private "private network, no inbound ports" [blue] {
-  connector [bridge span]: App connector | dials out to the edge
+  connector [bridge span cable]: App connector | dials out to the edge
   column "apps" {
-    wiki: Wiki
-    git: Git server
-    admin [bad]: Admin console
+    wiki [document]: Wiki
+    git [git-branch]: Git server
+    admin [bad settings]: Admin console
   }
 }
 
-vpn [dashed]: Legacy VPN | being retired
+vpn [dashed vpn]: Legacy VPN | being retired
 
 emp -> proxy : 443/tcp mTLS
 contractor -> proxy : 443/tcp

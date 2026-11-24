@@ -2,34 +2,34 @@ title "Branch office LAN with dual ISPs"
 direction down
 
 row {
-  pill isp1: ISP A | fiber 1 Gb
-  pill isp2: ISP B | LTE backup
+  pill isp1 [internet]: ISP A | fiber 1 Gb
+  pill isp2 [signal]: ISP B | LTE backup
 }
 
 frame edge "edge" [orange] {
   row {
-    r1: Edge router A
-    r2: Edge router B
+    r1 [router]: Edge router A
+    r2 [router]: Edge router B
   }
-  fw: Firewall HA pair | active / passive
+  fw [firewall]: Firewall HA pair | active / passive
 }
 
 frame core "core" [blue] {
-  coresw [span]: Core switch stack | L3, inter-VLAN routing
+  coresw [span switch]: Core switch stack | L3, inter-VLAN routing
 }
 
 frame access "access layer" [green] {
   row "VLANs" {
-    staff: VLAN 10 | staff
-    voip: VLAN 20 | VoIP phones
-    iot: VLAN 40 | printers, cameras
-    guest [dashed]: VLAN 30 | guest, internet only
+    staff [laptop]: VLAN 10 | staff
+    voip [phone]: VLAN 20 | VoIP phones
+    iot [camera]: VLAN 40 | printers, cameras
+    guest [dashed wifi]: VLAN 30 | guest, internet only
   }
 }
 
 frame sec "security services" [purple] {
-  proxy: Web proxy | TLS inspection, category filter
-  nac: NAC | 802.1X, RADIUS
+  proxy [globe-lock]: Web proxy | TLS inspection, category filter
+  nac [key]: NAC | 802.1X, RADIUS
 }
 
 isp1 -> r1 : BGP 179, 1 Gb

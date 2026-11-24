@@ -1,39 +1,39 @@
 title "Three-tier network behind a DMZ"
 
 column {
-  pill users: Internet users
-  pill partners: Partner APIs
+  pill users [user]: Internet users
+  pill partners [handshake]: Partner APIs
 }
 
 frame edge "edge, provider managed" [grey] {
-  ddos: DDoS scrubbing
-  cdn: CDN + WAF | TLS termination, bot rules
+  ddos [shield]: DDoS scrubbing
+  cdn [cloud]: CDN + WAF | TLS termination, bot rules
 }
 
 frame dmz "DMZ, 10.0.1.0/24" [orange] {
-  fw1 [bridge span]: Edge firewall | stateful, geo-block
+  fw1 [bridge span firewall]: Edge firewall | stateful, geo-block
   column {
-    lb: Load balancer pair | VRRP, health checks
-    rp: Reverse proxy | nginx, mTLS to partners
-    bastion: Bastion host | SSH via SSO only
+    lb [loadbalancer]: Load balancer pair | VRRP, health checks
+    rp [arrow-right-left]: Reverse proxy | nginx, mTLS to partners
+    bastion [terminal]: Bastion host | SSH via SSO only
   }
 }
 
 frame app "app zone, 10.0.2.0/24" [blue] {
-  fw2 [bridge span]: Internal firewall | allow 443, 8443 only
+  fw2 [bridge span firewall]: Internal firewall | allow 443, 8443 only
   column "app servers" {
-    web1: web-01
-    web2: web-02
-    api1: api-01
+    web1 [server]: web-01
+    web2 [server]: web-02
+    api1 [api]: api-01
   }
 }
 
 frame data "data zone, 10.0.3.0/24" [purple] {
-  fw3 [bridge span]: DB firewall | 5432, 6379 from app only
+  fw3 [bridge span firewall]: DB firewall | 5432, 6379 from app only
   column {
-    store pgp: Postgres primary
-    store pgr: Postgres replica
-    store redis: Redis | sessions, cache
+    store pgp [database]: Postgres primary
+    store pgr [database]: Postgres replica
+    store redis [cache]: Redis | sessions, cache
   }
 }
 

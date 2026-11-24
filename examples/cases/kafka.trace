@@ -1,30 +1,30 @@
 title "Order processing on Kafka"
 
-checkout: Checkout API
+checkout [api]: Checkout API
 
 frame orders "order service" [blue] {
-  store odb: orders DB | with outbox table
-  relay: Outbox relay | Debezium
+  store odb [database]: orders DB | with outbox table
+  relay [arrow-right-left]: Outbox relay | Debezium
 }
 
 frame kafka "Kafka" [grey] {
   column "topics" {
-    store tOrders: orders.created
-    store tPay: payments.settled
-    store tShip: shipments.updated
+    store tOrders [queue]: orders.created
+    store tPay [queue]: payments.settled
+    store tShip [queue]: shipments.updated
   }
 }
 
 column "consumers" {
-  payment: Payment service
-  inventory: Inventory service
-  shipping: Shipping service
-  notify: Notification service
+  payment [credit-card]: Payment service
+  inventory [package]: Inventory service
+  shipping [truck]: Shipping service
+  notify [bell]: Notification service
 }
 
 column {
-  engine psp: Payment provider
-  store dlq [bad]: Dead-letter topic
+  engine psp [landmark]: Payment provider
+  store dlq [bad trash-2]: Dead-letter topic
 }
 
 checkout -> odb : one transaction

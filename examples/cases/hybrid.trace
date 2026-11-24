@@ -2,38 +2,38 @@ title "Hybrid cloud: datacenter to AWS"
 
 frame dc "on-prem datacenter" [grey] {
   column {
-    ad: Active Directory
-    erp: ERP | Oracle
+    ad [users]: Active Directory
+    erp [database]: ERP | Oracle
   }
-  core: Core switch
-  dcfw: Datacenter firewall | IPsec peer
+  core [switch]: Core switch
+  dcfw [firewall]: Datacenter firewall | IPsec peer
 }
 
-pill users: Internet users
+pill users [user]: Internet users
 
 frame aws "AWS eu-west-1" [orange] {
-  tgw [bridge]: Transit gateway
+  tgw [bridge router]: Transit gateway
   frame vpc "VPC 10.20.0.0/16" [blue] {
     frame pub "public subnets" [green] {
-      igw: Internet gateway
-      alb: Application load balancer
+      igw [internet]: Internet gateway
+      alb [loadbalancer]: Application load balancer
     }
     frame priv "private subnets" [green] {
       column {
-        app1: app ASG | az-a
-        app2: app ASG | az-b
+        app1 [server]: app ASG | az-a
+        app2 [server]: app ASG | az-b
       }
-      nat: NAT gateway
+      nat [arrow-right-left]: NAT gateway
     }
     frame dbs "database subnets" [purple] {
       column {
-        store rds: RDS primary
-        store rdss: RDS standby
+        store rds [database]: RDS primary
+        store rdss [database]: RDS standby
       }
     }
   }
 }
-pill internet: Internet | egress
+pill internet [internet]: Internet | egress
 
 ad -> core : 389, 636 LDAP(S)
 erp -> core : 1521/tcp

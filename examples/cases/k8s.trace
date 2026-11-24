@@ -1,11 +1,11 @@
 title "Kubernetes ingress, service mesh and egress"
 
-pill client: Clients
-clb: Cloud load balancer | L4, public IP
+pill client [user]: Clients
+clb [loadbalancer]: Cloud load balancer | L4, public IP
 
 frame cluster "cluster prod-eu-1" [blue] {
   frame ingressns "namespace ingress" [grey] {
-    ingress [span]: Ingress controller | nginx, cert-manager TLS
+    ingress [span route]: Ingress controller | nginx, cert-manager TLS
   }
   frame shop "namespace shop" [green] {
     column "services" {
@@ -14,24 +14,24 @@ frame cluster "cluster prod-eu-1" [blue] {
       svccat: svc/catalog
     }
     column "pods, envoy sidecar" {
-      podweb: web × 3
-      podcart: cart × 2
-      podcat: catalog × 2
+      podweb [container]: web × 3
+      podcart [container]: cart × 2
+      podcat [container]: catalog × 2
     }
   }
   frame datans "namespace data" [purple] {
     column {
-      store redis: Redis
-      store pg: Postgres operator | 3 replicas
+      store redis [cache]: Redis
+      store pg [database]: Postgres operator | 3 replicas
     }
   }
   frame egressns "namespace egress" [orange] {
-    egw: Egress gateway | allow-list
+    egw [log-out]: Egress gateway | allow-list
   }
 }
 column "outside" {
-  engine stripe: Stripe API
-  engine smtp: SMTP relay
+  engine stripe [credit-card]: Stripe API
+  engine smtp [mail]: SMTP relay
 }
 
 client -> clb : 443/tcp

@@ -1,19 +1,19 @@
 title "Incident response"
 direction down
 
-alert: Alert fires | SLO burn rate
+alert [bell]: Alert fires | SLO burn rate
 ask real: actionable?
-tune [muted]: Tune or silence the alert
+tune [muted bell-off]: Tune or silence the alert
 ask sev: customer impact?
-sev3: SEV-3 | fix in business hours
-page: Page on-call | PagerDuty, 5 min ack
+sev3 [ticket]: SEV-3 | fix in business hours
+page [phone-call]: Page on-call | PagerDuty, 5 min ack
 ask ack: acknowledged?
-escalate [bad]: Escalate | secondary, then manager
-ic: Declare incident | commander, Slack channel
-status [muted]: Status page | every 30 min
-mitigate: Mitigate | rollback, failover, flag
+escalate [bad arrow-up-right]: Escalate | secondary, then manager
+ic [siren]: Declare incident | commander, Slack channel
+status [muted megaphone]: Status page | every 30 min
+mitigate [wrench]: Mitigate | rollback, failover, flag
 ask fixed: impact over?
-review [ok]: Postmortem | within 5 days, blameless
+review [ok document]: Postmortem | within 5 days, blameless
 
 alert -> real
 real -> tune [muted] : no

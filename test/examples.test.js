@@ -92,8 +92,8 @@ test('icons: an icon outside the core is loaded when the diagram uses it', async
 });
 
 test('icons: a failed load draws the node without the icon and says so', async () => {
-  const res = await compile('a [cable]: Link', measure, ELK, { loadIcon: async () => { throw new Error('offline'); } });
+  const res = await compile('a [bike]: Link', measure, ELK, { loadIcon: async () => { throw new Error('offline'); } });
   assert.deepStrictEqual(res.errors, []);
-  assert.match(res.warnings[0], /cable/);
+  assert.match(res.warnings[0], /bike/);
   assert.ok(res.rm.nodes[0].w <= 100, 'no room kept for an icon that is not there');
 });
