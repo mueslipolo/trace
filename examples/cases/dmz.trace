@@ -1,3 +1,4 @@
+direction down
 title "Three-tier network behind a DMZ"
 
 column {
@@ -6,18 +7,16 @@ column {
 }
 
 column {
-  row {
-    frame edge "edge, provider managed" [grey] {
-      ddos [shield]: DDoS scrubbing
-      cdn [cloud]: CDN + WAF | TLS termination, bot rules
-    }
-    frame dmz "DMZ, 10.0.1.0/24" [orange] {
-      fw1 [bridge span firewall]: Edge firewall | stateful, geo-block
-      column {
-        lb [loadbalancer]: Load balancer pair | VRRP, health checks
-        rp [arrow-right-left]: Reverse proxy | nginx, mTLS to partners
-        bastion [terminal]: Bastion host | SSH via SSO only
-      }
+  frame edge "edge, provider managed" [grey] {
+    ddos [shield]: DDoS scrubbing
+    cdn [cloud]: CDN + WAF | TLS termination, bot rules
+  }
+  frame dmz "DMZ, 10.0.1.0/24" [orange] {
+    fw1 [bridge span firewall]: Edge firewall | stateful, geo-block
+    column {
+      lb [loadbalancer]: Load balancer pair | VRRP, health checks
+      rp [arrow-right-left]: Reverse proxy | nginx, mTLS to partners
+      bastion [terminal]: Bastion host | SSH via SSO only
     }
   }
   row {
@@ -61,3 +60,4 @@ pgp -> pgr : 5432, streaming replication
 
 key frame [orange] : DMZ
 key box : firewall on a zone border
+

@@ -1,3 +1,4 @@
+direction down
 title "Three-tier network behind a DMZ"
 
 pill users: Internet users
