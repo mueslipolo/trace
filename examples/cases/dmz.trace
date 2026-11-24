@@ -1,7 +1,7 @@
 direction down
 title "Three-tier network behind a DMZ"
 
-column {
+row {
   pill users [user]: Internet users
   pill partners [handshake]: Partner APIs
 }
