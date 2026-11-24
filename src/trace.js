@@ -4,6 +4,12 @@
 const KINDS = new Set(['box', 'store', 'engine', 'state', 'pill', 'ask', 'start', 'final', 'end']);
 const NODE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'span', 'bridge']);
 const EDGE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted']);
+const CARD_RE = /^(1|n|01|0n)-(1|n|01|0n)$/;
+// the tags a link accepts: the fixed ones, and a cardinality for its two ends (n-1, 1-1, 0n-1, n-01 ...)
+const EDGE_TAG_SET = {
+  has: t => EDGE_TAGS.has(t) || CARD_RE.test(t),
+  hint: t => `Unknown tag "${t}" on a link. Use ${[...EDGE_TAGS].join(', ')}, or the two ends' cardinality as in n-1, 1-1, 0n-1, n-01 (1 one, n many, 01 zero or one, 0n zero or many; source end first).`,
+};
 const FRAME_TAGS = new Set(['green', 'blue', 'orange', 'purple', 'grey', 'gray', 'dashed']);
 const RAIL_SIDES = new Set(['top', 'bottom', 'left', 'right']);
 const RAIL_TAGS = new Set([...FRAME_TAGS, ...RAIL_SIDES]);
@@ -355,8 +361,8 @@ function parse(src) {
     let label = c < 0 ? null : line.slice(c + 1).trim();
 
     if (ARROWS.test(lhs)) {
-      let { rest, tags } = takeTags(lhs.trim(), EDGE_TAGS, 'a link');
-      if (label) { const lt = labelTags(label, EDGE_TAGS); label = lt.label; tags = tags.concat(lt.tags); }
+      let { rest, tags } = takeTags(lhs.trim(), EDGE_TAG_SET, 'a link');
+      if (label) { const lt = labelTags(label, EDGE_TAG_SET); label = lt.label; tags = tags.concat(lt.tags); }
       const parts = rest.split(ARROWS).map(s => s.trim());
       if (parts.length < 3 || parts.length % 2 === 0 || parts.some((p, i) => i % 2 === 0 && !p)) {
         throw new TraceError('A link reads: a -> b : label   (also -->, <-, <->, --)');
@@ -1772,7 +1778,7 @@ function placeRails(rm, model, flowH) {
     for (const n of rm.nodes) { n.x += dx; n.y += dy; }
     for (const g of model.groups) if (g.x !== undefined) { g.x += dx; g.y += dy; }
     for (const f of rm.frames) { f.x += dx; f.y += dy; }
-    for (const r of rm.rails) { r.x += dx; r.y += dy; r.bus.forEach(q => { q.x += dx; q.y += dy; }); }
+    for (const r of rm.rails) { r.x += dx; r.y += dy; r.bus.forEach(q => { q.x += dx; q.y += dy; }); r.dots.forEach(q => { q.x += dx; q.y += dy; }); }
     for (const r of rm.edges) { r.pts.forEach(q => { q.x += dx; q.y += dy; }); if (r.lab) { r.lab.x += dx; r.lab.y += dy; } }
     rm.width += dx; rm.height += dy;
   };
@@ -1807,7 +1813,7 @@ function placeRails(rm, model, flowH) {
     const diagram = { x: horiz ? band.x : band.x, y: band.y };
     // the bus: along the side of the band that faces the diagram
     const busAt = side === 'bottom' ? band.y + 22 : side === 'top' ? band.y + band.h - 22 : side === 'right' ? band.x + 22 : band.x + band.w - 22;
-    const R = { rail, side, horiz, x: band.x, y: band.y, w: band.w, h: band.h, bus: [] };
+    const R = { rail, side, horiz, x: band.x, y: band.y, w: band.w, h: band.h, bus: [], dots: [] };
     // the nodes in the rail, along the bus; the title takes the start of the band
     const titleW = Math.min(band.w / 3, (rail.title.length * 6.6) + 24);
     let pos = horiz ? band.x + band.w - PAD : band.y + band.h - PAD;
@@ -1866,6 +1872,8 @@ function placeRails(rm, model, flowH) {
       const busEdge = { a: rail.id, b: rail.id, tags: ['muted'], dashed: false, start: false, end: false, label: '', lab: null, rail };
       out.push({ e: busEdge, pts: R.bus.map(q => ({ ...q })), lab: null });
     }
+    // a dot where a tap meets the bus, when two or more do, so the junction reads as a junction
+    if (taps.length > 1) for (const t of taps) R.dots.push(t.e.railFrom ? t.pts[0] : t.pts[1]);
     for (const t of taps) {
       // the link's own look (dashes, colour, label), with the arrow where the link points
       const syn = { ...t.e, start: false, end: t.e.railFrom ? t.e.end : false };
@@ -2221,6 +2229,7 @@ function diagramCSS(p, scope) {
     `${s}.box.ok{stroke:${p.ok};stroke-width:1.6}${s}.box.bad{stroke:${p.bad};stroke-width:1.6}` +
     `${s}.box.muted{stroke:${p.soft}}${s}.dashed{stroke-dasharray:4 3}` +
     `${s}.dot{fill:${p.line}}` +
+    `${s}.card{fill:none;stroke:${p.line};stroke-width:1.2}${s}.cardo{fill:${p.panel};stroke:${p.line};stroke-width:1.2}` +
     `${s}.thead{fill:${p.engine}}${s}.tsep{fill:none;stroke:${p.soft};stroke-width:1}${s}.tframe{fill:none;stroke:${p.line};stroke-width:1.2}` +
     `${s}.tframe.ok{stroke:${p.ok};stroke-width:1.6}${s}.tframe.bad{stroke:${p.bad};stroke-width:1.6}${s}.tframe.muted{stroke:${p.soft}}` +
     `${s}.mk{font-size:9px;font-weight:700;letter-spacing:.03em}${s}.cn{font-size:12px;font-weight:400}${s}.cn.pk{font-weight:700}${s}.ct{font-size:11px}` +
@@ -2327,6 +2336,21 @@ function nodeSVG(n) {
   return out.join('');
 }
 
+// The end of a link on a node: P is where it meets the node, Q the next point along the link. 1 is two bars,
+// n a crow's foot, 01 a bar and a circle, 0n a crow's foot and a circle.
+function cardinalitySVG(P, Q, kind) {
+  const len = Math.hypot(Q.x - P.x, Q.y - P.y) || 1;
+  const u = { x: (Q.x - P.x) / len, y: (Q.y - P.y) / len }, v = { x: -u.y, y: u.x };
+  const at = (d, w = 0) => `${r1(P.x + u.x * d + v.x * w)} ${r1(P.y + u.y * d + v.y * w)}`;
+  const bar = d => `M${at(d, 5)}L${at(d, -5)}`;
+  const foot = `M${at(11, 0)}L${at(0, 6)}M${at(11, 0)}L${at(0, 0)}M${at(11, 0)}L${at(0, -6)}`;
+  const circle = d => `<circle class="cardo" cx="${r1(P.x + u.x * d)}" cy="${r1(P.y + u.y * d)}" r="3.6"/>`;
+  if (kind === '1') return `<path class="card" d="${bar(7)}${bar(11)}"/>`;
+  if (kind === 'n') return `<path class="card" d="${foot}"/>`;
+  if (kind === '01') return `<path class="card" d="${bar(7)}"/>${circle(14)}`;
+  return `<path class="card" d="${foot}"/>${circle(17)}`;
+}
+
 function headId(e, pfx) {
   if (e.tags.includes('bad')) return pfx + 'bad';
   if (e.tags.includes('ok')) return pfx + 'ok';
@@ -2411,9 +2435,12 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     const cls = ['arrow'];
     for (const t of ['ok', 'bad', 'muted']) if (e.tags.includes(t)) cls.push(t);
     if (e.dashed) cls.push('dashed');
-    const hp = shorten(pts, e.start, e.end);
-    const mk = (e.end ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.start ? ` marker-start="url(#${headId(e, pfx)})"` : '');
+    const card = (e.tags || []).map(t => CARD_RE.exec(t)).find(Boolean);
+    // a link with cardinalities has its ends drawn as crow's feet, bars and circles instead of arrowheads
+    const hp = card ? pts : shorten(pts, e.start, e.end);
+    const mk = card ? '' : (e.end ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.start ? ` marker-start="url(#${headId(e, pfx)})"` : '');
     body.push(`<path class="${cls.join(' ')}" d="${roundPath(hp)}"${mk}/>`);
+    if (card && pts.length > 1) { body.push(cardinalitySVG(pts[0], pts[1], card[1]), cardinalitySVG(pts[pts.length - 1], pts[pts.length - 2], card[2])); }
     if (lab && e.lab) {
       let y = lab.y + 11;
       for (const l of e.lab.lines) {
@@ -2422,6 +2449,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
       }
     }
   }
+  for (const rl of rm.rails || []) for (const d of rl.dots || []) body.push(`<circle class="dot" cx="${r1(d.x)}" cy="${r1(d.y)}" r="2.6"/>`);
   for (const n of rm.nodes) body.push(nodeSVG(n));
   body.push(...labels);
 

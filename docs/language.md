@@ -100,6 +100,10 @@ arrow points at Postgres; `fw <- proxy` sends traffic back up without the layout
 
 Link tags: `ok`, `bad`, `muted` (colour), `dashed`.
 
+A link can also say how many at each end, source end first: `[n-1]` many to one, `[1-1]`, `[n-n]`, and
+`01` and `0n` for zero or one and zero or many (`[0n-1]`). The ends are then drawn as in an ER diagram
+(a crow's foot for many, two bars for one, a circle for optional) instead of arrowheads.
+
 ## Blocks
 
 ```

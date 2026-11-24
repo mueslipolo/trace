@@ -56,7 +56,7 @@ uses it for its SIEM.
 Left:
 - A tap crosses whatever lies between its node and the rail (it warns). Routing it round the nodes, or
   entering from the far side, would let a rail serve nodes in the middle of the diagram.
-- Dots where taps meet the bus, and labels on the bus instead of on each tap.
+- Labels on the bus instead of on each tap. (Dots where taps meet the bus: done.)
 - Several rails on one side, and a rail between two parts of the diagram.
 - The rail's nodes sit at the far end of the bus; placing them level with their main source would be tidier.
 
@@ -96,7 +96,9 @@ Done: `table` blocks with typed columns and `pk`, `fk`, `unique`, `null` markers
 at its row (also from outside a frame); several links to one row are spread within it; dashed links for
 references without a foreign key. Example: `data-model`.
 
-Left: cardinality marks at the link ends (crow's foot, 1 and N) instead of a label; tables inside a row or
+Done since: cardinality marks (`[n-1]`, `[0n-01]` ...: crow's foot, bars, circle).
+
+Left: tables inside a row or
 column of nodes keep table-level attachment only; a table generated from SQL or a schema file.
 
 ## Smaller items

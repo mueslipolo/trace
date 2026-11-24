@@ -37,8 +37,8 @@ table payments "Payments" {
   provider_ref text null
 }
 
-orders.customer_id -> customers.id : placed by
-order_items.order_id -> orders.id : part of
-order_items.product_id -> products.id : sells
-payments.order_id -> orders.id : pays for
+orders.customer_id -> customers.id [n-1] : placed by
+order_items.order_id -> orders.id [n-1] : part of
+order_items.product_id -> products.id [n-1] : sells
+payments.order_id -> orders.id [0n-1] : pays for
 audit_log --> orders.id : refers to, no foreign key
