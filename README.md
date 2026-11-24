@@ -1,6 +1,6 @@
 # Trace
 
-Write diagrams like Mermaid; get them drawn like a careful hand would.
+Write diagrams as plain text; get them drawn like a careful hand would.
 
 ```
 frame api "api process" {
@@ -18,7 +18,7 @@ pg <- worker : claim, lease, outcome
 ```
 npm install
 npm test
-npm run build        # dist/playground.html (live editor), dist/compare.html (Mermaid vs Trace)
+npm run build        # dist/playground.html (live editor), dist/showcase.html (the ten cases)
 node tools/render.js examples/cases/dmz.trace dmz.svg
 ```
 

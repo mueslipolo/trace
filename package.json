@@ -1,7 +1,7 @@
 {
   "name": "trace-diagrams",
   "version": "0.1.0",
-  "description": "Trace: write diagrams like Mermaid, get them drawn like a careful hand would.",
+  "description": "Trace: write diagrams as plain text, get them drawn like a careful hand would.",
   "license": "UNLICENSED",
   "private": true,
   "main": "src/trace.js",
@@ -9,8 +9,8 @@
     "render": "node tools/render.js",
     "snapshots": "node tools/snapshots.js",
     "build:playground": "node tools/build-playground.js",
-    "build:compare": "node tools/build-compare.js",
-    "build": "npm run build:playground && npm run build:compare",
+    "build:showcase": "node tools/build-showcase.js",
+    "build": "npm run build:playground && npm run build:showcase",
     "test": "node --test"
   },
   "dependencies": {

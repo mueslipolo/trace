@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Mermaid and Trace, ten real diagrams</title>
+<title>Trace showcase</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap">
@@ -47,7 +47,6 @@ h1 { font-size: 1.6rem; margin: 0 0 6px; letter-spacing: -0.01em; }
 .panel { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
 .panel figcaption { font-size: 0.8125rem; font-weight: 600; color: var(--muted); padding: 7px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .canvas { overflow-x: auto; padding: 14px; }
-.canvas pre.mermaid { margin: 0; background: transparent; display: flex; justify-content: center; }
 .canvas.tr { display: grid; place-items: start center; }
 .canvas.tr svg { display: block; }
 body.fit .canvas.tr svg { width: 100%; height: auto; }
@@ -56,7 +55,7 @@ body.fit .canvas.tr svg { width: 100%; height: auto; }
 .notes p { margin: 4px 0; font-size: 0.9rem; max-width: 70ch; }
 .src { margin-top: 8px; }
 .src summary { cursor: pointer; color: var(--accent); font-size: 0.875rem; padding: 4px 0; }
-.src-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin-top: 8px; }
+.src-grid { margin-top: 8px; }
 .src h3 { font-size: 0.8125rem; margin: 0 0 4px; color: var(--muted); }
 .src pre { margin: 0; padding: 10px 12px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; font: 12px/18px "JetBrains Mono", ui-monospace, Menlo, monospace; overflow-x: auto; max-height: 520px; }
 .dgw { background: var(--panel); }
@@ -65,21 +64,8 @@ body.fit .canvas.tr svg { width: 100%; height: auto; }
 </head>
 <body class="fit">
 <main>
-  <h1>Mermaid and Trace, ten real diagrams</h1>
-  <p class="lede">Ten diagrams of the kind that end up in real docs, five of them networks with proxies, firewalls and zones. Each is written twice: once in Mermaid, rendered as Mermaid draws it, and once in Trace. Both sources are under each case. To edit one, paste its Trace source into the <a href="https://claude.ai/artifact/UyWYevFBxieJjwBuVxg1bV" target="_blank" rel="noopener">playground</a>.</p>
-
-  <section class="summary" aria-labelledby="sum">
-    <h2 id="sum">What the ten cases showed</h2>
-    <p>Trace is clearly ahead where the diagram has a regular shape: stacks of parallel things (backends, app servers, VLANs, pipeline stages) line up row for row, firewalls sit on the zone border they guard, and the style needs no per-diagram work. Mermaid's real weakness shows on the network diagrams: subgraphs can't share a border, so a firewall between two zones always ends up inside one of them or floating between them.</p>
-    <p>Writing the ten also showed what's missing. In order of how often it came up:</p>
-    <ol>
-      <li><b>Frame placement.</b> Subnet tiers as horizontal bands in a VPC, the store network beside the workers, the proxy beside the firewall. Something like <code>frame pub above priv</code> or <code>proxy beside fw</code>. (Hybrid cloud, branch office, last time’s network boundaries.)</li>
-      <li><b>Frames that don’t fight alignment.</b> The layout engine keeps frames centred on each other, which can pull a spanning node out of line with the stack it feeds. The fix is to draw frames after layout rather than hand them to the engine. (Branch office, analytics platform.)</li>
-      <li><b>Side rails for the control plane.</b> Logging, scheduling and monitoring links that touch everything should run along a lane at the edge instead of across the flow. (The SIEM in the DMZ, Airflow and quality checks in the analytics platform.)</li>
-      <li><b>Row alignment across columns.</b> Keep a topic level with its consumer to remove crossings. (Kafka.)</li>
-      <li><b>Sequence diagrams.</b> Not attempted here; they need their own layout mode.</li>
-    </ol>
-  </section>
+  <h1>Trace showcase, ten real diagrams</h1>
+  <p class="lede">Ten diagrams of the kind that end up in real docs, five of them networks with proxies, firewalls and zones, drawn live from their Trace source. The source is under each case. To edit one, paste it into the playground (<code>dist/playground.html</code>).</p>
 
   <div class="toolbar">
     <ul class="toc">@@NAV@@</ul>

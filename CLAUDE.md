@@ -1,8 +1,8 @@
 # Trace
 
-Trace is a small text language for diagrams. You write it like Mermaid; it is drawn like the
-hand-laid-out SVGs in `reference/hand-drawn-svgs/`. Those SVGs are the target style and the
-quality bar: when in doubt about how something should look, open them.
+Trace is a small text language for diagrams. You write plain text; it is drawn like a careful
+hand would lay it out. The rendered cases in `examples/cases/` are the quality bar: when in doubt
+about how something should look, follow the style rules below and look at those.
 
 The project started in a claude.ai conversation. Everything decided there is captured in this
 file and in `docs/`. Read `docs/language.md` before changing the parser, `docs/architecture.md`
@@ -14,15 +14,11 @@ before changing layout, and `docs/roadmap.md` before picking up work.
   CommonJS export at the bottom, and plain globals when inlined in a page. Splitting it into
   modules is on the roadmap; keep both entry styles working when you do.
 - `examples/playground/*.trace`: the seven examples shown in the playground.
-- `examples/cases/*.trace` and `*.mmd`: ten real-world diagrams, each in Trace and in Mermaid,
-  with notes in `cases.json` (what Trace uses, what is still missing). These are the regression
+- `examples/cases/*.trace`: ten real-world diagrams, with notes in `cases.json` (what Trace uses, what is still missing). These are the regression
   suite and the showcase.
-- `reference/`: the user's hand-drawn SVGs and the page that compares them with the Mermaid they
-  replaced. Never edit these.
-- `playground/template.html`: the live editor page. `playground/compare-template.html`: the
-  Mermaid-vs-Trace page. Both get `src/trace.js` inlined by the build.
+- `playground/template.html`: the live editor page. `playground/showcase-template.html`: the page that draws the ten cases with their notes. Both get `src/trace.js` inlined by the build.
 - `tools/`: `render.js` (one file to SVG), `snapshots.js` (all examples to `out/`),
-  `build-playground.js`, `build-compare.js` (to `dist/`), `measure.js` (text widths in Node).
+  `build-playground.js`, `build-showcase.js` (to `dist/`), `measure.js` (text widths in Node).
 - `test/examples.test.js`: every example lays out with no errors, no overlapping nodes, and no
   frame covering a node that isn't its own.
 
@@ -32,7 +28,7 @@ before changing layout, and `docs/roadmap.md` before picking up work.
 npm install
 npm test                 # parse + layout + invariants for every example
 npm run snapshots        # out/**/*.svg, plus .png if @resvg/resvg-js installed
-npm run build            # dist/playground.html and dist/compare.html
+npm run build            # dist/playground.html and dist/showcase.html
 node tools/render.js examples/cases/dmz.trace out.svg
 ```
 
