@@ -11,12 +11,16 @@
     "build:playground": "node tools/build-playground.js",
     "build:showcase": "node tools/build-showcase.js",
     "build": "npm run build:playground && npm run build:showcase",
-    "test": "node --test"
+    "test": "node --test",
+    "build:icons": "node tools/build-icons.js"
   },
   "dependencies": {
     "elkjs": "0.9.3"
   },
   "optionalDependencies": {
     "@resvg/resvg-js": "2.6.2"
+  },
+  "devDependencies": {
+    "lucide-static": "1.79.0"
   }
 }

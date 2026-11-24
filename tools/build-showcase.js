@@ -35,7 +35,7 @@ let page = fs.readFileSync(path.join(root, 'playground/showcase-template.html'),
 page = page
   .replace('@@NAV@@', () => nav)
   .replace('@@CARDS@@', () => cards)
-  .replace('/*CORE*/', () => fs.readFileSync(path.join(root, 'src/trace.js'), 'utf8'))
+  .replace('/*CORE*/', () => fs.readFileSync(path.join(root, 'src/lucide.js'), 'utf8') + fs.readFileSync(path.join(root, 'src/trace.js'), 'utf8'))
   .replace('/*CASES*/', () => 'const CASES = ' + JSON.stringify(cases).replace(/</g, '\\u003c') + ';');
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist/showcase.html'), page);

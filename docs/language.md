@@ -36,6 +36,25 @@ Kinds:
 | `start` | filled dot |
 | `final` (alias `end`) | double border, for terminal states |
 
+Icons: any word in the brackets that is not a tag below names an icon, drawn left of the text:
+
+```
+pill users [user]: Internet users
+fw [firewall]: Edge firewall | stateful, geo-block
+lb [loadbalancer top]: Load balancer pair | VRRP
+```
+
+- The names are the common diagram elements below, plus every Lucide icon under its own name
+  (lucide.dev/icons), for example `brick-wall-fire` or `cable`. `lucide/bridge` names the Lucide icon
+  `bridge`, since `bridge` alone is the tag.
+- `top` puts the icon above the text instead; the node gets taller instead of wider.
+- Icons are drawn in the diagram's ink colour whatever the node's state.
+- A name that does not exist is an error with a line number and close matches.
+- Common names: database, server, user, cloud, browser, queue, firewall, storage, loadbalancer,
+  container, api, lock, mobile, internet, router, switch, wifi, vpn, dns, shield, laptop, monitor,
+  printer, camera, cache, function, clock, document, bell, chart, settings, mail, key.
+  `examples/playground/icons.trace` draws them all with the Lucide name each one comes from.
+
 Tags (in brackets, before the colon or at the end of the label):
 
 | tag | effect |

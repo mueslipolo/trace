@@ -8,6 +8,41 @@ const FRAME_TAGS = new Set(['green', 'blue', 'orange', 'purple', 'grey', 'gray',
 const ARROWS = /\s*(<->|<--|-->|<-|->|--)\s*/;
 const ID_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
 
+// Icons: every Lucide icon by its own name, plus friendlier names for common diagram elements.
+// `lucide/name` skips the aliases (needed for `lucide/bridge`, since `bridge` is a Trace tag).
+const ICON_SET = typeof module !== 'undefined' ? require('./lucide.js') : LUCIDE;
+const ICON_ALIASES = {
+  browser: 'app-window', queue: 'list-end', firewall: 'brick-wall-fire', storage: 'archive', loadbalancer: 'graph-hub',
+  api: 'webhook', internet: 'globe', mobile: 'smartphone', switch: 'ethernet-port', vpn: 'shield-check', dns: 'network',
+  camera: 'cctv', cache: 'zap', function: 'square-function', document: 'file-text', chart: 'chart-column', key: 'key-round',
+};
+const ICON_SIZE = 22;
+function iconSvg(name) {
+  if (name.startsWith('lucide/')) return ICON_SET[name.slice(7)] || null;
+  return ICON_SET[ICON_ALIASES[name] || name] || null;
+}
+function editDistance(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+function iconHint(name) {
+  const q = name.replace(/^lucide\//, '');
+  const all = [...new Set([...Object.keys(ICON_ALIASES), ...Object.keys(ICON_SET)])];
+  const near = all.map(n => ({ n, d: n.includes(q) ? 0 : editDistance(q, n) })).filter(c => c.d <= 2)
+    .sort((a, b) => a.d - b.d || a.n.length - b.n.length).slice(0, 5).map(c => c.n);
+  return near.length ? ` Did you mean ${near.join(', ')}?` : '';
+}
+// the tags a node accepts: the fixed ones, `top`, and any icon name
+const NODE_TAG_SET = {
+  has: t => NODE_TAGS.has(t) || t === 'top' || !!iconSvg(t),
+  hint: t => `Unknown tag "${t}" on a node. Use ${[...NODE_TAGS, 'top'].join(', ')}, or an icon name such as database, server, user, firewall.${iconHint(t)}`,
+};
+
 class TraceError extends Error {}
 
 function stripComment(line) {
@@ -40,7 +75,7 @@ function takeTags(s, allowed, where) {
   if (!m) return { rest: s, tags: [] };
   const tags = m[1].trim().split(/[\s,]+/).filter(Boolean);
   for (const t of tags) {
-    if (!allowed.has(t)) throw new TraceError(`Unknown tag "${t}" on ${where}. Use: ${[...allowed].join(', ')}`);
+    if (!allowed.has(t)) throw new TraceError(allowed.hint ? allowed.hint(t) : `Unknown tag "${t}" on ${where}. Use: ${[...allowed].join(', ')}`);
   }
   return { rest: s.slice(0, m.index).trimEnd(), tags };
 }
@@ -188,8 +223,10 @@ function parse(src) {
     }
 
     // node declaration
-    let { rest, tags } = takeTags(lhs.trim(), NODE_TAGS, 'a node');
-    if (label) { const lt = labelTags(label, NODE_TAGS); label = lt.label; tags = tags.concat(lt.tags); }
+    let { rest, tags } = takeTags(lhs.trim(), NODE_TAG_SET, 'a node');
+    if (label) { const lt = labelTags(label, NODE_TAG_SET); label = lt.label; tags = tags.concat(lt.tags); }
+    let icon = null, iconTop = false;
+    tags = tags.filter(t => { if (t === 'top') { iconTop = true; return false; } if (!NODE_TAGS.has(t)) { icon = t; return false; } return true; });
     const words = rest.split(/\s+/).filter(Boolean);
     let kind = null, id;
     if (words.length === 2 && KINDS.has(words[0])) { kind = words[0]; id = words[1]; }
@@ -205,6 +242,8 @@ function parse(src) {
     if (kind) n.kind = kind === 'end' ? 'final' : kind;
     if (label !== null) Object.assign(n, splitLabel(label));
     n.tags = [...new Set(n.tags.concat(tags))];
+    if (icon) n.icon = icon;
+    if (iconTop) { if (!n.icon) throw new TraceError('"top" places an icon above the text, so give the node an icon: db [database top]: Orders'); n.iconTop = true; }
     if (n.implicit || n.parent !== cur()) placeNode(n, cur());
     n.implicit = false;
     n.line = ln;
@@ -258,8 +297,11 @@ function sizeNode(n, measure) {
   const tw = Math.max(0, ...n.nameLines.map(l => measure(l, FONT_NAME)), ...n.noteLines.map(l => measure(l, FONT_NOTE)));
   n.textH = n.nameLines.length * 16 + n.noteLines.length * 14;
   const padX = (n.kind === 'ask' || n.kind === 'pill') ? 24 : 15;
-  n.w = even(Math.max(72, tw + 2 * padX));
-  n.h = even(Math.max(36, n.textH + 16));
+  n.padX = padX;
+  n.iconMarkup = n.icon ? iconSvg(n.icon) : null;
+  const slot = n.iconMarkup && !n.iconTop ? ICON_SIZE + 8 : 0;
+  n.w = even(Math.max(72, tw + 2 * padX + slot));
+  n.h = even(Math.max(36, n.textH + 16 + (n.iconMarkup && n.iconTop ? ICON_SIZE + 4 : 0)));
   if (n.kind === 'final') { n.w += 8; n.h += 8; }
 }
 
@@ -1178,6 +1220,7 @@ function diagramCSS(p, scope) {
     `${s}.box.ok{stroke:${p.ok};stroke-width:1.6}${s}.box.bad{stroke:${p.bad};stroke-width:1.6}` +
     `${s}.box.muted{stroke:${p.soft}}${s}.dashed{stroke-dasharray:4 3}` +
     `${s}.dot{fill:${p.line}}` +
+    `${s}.ico{fill:none;stroke:${p.line};stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}` +
     `${s}.zone{stroke-width:1}${z}` +
     `${s}.arrow{fill:none;stroke:${p.line};stroke-width:1.2}${s}.arrow.ok{stroke:${p.ok}}${s}.arrow.bad{stroke:${p.bad}}${s}.arrow.muted{stroke:${p.soft}}` +
     `${s}.head{fill:${p.line}}${s}.head-ok{fill:${p.ok}}${s}.head-bad{fill:${p.bad}}${s}.head-muted{fill:${p.soft}}`;
@@ -1241,8 +1284,14 @@ function nodeSVG(n) {
     const rx = { store: 8, state: 12, pill: h / 2, ask: h / 2 }[n.kind] ?? 6;
     out.push(`<rect class="${c}" x="${r1(x)}" y="${r1(y)}" width="${w}" height="${h}" rx="${r1(rx)}"/>`);
   }
-  const cx = r1(x + w / 2);
+  let cx = r1(x + w / 2);
   let top = y + (h - n.textH) / 2;
+  if (n.iconMarkup) {
+    let ix, iy;
+    if (n.iconTop) { iy = y + (h - n.textH - ICON_SIZE - 4) / 2; ix = x + w / 2 - ICON_SIZE / 2; top = iy + ICON_SIZE + 4; }
+    else { ix = x + n.padX; iy = y + (h - ICON_SIZE) / 2; cx = r1(x + n.padX + ICON_SIZE + 8 + (w - 2 * n.padX - ICON_SIZE - 8) / 2); }
+    out.push(`<g class="ico" transform="translate(${r1(ix)} ${r1(iy)}) scale(${r1(ICON_SIZE / 24 * 1000) / 1000})">${n.iconMarkup}</g>`);
+  }
   for (const l of n.nameLines) { out.push(`<text class="name fg" x="${cx}" y="${r1(top + 12.5)}" text-anchor="middle">${esc(l)}</text>`); top += 16; }
   for (const l of n.noteLines) { out.push(`<text class="note muted" x="${cx}" y="${r1(top + 10.5)}" text-anchor="middle">${esc(l)}</text>`); top += 14; }
   return out.join('');

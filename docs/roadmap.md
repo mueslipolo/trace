@@ -53,7 +53,14 @@ alt/loop blocks), drawn in the same style as the other diagrams.
 
 Tables with columns, PK/FK markers, dashed links for non-FK references.
 
-## 7. Icon set
+## 7. Icon set (done: I.1 to I.3 in one go, I.4 left)
+
+Done: icons are tags in the node's brackets (`fw [firewall]`, `lb [loadbalancer top]`); 33 friendly
+names map to Lucide icons and every Lucide icon works under its own name (`lucide/` prefix for a
+name that clashes with a tag). Drawn in ink, left of the text or above it with `top`. Left: use
+them in the ten cases, a gallery in the playground, more aliases as they are needed.
+
+Original plan:
 
 A set of polished built-in visuals for the common diagram elements (database, server, user,
 cloud, browser, queue, firewall, storage, then load balancer, container, API, lock, mobile,

@@ -1,0 +1,63 @@
+title "Icons"
+direction right
+
+frame core "Core" [blue] {
+  column {
+    store i_database [database]: database | database
+    i_server [server]: server | server
+    i_user [user]: user | user
+    i_cloud [cloud]: cloud | cloud
+    i_browser [browser]: browser | app-window
+  }
+  column {
+    store i_queue [queue]: queue | list-end
+    i_firewall [firewall]: firewall | brick-wall-fire
+    store i_storage [storage]: storage | archive
+    i_loadbalancer [loadbalancer]: loadbalancer | graph-hub
+    i_container [container]: container | container
+  }
+  column {
+    i_api [api]: api | webhook
+    i_lock [lock]: lock | lock
+    i_mobile [mobile]: mobile | smartphone
+    i_internet [internet]: internet | globe
+  }
+}
+
+frame network "Network" [orange] {
+  column {
+    i_router [router]: router | router
+    i_switch [switch]: switch | ethernet-port
+    i_wifi [wifi]: wifi | wifi
+    i_vpn [vpn]: vpn | shield-check
+    i_dns [dns]: dns | network
+  }
+  column {
+    i_shield [shield]: shield | shield
+  }
+}
+
+frame devices "Devices" [green] {
+  column {
+    i_laptop [laptop]: laptop | laptop
+    i_monitor [monitor]: monitor | monitor
+    i_printer [printer]: printer | printer
+    i_camera [camera]: camera | cctv
+  }
+}
+
+frame services "Services and operations" [purple] {
+  column {
+    store i_cache [cache]: cache | zap
+    i_function [function]: function | square-function
+    i_clock [clock]: clock | clock
+    i_document [document]: document | file-text
+    i_bell [bell]: bell | bell
+  }
+  column {
+    i_chart [chart]: chart | chart-column
+    i_settings [settings]: settings | settings
+    i_mail [mail]: mail | mail
+    i_key [key]: key | key-round
+  }
+}

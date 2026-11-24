@@ -38,3 +38,36 @@ test('errors carry line numbers', async () => {
   assert.strictEqual(res.errors.length, 1);
   assert.strictEqual(res.errors[0].line, 2);
 });
+
+test('icons: names, aliases, lucide names, placement', async () => {
+  const { parse } = require('../src/trace.js');
+  const m = parse('a [database]: A\nb [firewall top]: B\nc [lucide/bridge]: C\nd [bridge]: D\ne [brick-wall-fire]: E');
+  assert.deepStrictEqual(m.errors, []);
+  assert.strictEqual(m.nodes.get('a').icon, 'database');
+  assert.strictEqual(m.nodes.get('b').icon, 'firewall');
+  assert.strictEqual(m.nodes.get('b').iconTop, true);
+  assert.strictEqual(m.nodes.get('c').icon, 'lucide/bridge');
+  assert.deepStrictEqual(m.nodes.get('d').tags, ['bridge']);
+  assert.strictEqual(m.nodes.get('d').icon, undefined);
+  assert.strictEqual(m.nodes.get('e').icon, 'brick-wall-fire');
+});
+
+test('icons: errors say what to write', async () => {
+  const { parse } = require('../src/trace.js');
+  const m = parse('a [databse]: A\nb [top]: B');
+  assert.strictEqual(m.errors.length, 2);
+  assert.match(m.errors[0].msg, /Did you mean database/);
+  assert.strictEqual(m.errors[0].line, 1);
+  assert.match(m.errors[1].msg, /give the node an icon/);
+});
+
+test('icons: the node grows to fit and the icon is drawn', async () => {
+  const plain = await compile('a: Orders | postgres', measure, ELK, {});
+  const left = await compile('a [database]: Orders | postgres', measure, ELK, {});
+  const top = await compile('a [database top]: Orders | postgres', measure, ELK, {});
+  const a = r => r.rm.nodes[0];
+  assert.ok(a(left).w > a(plain).w, 'an icon on the left widens the node');
+  assert.ok(a(top).h > a(plain).h, 'an icon on top makes the node taller');
+  assert.match(left.standalone(), /class="ico"/);
+  assert.doesNotMatch(plain.standalone(), /class="ico" transform/);
+});
