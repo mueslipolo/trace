@@ -72,6 +72,10 @@ diagram with blocks both `SIMPLE` and `NETWORK_SIMPLEX` are tried and the better
 kept, `SIMPLE` unless the other wins by 3%. Links into a `[span]` node that sits inside a frame are
 given a port on the frame at the span node's own attachment point, so they stay straight.
 
+A last pass, `alignJogs`, tidies links that have a single step: those that share a target (or source)
+get their steps at one height, in the middle of the gap, when that touches no node and runs along no
+other link. It changes no bend count.
+
 `TRACE_LAYOUT=hier|flat|compound` forces one mode; `TRACE_NOWRAP=1` turns folding off;
 `TRACE_NOCYCLE=1` skips the declaration-order variant. Today per-frame or flat wins for every example that has frames except the ones where compound has
 fewer bends.

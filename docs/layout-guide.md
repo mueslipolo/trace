@@ -64,6 +64,9 @@ links slide inward and bunch up at its edge. Tag the node `[span]` and it grows 
 sources, with one attachment point under each: both links drop straight. A span node is sized to the
 stack it *feeds*; a wider stack on the other side attaches in proportion and its links may jog.
 
+Some links will still have one step. That is fine: what matters is that the steps are minimal (one
+each) and aligned (links into the same node step at the same height), and the engine does both.
+
 Both need the zones to be next to each other along the flow. If the two zones end up beside each
 other in a row or column block, a bridge between them has no shared border and is drawn as an
 ordinary node.

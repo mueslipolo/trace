@@ -206,3 +206,23 @@ test('a span node is sized to the stack it feeds, so those links are straight ev
     assert.ok(pts.every(p => Math.abs(p.x - pts[0].x) < 1), `fw -> ${e.b} is straight`);
   }
 });
+
+test('single-step links into the same node have their steps at one height', async () => {
+  const src = [
+    'direction down',
+    'row {', '  p: P', '  q: Q', '  r: R', '}',
+    'gate [span]: Gate',
+    'row {', '  x: A rather long label for the first target', '  y: Another quite long label for the second', '  z: And a third label that is long as well', '}',
+    'p -> gate', 'q -> gate', 'r -> gate', 'gate -> x', 'gate -> y', 'gate -> z',
+  ].join('\n');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const steps = [];
+  for (const { e, pts } of res.rm.edges) {
+    if (e.b !== 'gate') continue;
+    const xs = new Set(pts.map(p => Math.round(p.x)));
+    if (xs.size > 1) steps.push(...pts.filter((p, i) => i > 0 && Math.abs(p.y - pts[i - 1].y) < 0.5 && Math.abs(p.x - pts[i - 1].x) > 1).map(p => Math.round(p.y)));
+  }
+  assert.ok(steps.length >= 2, 'the outer links need a step');
+  assert.ok(steps.every(y => Math.abs(y - steps[0]) <= 1), `the steps are at one height (${steps.join(', ')})`);
+});

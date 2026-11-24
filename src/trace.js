@@ -773,6 +773,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   compactBridges(rm, model, flowH);
   if (!HIER) straightenSpans(rm, model, flowH);
   fitFrames(rm, model, flowH);
+  alignJogs(rm);
   return rm;
 
   // ---- per-frame layout (see docs/roadmap.md, item 2). Frames are laid out bottom-up, each by
@@ -1196,6 +1197,76 @@ function straightenSpans(rm, model, flowH) {
       }
       r.pts = fromN ? path : path.reverse();
       if (r.lab) r.lab[X] = (a2[X] + b[X]) / 2;
+    }
+  }
+}
+
+// A link with one step (down, across, down; or right, up/down, right) has its step wherever ELK's
+// channel assignment put it: right under one source, near the target for another. Put the steps of the
+// links that share a target (or a source) at one height, in the middle of the gap between them, so the
+// bends line up. Skipped for a group when that would touch a node or run along another link.
+function alignJogs(rm) {
+  const simp = pts => {
+    const o = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const a = o[o.length - 1], b = pts[i], c = pts[i + 1];
+      if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) continue;
+      if ((Math.abs(a.x - b.x) < 0.5 && Math.abs(b.x - c.x) < 0.5) || (Math.abs(a.y - b.y) < 0.5 && Math.abs(b.y - c.y) < 0.5)) continue;
+      o.push(b);
+    }
+    o.push(pts[pts.length - 1]);
+    return o;
+  };
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  // single-step links: kind 'v' (vertical, horizontal, vertical: the step has a y) or 'h' (the step has an x)
+  const zs = [];
+  for (const r of rm.edges) {
+    if (!r.pts || r.pts.length < 2 || r.e.a === r.e.b) continue;
+    const q = simp(r.pts);
+    if (q.length !== 4) continue;
+    if (eq(q[0].x, q[1].x) && eq(q[1].y, q[2].y) && eq(q[2].x, q[3].x) && q[0].y < q[3].y) zs.push({ r, q, kind: 'v', lo: q[0].y, hi: q[3].y });
+    else if (eq(q[0].y, q[1].y) && eq(q[1].x, q[2].x) && eq(q[2].y, q[3].y) && q[0].x < q[3].x) zs.push({ r, q, kind: 'h', lo: q[0].x, hi: q[3].x });
+  }
+  const groups = new Map();
+  const used = new Set();
+  for (const key of ['b', 'a']) for (const z of zs) {
+    if (used.has(z)) continue;
+    const k = z.kind + '|' + key + '|' + z.r.e[key];
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(z);
+  }
+  for (const [, list] of groups) {
+    const fresh = list.filter(z => !used.has(z));
+    if (!fresh.length) continue;
+    const kind = fresh[0].kind;
+    // the gap every link in the group can put its step in
+    const lo = Math.max(...fresh.map(z => z.lo)) + 10, hi = Math.min(...fresh.map(z => z.hi)) - 10;
+    if (lo > hi) continue;
+    const c = (lo + hi) / 2;
+    // the new steps must clear every node and not run along another link
+    const steps = fresh.map(z => kind === 'v'
+      ? { x1: Math.min(z.q[0].x, z.q[3].x), x2: Math.max(z.q[0].x, z.q[3].x), y1: c, y2: c }
+      : { x1: c, x2: c, y1: Math.min(z.q[0].y, z.q[3].y), y2: Math.max(z.q[0].y, z.q[3].y) });
+    const hitsNode = steps.some(st => rm.nodes.some(n => n.x !== undefined && st.x1 < n.x + n.w && n.x < st.x2 && st.y1 < n.y + n.h && n.y < st.y2));
+    if (hitsNode) continue;
+    const along = steps.some(st => rm.edges.some(o => {
+      if (fresh.some(z => z.r === o) || !o.pts) return false;
+      for (let i = 1; i < o.pts.length; i++) {
+        const a = o.pts[i - 1], b = o.pts[i];
+        if (kind === 'v' && eq(a.y, b.y) && Math.abs(a.y - c) < 3 && Math.min(a.x, b.x) < st.x2 && st.x1 < Math.max(a.x, b.x)) return true;
+        if (kind === 'h' && eq(a.x, b.x) && Math.abs(a.x - c) < 3 && Math.min(a.y, b.y) < st.y2 && st.y1 < Math.max(a.y, b.y)) return true;
+      }
+      return false;
+    }));
+    if (along) continue;
+    for (const z of fresh) {
+      const [p0, , , p3] = z.q;
+      const old = z.q[1][kind === 'v' ? 'y' : 'x'];
+      z.r.pts = kind === 'v' ? [p0, { x: p0.x, y: c }, { x: p3.x, y: c }, p3] : [p0, { x: c, y: p0.y }, { x: c, y: p3.y }, p3];
+      // a label that sat on the old step moves with it
+      const lab = z.r.lab;
+      if (lab && Math.abs((kind === 'v' ? lab.y : lab.x) - old) < 24) lab[kind === 'v' ? 'y' : 'x'] += c - old;
+      used.add(z);
     }
   }
 }
