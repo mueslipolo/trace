@@ -12,7 +12,7 @@ const cases = meta.map(m => {
   const simple = fs.readFileSync(path.join(root, 'examples/cases/simple', m.id + '.trace'), 'utf8');
   return { ...m, trace: full, simple, stats: simplify(full).stats };
 });
-const LABELS = { icons: ['icon', 'icons'], span: ['span node', 'span nodes'], bridge: ['bridge', 'bridges'], top: ['icon on top', 'icons on top'], blocks: ['row or column', 'rows and columns'], reversed: ['reversed link', 'reversed links'] };
+const LABELS = { icons: ['icon', 'icons'], span: ['span node', 'span nodes'], bridge: ['bridge', 'bridges'], top: ['icon on top', 'icons on top'], blocks: ['row or column', 'rows and columns'], rails: ['rail', 'rails'], reversed: ['reversed link', 'reversed links'] };
 const adds = st => Object.entries(st).filter(([, v]) => v).map(([k, v]) => `${v} ${LABELS[k][v === 1 ? 0 : 1]}`).join(', ') || 'nothing: this diagram is already fine on its own';
 const nav = cases.map(c => `<li><a href="#${c.id}">${esc(c.title)}</a></li>`).join('');
 const cards = cases.map((c, i) => `

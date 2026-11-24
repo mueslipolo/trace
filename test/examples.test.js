@@ -256,3 +256,48 @@ test('align says what to write when it cannot work', async () => {
   const loose = await compile('a -> b\nalign a b', measure, ELK, {});
   assert.match(loose.warnings.join('|'), /only nodes in a row or column/);
 });
+
+test('rails: syntax errors say what to write', async () => {
+  const err = async s => (await compile(s, measure, ELK, {})).errors.map(e => e.msg).join('|');
+  assert.match(await err('frame f {\n  rail r {\n    s\n  }\n}'), /top level/);
+  assert.match(await err('rail "Logging" {\n  s\n}'), /needs a name/);
+  assert.match(await err('rail r [top bottom] {\n  s\n}'), /one side/);
+  assert.match(await err('rail r {\n  column {\n    s\n  }\n}'), /nodes only/);
+  assert.match(await err('a: A\nrail a {\n  s\n}'), /already a node/);
+});
+
+test('rails: links to a rail stay out of the layout and run from the node to the bus', async () => {
+  const body = ['direction down', 'frame z {', '  fw [span]: Gate', '  row {', '    a: A', '    b: B', '  }', '}', 'fw -> a', 'fw -> b'];
+  const plain = await compile(body.join('\n'), measure, ELK, {});
+  const railed = await compile([...body, 'rail logs "Logging" [right] {', '  siem: SIEM', '}', 'fw -> logs : syslog'].join('\n'), measure, ELK, {});
+  assert.deepStrictEqual(railed.errors, []);
+  assert.deepStrictEqual(railed.warnings, []);
+  const pos = r => Object.fromEntries(r.rm.nodes.filter(n => n.id !== 'siem').map(n => [n.id, [Math.round(n.x), Math.round(n.y)]]));
+  assert.deepStrictEqual(pos(railed), pos(plain), 'the rest of the diagram is laid out exactly as without the rail');
+  const N = new Map(railed.rm.nodes.map(n => [n.id, n]));
+  const right = Math.max(...railed.rm.nodes.filter(n => n.id !== 'siem').map(n => n.x + n.w));
+  assert.ok(N.get('siem').x > right, 'the node in the rail is beyond the diagram');
+  assert.ok(railed.rm.rails.length === 1 && railed.rm.rails[0].x > right);
+  const tap = railed.rm.edges.find(r => r.e.a === 'fw' && r.e.b === 'logs');
+  assert.strictEqual(tap.pts.length, 2, 'a tap is one straight run');
+  assert.ok(Math.abs(tap.pts[0].x - (N.get('fw').x + N.get('fw').w)) < 1, 'it leaves the node on the side facing the rail');
+  const sink = railed.rm.edges.find(r => r.e.b === 'siem' && r.e.a === 'logs');
+  assert.ok(sink.e.end, 'the bus feeds the node with an arrow');
+  assert.ok(width(railed) > width(plain));
+  function width(r) { return r.rm.width; }
+});
+
+test('rails: a link that would cross another node says so', async () => {
+  const src = ['direction down', 'row {', '  a: A', '  b: B', '  c: C', '}', 'a -> b -> c', 'rail logs [right] {', '  siem: SIEM', '}', 'a -> logs'].join('\n');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  assert.match(res.warnings.join('|'), /rail logs: the link a -> logs: crosses/);
+});
+
+test('the simple form of a case with a rail has plain nodes and links', () => {
+  const { simplify } = require('../tools/simplify.js');
+  const { text, stats } = simplify('rail logs "Logging" [right] {\n  siem: SIEM\n}\nfw: Gate\nfw -> logs : 514/udp\n');
+  assert.doesNotMatch(text, /rail/);
+  assert.match(text, /fw -> siem : 514\/udp/);
+  assert.strictEqual(stats.rails, 1);
+});

@@ -5,6 +5,8 @@ const KINDS = new Set(['box', 'store', 'engine', 'state', 'pill', 'ask', 'start'
 const NODE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'span', 'bridge']);
 const EDGE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted']);
 const FRAME_TAGS = new Set(['green', 'blue', 'orange', 'purple', 'grey', 'gray', 'dashed']);
+const RAIL_SIDES = new Set(['top', 'bottom', 'left', 'right']);
+const RAIL_TAGS = new Set([...FRAME_TAGS, ...RAIL_SIDES]);
 const ARROWS = /\s*(<->|<--|-->|<-|->|--)\s*/;
 const ID_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
 
@@ -139,7 +141,7 @@ function splitLabel(text) {
 function parse(src) {
   const model = {
     direction: 'RIGHT', spacing: 1, title: '',
-    nodes: new Map(), frames: new Map(), groups: [], edges: [], keys: [], aligns: [], errors: [],
+    nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
   model.root = root;
@@ -158,7 +160,7 @@ function parse(src) {
 
   function ensure(id, ln) {
     if (!ID_RE.test(id)) throw new TraceError(`"${id}" is not a valid name: use letters, digits and _ . -`);
-    if (model.frames.has(id)) return;
+    if (model.frames.has(id) || model.rails.has(id)) return;
     if (!model.nodes.has(id)) {
       const n = { type: 'node', id, kind: 'box', name: id, note: '', tags: [], parent: null, implicit: true, line: ln };
       model.nodes.set(id, n);
@@ -205,10 +207,35 @@ function parse(src) {
     }
     if (line.endsWith('{')) {
       const head = line.slice(0, -1).trim();
-      const hm = head.match(/^(frame|column|row)\b\s*(.*)$/i);
-      if (!hm) throw new TraceError('Only frame, column and row open a block with {');
+      const hm = head.match(/^(frame|column|row|rail)\b\s*(.*)$/i);
+      if (!hm) throw new TraceError('Only frame, column, row and rail open a block with {');
       const kind = hm[1].toLowerCase();
       const parent = cur();
+      if (parent.type === 'rail') throw new TraceError('A rail holds nodes only: they are what its links feed into');
+      if (kind === 'rail') {
+        // a rail runs along one edge of the whole diagram; the nodes inside it are where its links end
+        if (parent.type !== 'root') throw new TraceError('A rail goes at the top level, along an edge of the whole diagram: put it outside every frame, row and column');
+        let { rest, tags } = takeTags(hm[2], RAIL_TAGS, 'rail');
+        let title = '';
+        const qm = rest.match(/"([^"]*)"\s*$/);
+        if (qm) { title = qm[1]; rest = rest.slice(0, qm.index).trim(); }
+        const id = rest.trim();
+        if (!id || !ID_RE.test(id)) throw new TraceError('A rail needs a name that links can use: rail logs "Logging" [bottom] {');
+        if (model.rails.has(id) || model.frames.has(id)) throw new TraceError(`There is already a frame or rail called "${id}"`);
+        const ex = model.nodes.get(id);
+        if (ex) {
+          if (!ex.implicit) throw new TraceError(`"${id}" is already a node; give the rail another name`);
+          ex.parent.items.splice(ex.parent.items.indexOf(ex), 1);
+          model.nodes.delete(id);
+        }
+        const sides = tags.filter(t => RAIL_SIDES.has(t));
+        if (sides.length > 1) throw new TraceError('A rail runs along one side: top, bottom, left or right');
+        const rl = { type: 'rail', id, title: title || id, side: sides[0] || null, tags: tags.filter(t => !RAIL_SIDES.has(t)), items: [], parent, line: ln };
+        model.rails.set(id, rl);
+        parent.items.push(rl);
+        stack.push(rl);
+        return;
+      }
       if (parent.type === 'group') {
         // a row or column that holds frames or other blocks is a lane: it places them side by side or
         // one above the other, and draws nothing itself
@@ -287,7 +314,7 @@ function parse(src) {
     else if (words.length === 1) id = words[0];
     else throw new TraceError(`Can't read "${line}". A node reads: [kind] name [tags] : Label | note`);
     if (!ID_RE.test(id)) throw new TraceError(`"${id}" is not a valid name: use letters, digits and _ . -`);
-    if (model.frames.has(id)) throw new TraceError(`"${id}" is already a frame`);
+    if (model.frames.has(id) || model.rails.has(id)) throw new TraceError(`"${id}" is already a frame or rail`);
     let n = model.nodes.get(id);
     if (!n) {
       n = { type: 'node', id, kind: 'box', name: id, note: '', tags: [], parent: null, line: ln };
@@ -481,6 +508,9 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     e.stub = undefined;
     e.align = model.aligns.some(al => (al.a === e.a && al.b === e.b) || (al.a === e.b && al.b === e.a));
     e.lab = sizeLabel(e.label, measure);
+    const railOf = id => model.rails.get(id) || (model.nodes.get(id) && model.nodes.get(id).parent && model.nodes.get(id).parent.type === 'rail' ? model.nodes.get(id).parent : null);
+    e.rail = railOf(e.a) || railOf(e.b) || null;
+    e.railFrom = !!e.rail && railOf(e.a) === e.rail;
     const ga = groupOf(e.a), gb = groupOf(e.b);
     e.intra = !!(ga && ga === gb);
     e.ga = ga; e.gb = gb;
@@ -663,7 +693,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   }
   const elkEdges = [];
   for (const e of model.edges) {
-    if (e.intra) continue;
+    if (e.intra || e.rail) continue;
     const src = addPort(e, 's'), tgt = addPort(e, 't');
     e.srcBase = src; e.tgtBase = tgt;
     const ee = { id: 'E' + e.i, sources: [src], targets: [tgt] };
@@ -821,6 +851,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   if (!HIER) straightenSpans(rm, model, flowH);
   alignRows(rm, model);
   fitFrames(rm, model, flowH);
+  placeRails(rm, model, flowH);
   return rm;
 
   // ---- per-frame layout (see docs/roadmap.md, item 2). Frames are laid out bottom-up, each by
@@ -843,7 +874,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     const lay = new Map();
     const byL = new Map();
     for (const e of model.edges) {
-      if (e.intra) continue;
+      if (e.intra || e.rail) continue;
       const ca = chains.get(model.nodes.get(e.a)), cb = chains.get(model.nodes.get(e.b));
       let k = 0;
       while (k < ca.length && k < cb.length && ca[k] === cb[k]) k++;
@@ -1242,6 +1273,116 @@ function alignRows(rm, model) {
     if (blocked) continue;
     r.pts = r.e.a === first.id ? line : line.reverse();
     if (r.lab) { r.lab = { ...r.lab, [Y]: (a0 + a1) / 2, [X]: c - (r.e.lab ? r.e.lab.h + 6 : 0), anchor: vert ? 'middle' : 'middle' }; if (vert) { r.lab.x = (a0 + a1) / 2; r.lab.y = c - 6 - (r.e.lab ? r.e.lab.h : 0); } else { r.lab.x = (a0 + a1) / 2; r.lab.y = c - 6 - (r.e.lab ? r.e.lab.h : 0); } }
+  }
+}
+
+// Rails: a band along one edge of the diagram with a bus line facing it. Links to the rail (or to a node
+// in it) are kept out of the layout, and drawn here once everything else is placed: each one runs from
+// its node straight to the bus, and the bus feeds the nodes in the rail with an arrow.
+function placeRails(rm, model, flowH) {
+  rm.rails = [];
+  if (!model.rails.size) return;
+  rm.notes = rm.notes || [];
+  const GAP = 30, PAD = 12;
+  const shiftAll = (dx, dy) => {
+    for (const n of rm.nodes) { n.x += dx; n.y += dy; }
+    for (const g of model.groups) if (g.x !== undefined) { g.x += dx; g.y += dy; }
+    for (const f of rm.frames) { f.x += dx; f.y += dy; }
+    for (const r of rm.rails) { r.x += dx; r.y += dy; r.bus.forEach(q => { q.x += dx; q.y += dy; }); }
+    for (const r of rm.edges) { r.pts.forEach(q => { q.x += dx; q.y += dy; }); if (r.lab) { r.lab.x += dx; r.lab.y += dy; } }
+    rm.width += dx; rm.height += dy;
+  };
+  for (const rail of model.rails.values()) {
+    const side = rail.side || (flowH ? 'bottom' : 'right');
+    const horiz = side === 'bottom' || side === 'top';
+    const sinks = rail.items.filter(i => i.type === 'node');
+    const links = model.edges.filter(e => e.rail === rail);
+    if (!links.length && !sinks.length) continue;
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    const add = (x, y, w, h) => { x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x + w); y2 = Math.max(y2, y + h); };
+    for (const n of rm.nodes) add(n.x, n.y, n.w, n.h);
+    for (const f of rm.frames) add(f.x, f.y, f.w, f.h);
+    for (const r of rm.rails) add(r.x, r.y, r.w, r.h);
+    for (const r of rm.edges) for (const q of r.pts) add(q.x, q.y, 0, 0);
+    if (x1 === Infinity) { x1 = y1 = 16; x2 = y2 = 16; }
+    const sw = Math.max(0, ...sinks.map(n => n.w)), sh = Math.max(0, ...sinks.map(n => n.h));
+    // thickness of the band: the bus, a stub, the nodes, padding
+    const T = 22 + (sinks.length ? 18 + (horiz ? sh : sw) : 0) + PAD;
+    // the band's other dimension: the whole diagram, and enough for the nodes in the rail
+    const need = sinks.reduce((t, n) => t + (horiz ? n.w : n.h) + 16, 0) + 120;
+    const L = Math.max(horiz ? x2 - x1 : y2 - y1, need);
+    let band;
+    if (side === 'bottom') band = { x: x1, y: y2 + GAP, w: L, h: T };
+    else if (side === 'right') band = { x: x2 + GAP, y: y1, w: T, h: L };
+    else if (side === 'top') { shiftAll(0, T + GAP); band = { x: x1, y: y1, w: L, h: T }; }
+    else { shiftAll(T + GAP, 0); band = { x: x1, y: y1, w: T, h: L }; }
+    const diagram = { x: horiz ? band.x : band.x, y: band.y };
+    // the bus: along the side of the band that faces the diagram
+    const busAt = side === 'bottom' ? band.y + 22 : side === 'top' ? band.y + band.h - 22 : side === 'right' ? band.x + 22 : band.x + band.w - 22;
+    const R = { rail, side, horiz, x: band.x, y: band.y, w: band.w, h: band.h, bus: [] };
+    // the nodes in the rail, along the bus; the title takes the start of the band
+    const titleW = Math.min(band.w / 3, (rail.title.length * 6.6) + 24);
+    let pos = horiz ? band.x + band.w - PAD : band.y + band.h - PAD;
+    for (const n of sinks.slice().reverse()) {
+      if (horiz) { pos -= n.w; n.x = pos; n.y = side === 'bottom' ? busAt + 18 : busAt - 18 - n.h; pos -= 16; }
+      else { pos -= n.h; n.y = pos; n.x = side === 'right' ? busAt + 18 : busAt - 18 - n.w; pos -= 16; }
+      rm.nodes.push(n);
+    }
+    const out = [];
+    const sinkLinks = sinks.map(n => {
+      const c = horiz ? n.x + n.w / 2 : n.y + n.h / 2;
+      const inbound = links.some(e => e.b === n.id || (e.b === rail.id && !e.railFrom));
+      const near = side === 'bottom' ? { x: c, y: busAt } : side === 'top' ? { x: c, y: busAt } : side === 'right' ? { x: busAt, y: c } : { x: busAt, y: c };
+      const far = horiz ? { x: c, y: side === 'bottom' ? n.y : n.y + n.h } : { x: side === 'right' ? n.x : n.x + n.w, y: c };
+      return { n, c, pts: [near, far], inbound };
+    });
+    // taps
+    const taps = [];
+    const blocked = new Set();
+    for (const e of links) {
+      const other = e.railFrom ? e.b : e.a;
+      const o = model.nodes.get(other);
+      if (!o || o.x === undefined || (o.parent && o.parent.type === 'rail')) continue;
+      const used = taps.filter(t => t.o === o).length;
+      const c = (horiz ? o.x + o.w / 2 : o.y + o.h / 2) + (used ? (used % 2 ? 1 : -1) * 8 * Math.ceil(used / 2) : 0);
+      const edge = side === 'bottom' ? o.y + o.h : side === 'top' ? o.y : side === 'right' ? o.x + o.w : o.x;
+      const nodePt = horiz ? { x: c, y: edge } : { x: edge, y: c };
+      const busPt = horiz ? { x: c, y: busAt } : { x: busAt, y: c };
+      // anything between the node and the band is crossed
+      const lo = Math.min(edge, busAt), hi = Math.max(edge, busAt);
+      for (const m of rm.nodes) {
+        if (m === o || m.parent === rail) continue;
+        const across = horiz ? (m.x < c && c < m.x + m.w && m.y < hi && lo < m.y + m.h) : (m.y < c && c < m.y + m.h && m.x < hi && lo < m.x + m.w);
+        if (across) blocked.add(`${e.railFrom ? rail.id : o.id} -> ${e.railFrom ? o.id : rail.id}: crosses ${m.id}`);
+      }
+      taps.push({ e, o, c, pts: e.railFrom ? [busPt, nodePt] : [nodePt, busPt] });
+    }
+    for (const b of blocked) rm.notes.push(`rail ${rail.id}: the link ${b}; a rail suits nodes near the edge it runs along`);
+    // the bus itself
+    const cs = [...taps.map(t => t.c), ...sinkLinks.map(t => t.c)];
+    if (cs.length) {
+      const a = Math.min(...cs), b = Math.max(...cs);
+      R.bus = horiz ? [{ x: a, y: busAt }, { x: b, y: busAt }] : [{ x: busAt, y: a }, { x: busAt, y: b }];
+      const busEdge = { a: rail.id, b: rail.id, tags: ['muted'], dashed: false, start: false, end: false, label: '', lab: null, rail };
+      out.push({ e: busEdge, pts: R.bus.map(q => ({ ...q })), lab: null });
+    }
+    for (const t of taps) {
+      // the link's own look (dashes, colour, label), with the arrow where the link points
+      const syn = { ...t.e, start: false, end: t.e.railFrom ? t.e.end : false };
+      let lab = null;
+      if (t.e.lab) lab = horiz ? { x: t.c + 6, y: (t.pts[0].y + t.pts[1].y) / 2 - t.e.lab.h / 2, anchor: 'start' } : { x: (t.pts[0].x + t.pts[1].x) / 2, y: t.c - 6 - t.e.lab.h, anchor: 'middle' };
+      out.push({ e: syn, pts: t.pts, lab });
+    }
+    for (const t of sinkLinks) {
+      const syn = { a: rail.id, b: t.n.id, tags: ['muted'], dashed: false, start: false, end: t.inbound, label: '', lab: null, rail };
+      out.push({ e: syn, pts: t.pts, lab: null });
+    }
+    rm.edges.push(...out);
+    rm.rails.push(R);
+    if (side === 'bottom') rm.height = Math.max(rm.height, band.y + band.h + 16);
+    if (side === 'right') rm.width = Math.max(rm.width, band.x + band.w + 16);
+    rm.width = Math.max(rm.width, band.x + band.w + 16);
+    rm.height = Math.max(rm.height, band.y + band.h + 16);
   }
 }
 
@@ -1664,6 +1805,15 @@ function render(rm, { standalone = false, idPrefix = 'tr' } = {}) {
       };
       const sp = spots.find(clear) || spots[0];
       body.push(`<text class="ztitle muted" x="${r1(sp.x)}" y="${r1(sp.y)}" text-anchor="${sp.a}">${esc(fr.f.title)}</text>`);
+    }
+  }
+  for (const rl of rm.rails || []) {
+    const t = rl.rail.tags;
+    const color = (t.find(x => PALETTE.light.zones[x === 'gray' ? 'grey' : x]) || 'grey').replace('gray', 'grey');
+    body.push(`<rect class="zone zone-${color}${t.includes('dashed') ? ' dashed' : ''}" x="${r1(rl.x)}" y="${r1(rl.y)}" width="${r1(rl.w)}" height="${r1(rl.h)}" rx="10"/>`);
+    if (rl.rail.title) {
+      const tx = rl.horiz ? rl.x + 12 : rl.x + 12, ty = rl.horiz ? (rl.side === 'bottom' ? rl.y + rl.h - 10 : rl.y + 20) : rl.y + 20;
+      body.push(`<text class="ztitle muted" x="${r1(tx)}" y="${r1(ty)}" text-anchor="start">${esc(rl.rail.title)}</text>`);
     }
   }
   for (const g of model.groups) {

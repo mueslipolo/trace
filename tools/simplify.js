@@ -3,6 +3,7 @@
 // way you would without any layout help. It removes
 //   - icons and the tags span, bridge and top,
 //   - rows and columns (the members become plain nodes in their frame),
+//   - rails (the nodes in the rail become plain nodes; links to the rail go to its first node),
 //   - the reversed links <- and <-- (written the natural way round, source first).
 // Usage: node tools/simplify.js          writes examples/cases/simple/*.trace from examples/cases/*.trace
 const fs = require('fs');
@@ -12,7 +13,9 @@ const { parse } = require('../src/trace.js');
 const KEEP = new Set(['ok', 'bad', 'dashed', 'muted']);
 
 function simplify(src) {
-  const stats = { icons: 0, span: 0, bridge: 0, top: 0, blocks: 0, reversed: 0 };
+  const stats = { icons: 0, span: 0, bridge: 0, top: 0, blocks: 0, rails: 0, reversed: 0 };
+  const rails = new Map();   // rail id -> its first node
+  let curRail = null;
   const out = [];
   const stack = [];
   let depth = 0;
@@ -22,13 +25,16 @@ function simplify(src) {
     if (!t) { emit(''); continue; }
     if (t === '}') {
       const kind = stack.pop();
-      if (kind === 'frame') { depth--; emit('  '.repeat(depth) + '}'); } else stats.blocks++;
+      if (kind === 'frame') { depth--; emit('  '.repeat(depth) + '}'); }
+      else if (kind === 'rail') { curRail = null; stats.rails++; }
+      else stats.blocks++;
       continue;
     }
     if (t.endsWith('{')) {
-      const m = t.match(/^(frame|column|row)\b/i);
+      const m = t.match(/^(frame|column|row|rail)\b/i);
       const kind = m ? m[1].toLowerCase() : 'frame';
       stack.push(kind);
+      if (kind === 'rail') { curRail = { id: t.split(/\s+/)[1], first: null }; rails.set(curRail.id, curRail); }
       if (kind === 'frame') { emit('  '.repeat(depth) + t); depth++; }
       continue;
     }
@@ -42,6 +48,7 @@ function simplify(src) {
         else if (g === 'span' || g === 'bridge' || g === 'top') stats[g]++;
         else stats.icons++;
       }
+      if (curRail && !curRail.first) curRail.first = nm[1].trim().split(/\s+/).pop();
       emit('  '.repeat(depth) + nm[1] + (keep.length ? ` [${keep.join(' ')}]` : '') + nm[4]);
       continue;
     }
@@ -53,6 +60,12 @@ function simplify(src) {
       continue;
     }
     emit('  '.repeat(depth) + t);
+  }
+  // links to a rail go to the first node in it
+  for (const [id, r] of rails) {
+    if (!r.first) continue;
+    const re = new RegExp('(^|\\s)' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=\\s|$)', 'g');
+    for (let i = 0; i < out.length; i++) if (/(->|-->|<->|--)/.test(out[i].split(':')[0])) out[i] = out[i].replace(re, `$1${r.first}`);
   }
   // a legend entry about borders belongs to bridges, which are gone
   if (stats.bridge) for (let i = out.length - 1; i >= 0; i--) if (/^\s*key\b.*\bborder\b/.test(out[i])) out.splice(i, 1);

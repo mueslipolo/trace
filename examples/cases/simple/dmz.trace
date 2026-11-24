@@ -26,6 +26,8 @@ frame data "data zone, 10.0.3.0/24" [purple] {
   store redis: Redis | sessions, cache
 }
 
+siem: SIEM | log collection, alerts
+
 users -> ddos : 443/tcp
 partners -> ddos : 443/tcp
 ddos -> cdn : 443, clean traffic
@@ -46,3 +48,6 @@ fw3 -> redis : 6379/tcp
 pgp -> pgr : 5432, streaming replication
 
 key frame [orange] : DMZ
+fw1 -> siem [dashed muted] : 514/udp
+fw2 -> siem [dashed muted] : 514/udp
+fw3 -> siem [dashed muted] : 514/udp

@@ -144,6 +144,27 @@ column {
   direction, so a firewall between two rows is an ordinary node. Layout blocks need the per-frame layout;
   if the diagram cannot be placed that way, the blocks are ignored and the result carries a warning.
 
+## Rails
+
+```
+rail logs "management VLAN" [right] {
+  siem: SIEM | log collection
+}
+fw1 -> logs : 514/udp
+fw2 -> siem : 514/udp
+```
+
+A rail is a band along one edge of the whole diagram for links that touch many nodes: logging, monitoring,
+scheduling. The nodes inside it are where the links end; a link to the rail's name or to a node in it
+is a rail link. Each runs from its node straight to a bus line on the rail, and the bus feeds the nodes
+with an arrow. Rail links take no part in the layout, so adding a rail never moves anything else.
+
+- `[top]`, `[bottom]`, `[left]` or `[right]` picks the edge (default: bottom for a diagram that flows
+  right, right for one that flows down). A colour (`[grey]`, `[blue]` ...) and `[dashed]` work as on frames.
+- A rail goes at the top level and holds nodes only.
+- A link crosses whatever lies between its node and the rail, so a rail suits nodes near the edge it runs
+  along. When a link would cross another node, the result carries a warning saying which.
+
 ## Aligning two nodes
 
 ```

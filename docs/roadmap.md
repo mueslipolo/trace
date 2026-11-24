@@ -47,12 +47,18 @@ Left, if someone wants to simplify:
 - Per-frame still gives up when even the margin route is blocked; a short jogged stub would let
   more diagrams through.
 
-## 3. Side rails for control-plane links
+## 3. Side rails for control-plane links (done: `rail`)
 
-Logging, scheduling and monitoring links that touch many nodes should run on a lane along the edge
-of the diagram, like a bus. Needed by: the SIEM in the DMZ case (left out for now), Airflow and
-quality checks in the analytics case. Possible syntax: `rail bottom "logs" { siem }` with links
-into a rail routed along it.
+Done: `rail logs "management VLAN" [right] { siem }` plus `fw1 -> logs`. The band, the bus and the taps
+are drawn after the layout (`placeRails`), so rails never move the rest of the diagram. The DMZ case
+uses it for its SIEM.
+
+Left:
+- A tap crosses whatever lies between its node and the rail (it warns). Routing it round the nodes, or
+  entering from the far side, would let a rail serve nodes in the middle of the diagram.
+- Dots where taps meet the bus, and labels on the bus instead of on each tap.
+- Several rails on one side, and a rail between two parts of the diagram.
+- The rail's nodes sit at the far end of the bus; placing them level with their main source would be tidier.
 
 ## 4. Row alignment across columns (done: `align a b`)
 

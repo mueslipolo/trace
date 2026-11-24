@@ -36,6 +36,10 @@ frame data "data zone, 10.0.3.0/24" [purple] {
   }
 }
 
+rail logs "management VLAN" [right] {
+  siem [monitor]: SIEM | log collection, alerts
+}
+
 users -> ddos : 443/tcp
 partners -> ddos : 443/tcp
 ddos -> cdn : 443, clean traffic
@@ -57,3 +61,6 @@ pgp -> pgr : 5432, streaming replication
 
 key frame [orange] : DMZ
 key box : firewall on a zone border
+fw1 -> logs [dashed muted] : 514/udp
+fw2 -> logs [dashed muted] : 514/udp
+fw3 -> logs [dashed muted] : 514/udp

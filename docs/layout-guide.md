@@ -94,6 +94,12 @@ Fix: put those two zones one after the other along the flow instead.
   between them is one straight line. It costs a few bends in the other links between the two stacks,
   and it does not remove crossings, so use it for neatness of a pair, not as a fix for a tangle.
 
+- For links that touch many nodes and carry no part of the main story (logs to a SIEM, metrics to
+  monitoring, a scheduler's triggers), use a `rail` on the side of the diagram those nodes are on. The
+  links leave the layout, so the diagram looks as it did before they were added. Choose the side so the
+  nodes that tap on are near it: a firewall at the right edge of a top-down diagram suits `[right]`; a
+  node in the middle would have to cross its neighbours (the result tells you).
+
 ## 6. Reading a result
 
 | What you see | What it means | Try |
@@ -103,6 +109,7 @@ Fix: put those two zones one after the other along the flow instead.
 | A long link looping round the whole diagram | a link written against the order of the nodes | declare the nodes in flow order, or use `<-` |
 | Two links that slide inward and bunch up at a node | the sources are further apart than the node is wide | tag the node `[span]` |
 | A firewall floating between two zones | the zones do not touch | `[bridge]`, and make them follow each other along the flow |
+| Many links to one monitoring or logging node spoil the picture | control-plane links mixed with the main flow | put that node in a `rail` |
 | Zones beside each other that should be stacked | a layout block you do not need | remove it |
 | Nodes that all look the same | nothing marks what they are | an icon, `[firewall]`, `[database]` |
 

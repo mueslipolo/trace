@@ -72,6 +72,13 @@ diagram with blocks both `SIMPLE` and `NETWORK_SIMPLEX` are tried and the better
 kept, `SIMPLE` unless the other wins by 3%. Links into a `[span]` node that sits inside a frame are
 given a port on the frame at the span node's own attachment point, so they stay straight.
 
+Rails (`type: 'rail'`, only at the top level) take no part in any layout: their nodes and the links to
+them are skipped by every ELK graph, and `placeRails` runs after `fitFrames`. It finds the bounding box of
+everything placed, puts the band beside it (shifting everything for a top or left rail), lays the nodes
+in the rail along the bus, and adds the links as ordinary entries in `rm.edges`: a bus, one straight tap
+per link, and an arrow from the bus into each node in the rail. Taps that would cross a node produce
+warnings through `rm.notes`.
+
 A last pass, `alignJogs`, runs on the chosen layout (after the choice, which is made on point counts it would change) and tidies links that have a single step: those that share a target (or source)
 get their steps at one height, in the middle of the gap, when that touches no node and runs along no
 other link. It changes no bend count.
