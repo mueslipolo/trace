@@ -3,7 +3,7 @@
     "id": "dmz",
     "title": "Three-tier network behind a DMZ",
     "context": "Internet traffic passes provider DDoS scrubbing and a CDN, then three firewalls in turn: into the DMZ, into the app zone, into the data zone. A management VLAN collects logs.",
-    "uses": "The edge and DB firewalls are [bridge]s: each sits on the border it guards, half in each zone, which is how network engineers draw them. [span] makes each firewall as wide as the stack behind it, so every rule fans out on a straight line. The diagram flows top-down: a column puts the edge and the DMZ one above the other, and a row puts the app and data zones side by side beneath them.",
+    "uses": "The diagram flows down, one band per zone, in the order traffic crosses them, with no layout block for the zones: the flow already stacks them. Each firewall is a [bridge]: it sits on the border it guards, half in each zone, which is how network engineers draw them. [span] makes each firewall as wide as the row of nodes behind it, so every rule drops on a straight line. The nodes inside a zone are rows, not columns: with the flow running down, siblings that share a neighbour go side by side, so each has a clear drop (see docs/layout-guide.md).",
     "gap": "The SIEM and its three log links are left out: links from all three firewalls into one management box cut across every zone. Trace needs a way to say “collect these on a side rail”, the way a hand-drawn diagram routes a bus along the bottom."
   },
   {

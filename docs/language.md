@@ -12,6 +12,8 @@ title "Job states"    # used as the SVG's aria-label and the download file name
 
 ## Layout is automatic
 
+When a diagram does not look right yet, `docs/layout-guide.md` says what to try, in order.
+
 Write nodes and links and nothing else: the layout is automatic. A long chain such as
 `a -> b -> c -> ...` folds into rows by itself when it would otherwise be a strip more than four times
 wider than tall; zones (frames) are placed around their members; you never have to say where anything

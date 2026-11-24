@@ -5,7 +5,7 @@ hand would lay it out. The rendered cases in `examples/cases/` are the quality b
 about how something should look, follow the style rules below and look at those.
 
 The project started in a claude.ai conversation. Everything decided there is captured in this
-file and in `docs/`. Read `docs/language.md` before changing the parser, `docs/architecture.md`
+file and in `docs/`. Read `docs/layout-guide.md` before drawing or restyling a case (it is the checklist for making a diagram look right), `docs/language.md` before changing the parser, `docs/architecture.md`
 before changing layout, and `docs/roadmap.md` before picking up work.
 
 ## Layout of the repository
