@@ -1,0 +1,48 @@
+title "Three-tier network behind a DMZ"
+
+pill users: Internet users
+pill partners: Partner APIs
+
+frame edge "edge, provider managed" [grey] {
+  ddos: DDoS scrubbing
+  cdn: CDN + WAF | TLS termination, bot rules
+}
+frame dmz "DMZ, 10.0.1.0/24" [orange] {
+  fw1: Edge firewall | stateful, geo-block
+  lb: Load balancer pair | VRRP, health checks
+  rp: Reverse proxy | nginx, mTLS to partners
+  bastion: Bastion host | SSH via SSO only
+}
+frame app "app zone, 10.0.2.0/24" [blue] {
+  fw2: Internal firewall | allow 443, 8443 only
+  web1: web-01
+  web2: web-02
+  api1: api-01
+}
+frame data "data zone, 10.0.3.0/24" [purple] {
+  fw3: DB firewall | 5432, 6379 from app only
+  store pgp: Postgres primary
+  store pgr: Postgres replica
+  store redis: Redis | sessions, cache
+}
+
+users -> ddos : 443/tcp
+partners -> ddos : 443/tcp
+ddos -> cdn : 443, clean traffic
+cdn -> fw1 : 443/tcp
+fw1 -> lb : 443, 80/tcp
+fw1 -> rp : 8443 mTLS
+fw1 -> bastion [dashed] : 22/tcp, VPN only
+lb -> fw2 : 443/tcp
+rp -> fw2 : 8443/tcp
+fw2 -> web1 : 443/tcp
+fw2 -> web2 : 443/tcp
+fw2 -> api1 : 8443/tcp
+web1 -> fw3 : 5432, 6379
+web2 -> fw3 : 5432, 6379
+api1 -> fw3 : 5432, 6379
+fw3 -> pgp : 5432/tcp
+fw3 -> redis : 6379/tcp
+pgp -> pgr : 5432, streaming replication
+
+key frame [orange] : DMZ

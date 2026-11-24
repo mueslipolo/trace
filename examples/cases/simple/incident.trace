@@ -1,0 +1,31 @@
+title "Incident response"
+direction down
+
+alert: Alert fires | SLO burn rate
+ask real: actionable?
+tune [muted]: Tune or silence the alert
+ask sev: customer impact?
+sev3: SEV-3 | fix in business hours
+page: Page on-call | PagerDuty, 5 min ack
+ask ack: acknowledged?
+escalate [bad]: Escalate | secondary, then manager
+ic: Declare incident | commander, Slack channel
+status [muted]: Status page | every 30 min
+mitigate: Mitigate | rollback, failover, flag
+ask fixed: impact over?
+review [ok]: Postmortem | within 5 days, blameless
+
+alert -> real
+real -> tune [muted] : no
+real -> sev : yes
+sev -> sev3 : none
+sev -> page : yes
+page -> ack
+ack -> escalate [bad] : no
+escalate -> ic
+ack -> ic : yes
+ic -> status [muted dashed]
+ic -> mitigate
+mitigate -> fixed
+fixed -> mitigate : no, next option
+fixed -> review [ok] : yes

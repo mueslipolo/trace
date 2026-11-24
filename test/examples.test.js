@@ -9,7 +9,7 @@ const { compile } = require('../src/trace.js');
 const { measure } = require('../tools/measure.js');
 
 const root = path.join(__dirname, '..');
-const files = ['playground', 'cases'].flatMap(g =>
+const files = ['playground', 'cases', 'cases/simple'].flatMap(g =>
   fs.readdirSync(path.join(root, 'examples', g)).filter(f => f.endsWith('.trace')).map(f => path.join('examples', g, f)));
 
 const overlap = (a, b, m = 0) => a.x < b.x + b.w - m && b.x < a.x + a.w - m && a.y < b.y + b.h - m && b.y < a.y + a.h - m;
@@ -154,5 +154,25 @@ test('every link of every example starts at its source and ends at its target', 
       if (!A || !B || !pts.length) continue;
       assert.ok(near(pts[0], A) && near(pts[pts.length - 1], B), `${file}: ${e.a} -> ${e.b} does not reach its ends`);
     }
+  }
+});
+
+test('each simple case is the full case with the advanced commands removed (npm run simplify)', () => {
+  const { simplify } = require('../tools/simplify.js');
+  const dir = path.join(root, 'examples', 'cases');
+  for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.trace'))) {
+    const want = simplify(fs.readFileSync(path.join(dir, f), 'utf8')).text;
+    const have = fs.readFileSync(path.join(dir, 'simple', f), 'utf8');
+    assert.strictEqual(have, want, `examples/cases/simple/${f} is out of date: run npm run simplify`);
+  }
+});
+
+test('simple cases use none of the advanced commands', () => {
+  const dir = path.join(root, 'examples', 'cases', 'simple');
+  for (const f of fs.readdirSync(dir)) {
+    const src = fs.readFileSync(path.join(dir, f), 'utf8');
+    assert.doesNotMatch(src, /^\s*(column|row)\b/m, f + ': no rows or columns');
+    assert.doesNotMatch(src, /<-/, f + ': no reversed links');
+    assert.doesNotMatch(src, /\[[^\]]*\b(span|bridge|top)\b[^\]]*\]/, f + ': no span, bridge or top');
   }
 });

@@ -18,8 +18,11 @@ before changing layout, and `docs/roadmap.md` before picking up work.
   icons, bundled in pages; names = every Lucide name, bundled; full set = Node only, pages fetch other
   icons on demand. Never edit by hand; to name a new common icon, add it to `CORE` and `ICON_ALIASES`.
 - `examples/playground/*.trace`: the examples shown in the playground, among them `icons.trace`.
-- `examples/cases/*.trace`: ten real-world diagrams, with notes in `cases.json` (what Trace uses, what is still missing). These are the regression
-  suite and the showcase.
+- `examples/cases/*.trace`: ten real-world diagrams in their *full* form (icons, rows and columns,
+  span and bridge, reversed links), with notes in `cases.json` (what Trace uses, what is still missing).
+  `examples/cases/simple/*.trace` are the same diagrams as you would write them with no layout help,
+  generated from the full ones by `npm run simplify` (`tools/simplify.js`); a test fails when they are
+  out of date. Together they are the regression suite and the showcase.
 - `playground/template.html`: the live editor page. `playground/showcase-template.html`: the page that draws the ten cases with their notes. Both get `src/trace.js` inlined by the build.
 - `tools/`: `render.js` (one file to SVG), `snapshots.js` (all examples to `out/`),
   `build-playground.js`, `build-showcase.js` (to `dist/`), `measure.js` (text widths in Node).
@@ -31,6 +34,7 @@ before changing layout, and `docs/roadmap.md` before picking up work.
 ```
 npm install
 npm test                 # parse + layout + invariants for every example
+npm run simplify         # regenerate examples/cases/simple/ from the full cases
 npm run snapshots        # out/**/*.svg, plus .png if @resvg/resvg-js installed
 npm run build            # dist/playground.html and dist/showcase.html
 node tools/render.js examples/cases/dmz.trace out.svg

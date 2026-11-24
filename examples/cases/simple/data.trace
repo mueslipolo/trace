@@ -1,0 +1,39 @@
+title "Analytics platform, sources to dashboards"
+
+store app: App Postgres
+logs: Clickstream | via Kafka
+saas: SaaS tools | Salesforce, Stripe, Zendesk
+
+debezium: Debezium | CDC
+flink: Flink | streaming
+fivetran: Fivetran | hourly syncs
+
+frame lake "lakehouse, Iceberg on S3" [blue] {
+  store bronze: bronze | raw, append-only
+  store silver: silver | cleaned, deduplicated
+  store gold: gold | business marts
+}
+
+bi: BI dashboards | Looker
+ml: ML features | Feast
+rev: Reverse ETL | to CRM
+
+airflow [muted]: Airflow | schedules dbt runs
+dq: Data quality checks | Great Expectations
+alert [bad]: Alert data on-call
+
+app -> debezium
+logs -> flink
+saas -> fivetran
+debezium -> bronze
+flink -> bronze
+fivetran -> bronze
+bronze -> silver : dbt
+silver -> gold : dbt
+gold -> bi
+gold -> ml
+gold -> rev
+silver -> dq
+dq -> alert [bad] : fail
+airflow --> silver [muted]
+airflow --> gold [muted]

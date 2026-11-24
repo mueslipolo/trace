@@ -6,7 +6,14 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const meta = JSON.parse(fs.readFileSync(path.join(root, 'examples/cases/cases.json'), 'utf8'));
-const cases = meta.map(m => ({ ...m, trace: fs.readFileSync(path.join(root, 'examples/cases', m.id + '.trace'), 'utf8') }));
+const { simplify } = require('./simplify.js');
+const cases = meta.map(m => {
+  const full = fs.readFileSync(path.join(root, 'examples/cases', m.id + '.trace'), 'utf8');
+  const simple = fs.readFileSync(path.join(root, 'examples/cases/simple', m.id + '.trace'), 'utf8');
+  return { ...m, trace: full, simple, stats: simplify(full).stats };
+});
+const LABELS = { icons: ['icon', 'icons'], span: ['span node', 'span nodes'], bridge: ['bridge', 'bridges'], top: ['icon on top', 'icons on top'], blocks: ['row or column', 'rows and columns'], reversed: ['reversed link', 'reversed links'] };
+const adds = st => Object.entries(st).filter(([, v]) => v).map(([k, v]) => `${v} ${LABELS[k][v === 1 ? 0 : 1]}`).join(', ') || 'nothing: this diagram is already fine on its own';
 const nav = cases.map(c => `<li><a href="#${c.id}">${esc(c.title)}</a></li>`).join('');
 const cards = cases.map((c, i) => `
 <section class="case" id="${c.id}" aria-labelledby="h-${c.id}">
@@ -19,17 +26,20 @@ const cards = cases.map((c, i) => `
   </header>
   <div class="pair">
     <figure class="panel">
-      <div class="canvas tr dgw" data-case="${i}"><div class="wait">Drawing…</div></div>
+      <figcaption><b>Simple</b>: nodes, links and frames, automatic layout</figcaption>
+      <div class="canvas tr dgw" data-case="${i}" data-variant="simple"><div class="wait">Drawing…</div></div>
+      <details class="src"><summary>Source</summary><div class="src-grid"><pre>${esc(c.simple)}</pre></div></details>
+    </figure>
+    <figure class="panel">
+      <figcaption><b>Full</b>: adds ${esc(adds(c.stats))}</figcaption>
+      <div class="canvas tr dgw" data-case="${i}" data-variant="trace"><div class="wait">Drawing…</div></div>
+      <details class="src"><summary>Source</summary><div class="src-grid"><pre>${esc(c.trace)}</pre></div></details>
     </figure>
   </div>
   <div class="notes">
-    <p><b>What it uses.</b> ${esc(c.uses)}</p>
+    <p><b>What the full version uses.</b> ${esc(c.uses)}</p>
     <p><b>Still missing.</b> ${esc(c.gap)}</p>
   </div>
-  <details class="src">
-    <summary>Source</summary>
-    <div class="src-grid"><pre>${esc(c.trace)}</pre></div>
-  </details>
 </section>`).join('');
 let page = fs.readFileSync(path.join(root, 'playground/showcase-template.html'), 'utf8');
 page = page

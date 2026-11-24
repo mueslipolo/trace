@@ -12,7 +12,7 @@ try { ({ Resvg } = require('@resvg/resvg-js')); } catch (e) { /* PNGs are option
 (async () => {
   const root = path.join(__dirname, '..');
   let failed = 0;
-  for (const group of ['playground', 'cases']) {
+  for (const group of ['playground', 'cases', 'cases/simple']) {
     const dir = path.join(root, 'examples', group);
     const outDir = path.join(root, 'out', group);
     fs.mkdirSync(outDir, { recursive: true });

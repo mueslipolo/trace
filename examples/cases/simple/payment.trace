@@ -1,0 +1,29 @@
+title "Payment lifecycle"
+direction down
+
+start s
+state created: created
+state authorized: authorized
+state captured: captured
+state partial: partially refunded
+state disputed [bad]: disputed
+final failed [bad]: failed
+final voided: voided
+final refunded: refunded
+final lost [bad]: chargeback
+
+s -> created : PaymentIntent created
+created -> authorized : card authorized
+created -> failed [bad] : declined or 3DS failed
+authorized -> captured [ok] : captured
+authorized -> voided : voided or auth expired
+captured -> partial : partial refund
+partial -> partial : another partial refund
+partial -> refunded : rest refunded
+captured -> refunded : full refund
+captured -> disputed [bad] : customer disputes
+disputed -> captured [ok] : dispute won
+disputed -> lost [bad] : dispute lost
+
+key final : terminal state
+key -> [bad] : money at risk

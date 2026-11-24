@@ -45,7 +45,7 @@ h1 { font-size: 1.6rem; margin: 0 0 6px; letter-spacing: -0.01em; }
 .context { margin: 4px 0 0; color: var(--muted); max-width: 90ch; font-size: 0.925rem; }
 .pair { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }
 .panel { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
-.panel figcaption { font-size: 0.8125rem; font-weight: 600; color: var(--muted); padding: 7px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.panel figcaption { font-size: 0.8125rem; font-weight: 400; color: var(--muted); padding: 7px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .canvas { overflow-x: auto; padding: 14px; }
 .canvas.tr { display: grid; place-items: start center; }
 .canvas.tr svg { display: block; }
@@ -53,7 +53,8 @@ body.fit .canvas.tr svg { width: 100%; height: auto; }
 .wait { color: var(--muted); font-size: 0.875rem; padding: 24px 0; }
 .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 4px 28px; margin-top: 12px; }
 .notes p { margin: 4px 0; font-size: 0.9rem; max-width: 70ch; }
-.src { margin-top: 8px; }
+.panel figcaption b { color: var(--fg); font-weight: 700; }
+.src { margin: 0; padding: 4px 12px 8px; }
 .src summary { cursor: pointer; color: var(--accent); font-size: 0.875rem; padding: 4px 0; }
 .src-grid { margin-top: 8px; }
 .src h3 { font-size: 0.8125rem; margin: 0 0 4px; color: var(--muted); }
@@ -65,7 +66,7 @@ body.fit .canvas.tr svg { width: 100%; height: auto; }
 <body class="fit">
 <main>
   <h1>Trace showcase, ten real diagrams</h1>
-  <p class="lede">Ten diagrams of the kind that end up in real docs, five of them networks with proxies, firewalls and zones, drawn live from their Trace source. The source is under each case. To edit one, paste it into the playground (<code>dist/playground.html</code>).</p>
+  <p class="lede">Ten diagrams of the kind that end up in real docs, five of them networks with proxies, firewalls and zones. Each is drawn twice from its Trace source. <b>Simple</b> is what you write when you only list nodes, links and frames and let the layout do everything. <b>Full</b> adds the commands for when you want to decide: icons, rows and columns that place the zones, span and bridge nodes, and links written the way the traffic flows. The source of both is under each drawing. To edit one, paste it into the playground (<code>dist/playground.html</code>).</p>
 
   <div class="toolbar">
     <ul class="toc">@@NAV@@</ul>
@@ -108,9 +109,9 @@ body.fit .canvas.tr svg { width: 100%; height: auto; }
     }
     cache.clear();
     for (const slot of slots) {
-      const c = CASES[+slot.dataset.case];
+      const c = CASES[+slot.dataset.case], variant = slot.dataset.variant || 'trace';
       try {
-        const r = await compile(c.trace, measure, ELK, { idPrefix: 'c' + slot.dataset.case });
+        const r = await compile(c[variant], measure, ELK, { idPrefix: 'c' + slot.dataset.case + variant });
         if (r.errors.length) { slot.innerHTML = '<div class="wait"></div>'; slot.firstChild.textContent = 'Line ' + r.errors[0].line + ': ' + r.errors[0].msg; continue; }
         slot.innerHTML = r.svg;
       } catch (e) {
