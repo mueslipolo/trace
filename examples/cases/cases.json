@@ -18,7 +18,7 @@
     "title": "Zero-trust access to internal apps",
     "context": "Users never join the network. An identity-aware proxy checks SSO, MFA and device posture on every request; an app connector inside the private network dials out, so there are no inbound ports. The legacy VPN is still there for one app.",
     "uses": "The connector is a [bridge] on the private network’s border: the picture says “this is the only way in”. proxy <- posture keeps the posture check above the flow while the arrow still points at the proxy.",
-    "gap": "Mermaid and Trace both struggle to show “the connector dials out, then traffic flows in”. A two-headed or reversed-flow link style (arrow one way, label for the opposite connection direction) would say it better than a label."
+    "gap": "Trace cannot yet show “the connector dials out, then traffic flows in”. A two-headed or reversed-flow link style (arrow one way, label for the opposite connection direction) would say it better than a label."
   },
   {
     "id": "hybrid",
@@ -52,7 +52,7 @@
     "id": "payment",
     "title": "Payment lifecycle",
     "context": "The states a card payment moves through, from creation to capture, refunds, voids and disputes.",
-    "uses": "Start dot, rounded states, double-bordered end states and coloured paths, without Mermaid’s separate end markers; captured <- disputed keeps the “dispute won” loop from flipping the layout.",
+    "uses": "Start dot, rounded states, double-bordered end states and coloured paths; captured <- disputed keeps the “dispute won” loop from flipping the layout.",
     "gap": "Self-loops (another partial refund) are still small and tucked against the box. A proper loop shape with room for its label is on the list."
   },
   {

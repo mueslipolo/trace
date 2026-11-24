@@ -37,24 +37,24 @@ frame data "data zone, 10.0.3.0/24" [purple] {
   }
 }
 
-users -> ddos
-partners -> ddos
-ddos -> cdn
-cdn -> fw1 : 443
-fw1 -> lb
-fw1 -> rp : mTLS
-fw1 -> bastion [dashed] : SSH, VPN only
-lb -> fw2
-rp -> fw2
-fw2 -> web1
-fw2 -> web2
-fw2 -> api1
-web1 -> fw3
-web2 -> fw3
-api1 -> fw3
-fw3 -> pgp
-fw3 -> redis
-pgp -> pgr : streaming replication
+users -> ddos : 443/tcp
+partners -> ddos : 443/tcp
+ddos -> cdn : 443, clean traffic
+cdn -> fw1 : 443/tcp
+fw1 -> lb : 443, 80/tcp
+fw1 -> rp : 8443 mTLS
+fw1 -> bastion [dashed] : 22/tcp, VPN only
+lb -> fw2 : 443/tcp
+rp -> fw2 : 8443/tcp
+fw2 -> web1 : 443/tcp
+fw2 -> web2 : 443/tcp
+fw2 -> api1 : 8443/tcp
+web1 -> fw3 : 5432, 6379
+web2 -> fw3 : 5432, 6379
+api1 -> fw3 : 5432, 6379
+fw3 -> pgp : 5432/tcp
+fw3 -> redis : 6379/tcp
+pgp -> pgr : 5432, streaming replication
 
 key frame [orange] : DMZ
 key box : firewall on a zone border

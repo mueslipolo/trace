@@ -28,17 +28,17 @@ frame private "private network, no inbound ports" [blue] {
 
 vpn [dashed]: Legacy VPN | being retired
 
-emp -> proxy
-contractor -> proxy
-proxy -> sso : redirect to sign in
-sso -> mfa
-proxy <- posture [muted] : device health
-proxy -> connector : over the tunnel
-connector -> wiki
-connector -> git
-connector -> admin [bad] : admins only
-emp --> vpn : until Q3
-vpn --> git
+emp -> proxy : 443/tcp mTLS
+contractor -> proxy : 443/tcp
+proxy -> sso : 443 SAML/OIDC redirect
+sso -> mfa : 443 WebAuthn
+proxy <- posture [muted] : 443 device health
+proxy -> connector : 443 over the tunnel
+connector -> wiki : 443/tcp
+connector -> git : 22, 443/tcp
+connector -> admin [bad] : 8443/tcp admins only
+emp --> vpn : IPsec UDP 500/4500, until Q3
+vpn --> git : 22/tcp
 
 key -> [bad] : restricted
 key box [dashed] : being retired

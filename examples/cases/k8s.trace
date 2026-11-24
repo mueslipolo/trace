@@ -34,15 +34,16 @@ column "outside" {
   engine smtp: SMTP relay
 }
 
-client -> clb -> ingress
-ingress -> svcweb : /
-ingress -> svccart : /cart
-ingress -> svccat : /api/catalog
-svcweb -> podweb
-svccart -> podcart
-svccat -> podcat
-podcart -> redis
-podcat -> pg
-podcart -> egw [dashed] : mesh egress
-egw -> stripe : 443 only
-egw -> smtp
+client -> clb : 443/tcp
+clb -> ingress : 443, NodePort 30443
+ingress -> svcweb : / 8080/tcp
+ingress -> svccart : /cart 8080/tcp
+ingress -> svccat : /api/catalog 8080/tcp
+svcweb -> podweb : 8080 mTLS
+svccart -> podcart : 8080 mTLS
+svccat -> podcat : 8080 mTLS
+podcart -> redis : 6379/tcp
+podcat -> pg : 5432/tcp
+podcart -> egw [dashed] : 15443 mesh egress
+egw -> stripe : 443/tcp only
+egw -> smtp : 587/tcp STARTTLS
