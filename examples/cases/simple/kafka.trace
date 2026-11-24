@@ -1,7 +1,6 @@
 title "Order processing on Kafka"
 
 checkout: Checkout API
-
 frame orders "order service" [blue] {
   store odb: orders DB | with outbox table
   relay: Outbox relay | Debezium
@@ -13,11 +12,10 @@ frame kafka "Kafka" [grey] {
   store tShip: shipments.updated
 }
 
-payment: Payment service
 inventory: Inventory service
-shipping: Shipping service
+payment: Payment service
 notify: Notification service
-
+shipping: Shipping service
 engine psp: Payment provider
 store dlq [bad]: Dead-letter topic
 

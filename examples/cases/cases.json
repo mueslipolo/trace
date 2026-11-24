@@ -45,8 +45,8 @@
     "id": "kafka",
     "title": "Order processing on Kafka",
     "context": "Checkout writes the order and an outbox row in one transaction; a relay publishes it; payment, inventory, shipping and notifications react to topics and publish their own events. Poison messages end in a dead-letter topic.",
-    "uses": "Topics and consumers as two columns facing each other, so reading and publishing are both horizontal; tPay <- payment draws “publishes” as an arrow into the topic while the consumer stays on the right.",
-    "gap": "Links between the two columns cross freely; nothing tells the layout to keep each topic level with its main consumer. A way to pin rows across columns (“align tPay with payment”) would remove most crossings."
+    "uses": "Topics and consumers as two columns facing each other, so reading and publishing are both horizontal; tPay <- payment draws “publishes” as an arrow into the topic while the consumer stays on the right. Consumers sit beside the payment provider and dead-letter topic in a row, and the checkout API is stacked over the order service, so the diagram is not one long strip.",
+    "gap": "Two crossings remain between topics and consumers; the consumer order (inventory, payment, notify, shipping) was found by trying every order. Suggesting an order automatically is part of the deferred layout recommendations."
   },
   {
     "id": "payment",
