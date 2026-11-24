@@ -97,3 +97,12 @@ test('icons: a failed load draws the node without the icon and says so', async (
   assert.match(res.warnings[0], /bike/);
   assert.ok(res.rm.nodes[0].w <= 100, 'no room kept for an icon that is not there');
 });
+
+test('withIcon adds or replaces an icon on a node line and refuses other lines', () => {
+  const { withIcon } = require('../src/trace.js');
+  assert.strictEqual(withIcon('api: FastAPI | note', 'database'), 'api [database]: FastAPI | note');
+  assert.strictEqual(withIcon('store pg: Postgres', 'database'), 'store pg [database]: Postgres');
+  assert.strictEqual(withIcon('fw [bridge firewall top]: Edge', 'router'), 'fw [bridge top router]: Edge');
+  assert.strictEqual(withIcon('a: has "x:y" in it', 'bell'), 'a [bell]: has "x:y" in it');
+  for (const l of ['a -> b : 443', 'frame f "T" [blue] {', 'column {', 'key box [dashed] : x', 'plain']) assert.strictEqual(withIcon(l, 'bell'), null, l);
+});

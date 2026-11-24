@@ -28,16 +28,31 @@ function iconKnown(name) { return ICON_NAMES.has(lucideName(name)); }
 function iconSvg(name) { const l = lucideName(name); return ICON_CORE[l] || ICON_LOADED.get(l) || null; }
 // Fetch the drawings a model needs and does not have yet. Failures are returned, not thrown:
 // the node is then drawn without its icon.
+async function loadIcon(name, loader) {
+  const l = lucideName(name);
+  if (ICON_CORE[l] || ICON_LOADED.has(l)) return iconSvg(name);
+  const svg = await (loader || defaultIconLoader)(l);
+  const m = svg && /<svg[^>]*>([\s\S]*)<\/svg>/.exec(svg);
+  if (!m) return null;
+  ICON_LOADED.set(l, m[1].replace(/\s+/g, ' ').replace(/>\s+</g, '><').trim());
+  return ICON_LOADED.get(l);
+}
+// `a: Label` + "database" -> `a [database]: Label`; keeps the other tags, replaces an earlier icon.
+// Returns null when the line is not a node line (links, blocks, keys), so the caller can say so.
+function withIcon(line, name) {
+  const c = firstColon(line);
+  if (c < 0 || ARROWS.test(line.slice(0, c)) || /^\s*(frame|column|row|key|title|direction|spacing)\b/.test(line)) return null;
+  const lhs = line.slice(0, c), rest = line.slice(c);
+  const m = lhs.match(/^(.*?)\s*\[([^\]]*)\]\s*$/);
+  if (!m) return lhs.trimEnd() + ` [${name}]` + rest;
+  const keep = m[2].trim().split(/[\s,]+/).filter(t => t && (NODE_TAGS.has(t) || t === 'top'));
+  return m[1] + ` [${[...keep, name].join(' ')}]` + rest;
+}
 async function loadIcons(model, loader) {
   const need = [...new Set([...model.nodes.values()].filter(n => n.icon && !iconSvg(n.icon)).map(n => lucideName(n.icon)))];
   const failed = [];
   await Promise.all(need.map(async name => {
-    try {
-      const svg = await (loader || defaultIconLoader)(name);
-      const m = svg && /<svg[^>]*>([\s\S]*)<\/svg>/.exec(svg);
-      if (!m) throw new Error('no drawing');
-      ICON_LOADED.set(name, m[1].replace(/\s+/g, ' ').replace(/>\s+</g, '><').trim());
-    } catch (e) { failed.push(name); }
+    try { if (!(await loadIcon(name, loader))) throw new Error('no drawing'); } catch (e) { failed.push(name); }
   }));
   return failed;
 }
@@ -1444,4 +1459,4 @@ async function compile(src, measure, ELK, opts) {
   return { model, rm, errors: [], warnings: iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), svg: render(rm, opts), standalone: () => render(rm, { ...opts, standalone: true }) };
 }
 
-if (typeof module !== 'undefined') module.exports = { parse, layout, render, compile, diagramCSS, standaloneCSS, PALETTE, FONT_NAME, FONT_NOTE };
+if (typeof module !== 'undefined') module.exports = { parse, layout, render, compile, diagramCSS, standaloneCSS, PALETTE, FONT_NAME, FONT_NOTE, withIcon };

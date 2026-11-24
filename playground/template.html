@@ -110,6 +110,20 @@ textarea.src:focus-visible { outline: none; }
 }
 .ref p { margin: 6px 0 0; font-size: 0.8125rem; color: var(--muted); }
 
+/* icon gallery */
+.gal { padding: 0 14px 14px; }
+.gal p { margin: 0 0 8px; font-size: 0.8125rem; color: var(--muted); max-width: 90ch; }
+.gal h3 { font-size: 0.75rem; margin: 14px 0 6px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
+.gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.gal-ic { display: grid; justify-items: center; gap: 6px; padding: 10px 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--code-bg); cursor: pointer; min-width: 0; }
+.gal-ic:hover { border-color: var(--muted); }
+.gal-ic svg { width: 28px; height: 28px; fill: none; stroke: var(--fg); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.gal-ic span { font: 11px "JetBrains Mono", ui-monospace, Menlo, monospace; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gal-ic .none { width: 28px; height: 28px; }
+.gal input[type="search"] { width: 100%; max-width: 420px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 0 12px; font-size: 0.875rem; }
+.gal-note { min-height: 1.2em; margin-top: 8px !important; }
+.gal-note.bad { color: var(--err); }
+
 .copybox { margin: 0 14px 14px; }
 .copybox textarea { width: 100%; height: 120px; font: 11px/16px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); padding: 8px; }
 .copybox p { font-size: 0.8125rem; color: var(--muted); margin: 0 0 6px; }
@@ -173,6 +187,18 @@ textarea.src:focus-visible { outline: none; }
     </section>
   </div>
 
+  <details class="card ref" id="icons">
+    <summary>Icons</summary>
+    <div class="gal">
+      <p>Put the cursor on a node line in the editor, then click an icon to add it to that node. Any <a href="https://lucide.dev/icons" target="_blank" rel="noopener">Lucide</a> icon works under its own name; the first group has friendlier names for common elements.</p>
+      <div id="galCommon"></div>
+      <h3>Search all Lucide icons</h3>
+      <input id="galSearch" type="search" placeholder="Search, for example cable, rocket or database" aria-label="Search icons" autocomplete="off">
+      <div id="galResults" class="gal-grid" style="margin-top:10px"></div>
+      <p id="galNote" class="gal-note" role="status" aria-live="polite"></p>
+    </div>
+  </details>
+
   <details class="card ref" open>
     <summary>Syntax</summary>
     <div class="ref-body">
@@ -182,7 +208,7 @@ textarea.src:focus-visible { outline: none; }
 store pg: Postgres
 ask ok: any candidate?
 failed [bad]: Job failed</pre>
-        <p>Name, then a colon, then the bold label; text after <code>|</code> becomes the muted note. Kinds: <code>box</code> (default), <code>store</code>, <code>engine</code>, <code>state</code>, <code>pill</code>, <code>ask</code>, <code>start</code>, <code>final</code>. Tags: <code>[ok]</code> <code>[bad]</code> <code>[dashed]</code> <code>[muted]</code>. Use <code>\n</code> to break a line.</p>
+        <p>Name, then a colon, then the bold label; text after <code>|</code> becomes the muted note. Kinds: <code>box</code> (default), <code>store</code>, <code>engine</code>, <code>state</code>, <code>pill</code>, <code>ask</code>, <code>start</code>, <code>final</code>. Tags: <code>[ok]</code> <code>[bad]</code> <code>[dashed]</code> <code>[muted]</code>. Use <code>\n</code> to break a line. A word that is not a tag adds an icon: <code>fw [firewall]: Edge</code>, <code>db [database top]: Orders</code> (<code>top</code> puts it above the text); see Icons below.</p>
       </div>
       <div>
         <h3>Links</h3>
@@ -355,6 +381,11 @@ key -> [bad] : failure path</pre>
     stage.innerHTML = res.svg;
     const n = res.model.nodes.size, l = res.model.edges.length;
     statusEl.textContent = `${n} ${n === 1 ? 'node' : 'nodes'}, ${l} ${l === 1 ? 'link' : 'links'}`;
+    statusEl.title = '';
+    if (res.warnings && res.warnings.length) {
+      statusEl.textContent += ` · ${res.warnings.length} ${res.warnings.length === 1 ? 'icon' : 'icons'} not loaded`;
+      statusEl.title = res.warnings.join('\n');
+    }
     statusEl.className = 'status';
   }
 
@@ -434,6 +465,68 @@ key -> [bad] : failure path</pre>
       }
     });
   })();
+
+  // ---- icon gallery
+  const GROUPS = [
+    ['Common names', ['database', 'server', 'user', 'cloud', 'browser', 'queue', 'firewall', 'storage', 'loadbalancer', 'container', 'api', 'lock', 'mobile', 'internet']],
+    ['Network', ['router', 'switch', 'wifi', 'vpn', 'dns', 'shield']],
+    ['Devices', ['laptop', 'monitor', 'printer', 'camera']],
+    ['Services and operations', ['cache', 'function', 'clock', 'document', 'bell', 'chart', 'settings', 'mail', 'key']],
+  ];
+  const galNote = $('galNote');
+  const iconBtn = (name, markup) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'gal-ic'; b.title = 'Add [' + name + '] to the node on the cursor line';
+    b.innerHTML = (markup ? `<svg viewBox="0 0 24 24" aria-hidden="true">${markup}</svg>` : '<svg class="none" viewBox="0 0 24 24" aria-hidden="true"></svg>') + `<span></span>`;
+    b.lastChild.textContent = name;
+    b.addEventListener('click', () => insertIcon(name));
+    return b;
+  };
+  function insertIcon(name) {
+    const text = src.value, pos = src.selectionStart;
+    const from = text.lastIndexOf('\n', pos - 1) + 1;
+    let to = text.indexOf('\n', pos); if (to < 0) to = text.length;
+    const next = withIcon(text.slice(from, to), name);
+    if (next === null) {
+      galNote.textContent = 'Put the cursor on a node line first, for example one like  api: FastAPI app.';
+      galNote.className = 'gal-note bad';
+      return;
+    }
+    src.value = text.slice(0, from) + next + text.slice(to);
+    src.focus();
+    src.setSelectionRange(from + next.length, from + next.length);
+    galNote.textContent = 'Added ' + name + '.'; galNote.className = 'gal-note';
+    changed();
+  }
+  $('galCommon').innerHTML = '';
+  for (const [title, names] of GROUPS) {
+    const h = document.createElement('h3'); h.textContent = title;
+    const g = document.createElement('div'); g.className = 'gal-grid';
+    for (const n of names) g.appendChild(iconBtn(n, iconSvg(n)));
+    $('galCommon').append(h, g);
+  }
+  let galTimer = 0, galRun = 0;
+  $('galSearch').addEventListener('input', () => { clearTimeout(galTimer); galTimer = setTimeout(searchIcons, 150); });
+  async function searchIcons() {
+    const q = $('galSearch').value.trim().toLowerCase(), id = ++galRun, out = $('galResults');
+    out.innerHTML = ''; galNote.className = 'gal-note';
+    if (q.length < 2) { galNote.textContent = q ? 'Type at least two letters.' : ''; return; }
+    const all = [...new Set([...Object.keys(ICON_ALIASES), ...ICON_NAMES])].filter(n => n.includes(q));
+    all.sort((a, b) => (a === q ? -2 : a.startsWith(q) ? -1 : 0) - (b === q ? -2 : b.startsWith(q) ? -1 : 0) || a.length - b.length || (a < b ? -1 : 1));
+    const shown = all.slice(0, 40);
+    galNote.textContent = all.length ? (all.length > shown.length ? `${all.length} matches, showing the first ${shown.length}.` : `${all.length} ${all.length === 1 ? 'match' : 'matches'}.`) : 'No icon has that in its name.';
+    const buttons = shown.map(n => { const b = iconBtn(n, iconSvg(n)); out.appendChild(b); return b; });
+    let failed = 0;
+    await Promise.all(shown.map(async (n, i) => {
+      if (iconSvg(n)) return;
+      try {
+        const m = await loadIcon(n);
+        if (id !== galRun) return;
+        if (m) buttons[i].firstChild.innerHTML = m; else failed++;
+      } catch (e) { failed++; }
+    }));
+    if (id === galRun && failed) { galNote.textContent += ' Drawings need a network connection; the names still work.'; }
+  }
 
   paintGutter();
   const fontsReady = document.fonts
