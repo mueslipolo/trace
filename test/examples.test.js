@@ -106,3 +106,31 @@ test('withIcon adds or replaces an icon on a node line and refuses other lines',
   assert.strictEqual(withIcon('a: has "x:y" in it', 'bell'), 'a [bell]: has "x:y" in it');
   for (const l of ['a -> b : 443', 'frame f "T" [blue] {', 'column {', 'key box [dashed] : x', 'plain']) assert.strictEqual(withIcon(l, 'bell'), null, l);
 });
+
+test('rows and columns of frames place them side by side, one above the other, or as a grid', async () => {
+  const frame = (res, id) => res.rm.frames.find(f => f.f.id === id);
+  const F = (id, node) => `frame ${id} "${id.toUpperCase()}" {\n  ${node}\n}\n`;
+  // unlinked frames: only the lane decides where they go
+  const row = await compile(`row {\n${F('a', 'x')}${F('b', 'y')}${F('c', 'z')}}\n`, measure, ELK, {});
+  assert.deepStrictEqual(row.errors, []);
+  const [a, b, c] = ['a', 'b', 'c'].map(id => frame(row, id));
+  assert.ok(a.x + a.w <= b.x + 1 && b.x + b.w <= c.x + 1, 'a row goes left to right, in order');
+  assert.ok(Math.abs(a.y - b.y) < 2, 'and on one line');
+  const col = await compile(`column {\n${F('a', 'x')}${F('b', 'y')}}\n`, measure, ELK, {});
+  assert.deepStrictEqual(col.errors, []);
+  assert.ok(frame(col, 'a').y + frame(col, 'a').h <= frame(col, 'b').y + 1, 'a column goes top to bottom');
+  const grid = await compile(`column {\nrow {\n${F('a', 'x')}${F('b', 'y')}}\nrow {\n${F('c', 'z')}${F('d', 'w')}}\n}\nx -> w\n`, measure, ELK, {});
+  assert.deepStrictEqual(grid.errors, []);
+  const g = ['a', 'b', 'c', 'd'].map(id => frame(grid, id));
+  const [ga, gb, gc, gd] = g;
+  assert.ok(ga.x < gb.x && gc.x < gd.x && ga.y < gc.y && gb.y < gd.y, 'a grid: two rows of two');
+  for (const f of g) for (const o of g) if (f !== o) assert.ok(f.x + f.w <= o.x + 1 || o.x + o.w <= f.x + 1 || f.y + f.h <= o.y + 1 || o.y + o.h <= f.y + 1, 'frames do not overlap');
+});
+
+test('a row or column that holds frames takes no title; a plain one still stacks nodes', async () => {
+  const bad = await compile('row "Zones" {\n  frame a {\n    x\n  }\n}\n', measure, ELK, {});
+  assert.match(bad.errors[0].msg, /no title/);
+  const plain = await compile('column "stack" {\n  p: One\n  q: Two\n}\np -> q', measure, ELK, {});
+  assert.deepStrictEqual(plain.errors, []);
+  assert.ok(plain.rm.nodes[0].x === plain.rm.nodes[1].x, 'still a hand-stacked column');
+});

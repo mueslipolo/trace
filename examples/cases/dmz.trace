@@ -5,35 +5,38 @@ column {
   pill partners [handshake]: Partner APIs
 }
 
-frame edge "edge, provider managed" [grey] {
-  ddos [shield]: DDoS scrubbing
-  cdn [cloud]: CDN + WAF | TLS termination, bot rules
-}
-
-frame dmz "DMZ, 10.0.1.0/24" [orange] {
-  fw1 [bridge span firewall]: Edge firewall | stateful, geo-block
-  column {
-    lb [loadbalancer]: Load balancer pair | VRRP, health checks
-    rp [arrow-right-left]: Reverse proxy | nginx, mTLS to partners
-    bastion [terminal]: Bastion host | SSH via SSO only
+column {
+  row {
+    frame edge "edge, provider managed" [grey] {
+      ddos [shield]: DDoS scrubbing
+      cdn [cloud]: CDN + WAF | TLS termination, bot rules
+    }
+    frame dmz "DMZ, 10.0.1.0/24" [orange] {
+      fw1 [bridge span firewall]: Edge firewall | stateful, geo-block
+      column {
+        lb [loadbalancer]: Load balancer pair | VRRP, health checks
+        rp [arrow-right-left]: Reverse proxy | nginx, mTLS to partners
+        bastion [terminal]: Bastion host | SSH via SSO only
+      }
+    }
   }
-}
-
-frame app "app zone, 10.0.2.0/24" [blue] {
-  fw2 [bridge span firewall]: Internal firewall | allow 443, 8443 only
-  column "app servers" {
-    web1 [server]: web-01
-    web2 [server]: web-02
-    api1 [api]: api-01
-  }
-}
-
-frame data "data zone, 10.0.3.0/24" [purple] {
-  fw3 [bridge span firewall]: DB firewall | 5432, 6379 from app only
-  column {
-    store pgp [database]: Postgres primary
-    store pgr [database]: Postgres replica
-    store redis [cache]: Redis | sessions, cache
+  row {
+    frame app "app zone, 10.0.2.0/24" [blue] {
+      fw2 [span firewall]: Internal firewall | allow 443, 8443 only
+      column "app servers" {
+        web1 [server]: web-01
+        web2 [server]: web-02
+        api1 [api]: api-01
+      }
+    }
+    frame data "data zone, 10.0.3.0/24" [purple] {
+      fw3 [bridge span firewall]: DB firewall | 5432, 6379 from app only
+      column {
+        store pgp [database]: Postgres primary
+        store pgr [database]: Postgres replica
+        store redis [cache]: Redis | sessions, cache
+      }
+    }
   }
 }
 

@@ -44,6 +44,15 @@ and no two unrelated frames overlap more than 2px.
 3. **Compound**: frames are ELK compound nodes (`F:id`, `hierarchyHandling: INCLUDE_CHILDREN`).
    Always valid; the fallback.
 
+A row or column that holds frames is a *lane* (`type: 'lane'`, made in the parser when a block opens
+inside a group). Lanes only exist in the per-frame mode, where a lane is a borderless container with
+its own ELK run: direction along the lane, children in source order (`elk.partitioning`), no
+straightening (`SIMPLE` placement) and no packing of unlinked children. The shared prep code asks
+`fhOf(item)` for the flow direction at that item, and `portFor` takes the direction of the graph that
+holds the frame it makes a port on. If the per-frame mode returns nothing, `layout` draws the
+diagram without the lanes (flat and compound treat a lane as transparent) and adds a note, which
+`compile` returns as a warning. Bridge fitting only pairs frames that are level on the other axis.
+
 `TRACE_LAYOUT=hier|flat|compound` forces one mode. Today per-frame or flat wins for every example that has frames except the ones where compound has
 fewer bends.
 

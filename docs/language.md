@@ -110,6 +110,28 @@ row "optional title" {
   right) give every member the same width. Sibling stacks of the same length share slot sizes,
   so they line up row for row like a table.
 - A title in quotes on a column or row is drawn as a small header above it.
+- A row or column that holds **frames** (or other rows and columns) is a layout block: it places them
+  side by side (row) or one above the other (column), in the order you write them, and draws nothing
+  itself. Nest them for a grid. Links still decide the details inside each block; the block decides
+  who is next to whom. It takes no title (put the title on a frame).
+
+```
+column {
+  row {
+    frame edge "edge" { ... }
+    frame dmz "DMZ" { ... }
+  }
+  row {
+    frame app "app zone" { ... }
+    frame data "data zone" { ... }
+  }
+}
+```
+
+  Inside a layout block the flow runs along the block (a row left to right, a column downwards), whatever
+  the diagram's `direction`. A `[bridge]` only works between frames that share a border along the diagram's
+  direction, so a firewall between two rows is an ordinary node. Layout blocks need the per-frame layout;
+  if the diagram cannot be placed that way, the blocks are ignored and the result carries a warning.
 
 ## Legend
 

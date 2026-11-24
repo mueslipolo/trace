@@ -3,13 +3,23 @@
 Ordered by how often each gap came up in the ten real-world cases (`examples/cases/`, notes in
 `cases.json`).
 
-## 1. Frame placement hints
+## 1. Frame placement hints (done as layout blocks)
 
-Say where a frame or node goes relative to another: `frame pub above priv`, `frame storenet
-beside workersnet`, `proxy beside fw`. Needed by: hybrid cloud (subnet tiers as horizontal bands
-in the VPC, as in AWS reference diagrams), branch office (proxy beside the firewall), network
-boundaries (store network right of workers, with the store network drawn to the right of the workers.
-Likely needs item 2 first, or ELK layer/position constraints on compound nodes.
+Done: a `row` or `column` that holds frames places them side by side or one above the other, in
+order; nest them for a grid (`docs/language.md`). The DMZ case is now a 2 by 2 grid instead of one
+strip. Chosen over relation statements (`frame pub above priv`) because it needs no extra
+vocabulary and maps onto one layout run per block.
+
+Left:
+- Relation statements (`place app below dmz`, `proxy beside fw`) as sugar for the same thing, if
+  nesting blocks turns out to be awkward. Needed by: hybrid cloud (subnet tiers as bands in the
+  VPC), branch office (proxy beside the firewall), network boundaries (store network right of the
+  workers). Try these as layout blocks first.
+- A snake: a row that flows right to left, so a link from the end of one row reaches the start of
+  the next without looping round.
+- Links between lanes loop round the grid when the zones are far apart (the DMZ to app links); a
+  cheaper route or port choice would help.
+- Bridges between rows (a firewall on a horizontal border while the diagram flows right).
 
 ## 2. Draw frames after layout (done; see what is left below)
 

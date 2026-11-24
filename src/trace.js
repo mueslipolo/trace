@@ -201,7 +201,13 @@ function parse(src) {
       if (!hm) throw new TraceError('Only frame, column and row open a block with {');
       const kind = hm[1].toLowerCase();
       const parent = cur();
-      if (parent.type === 'group') throw new TraceError(`A ${parent.axis === 'v' ? 'column' : 'row'} holds nodes only, not another ${kind}`);
+      if (parent.type === 'group') {
+        // a row or column that holds frames or other blocks is a lane: it places them side by side or
+        // one above the other, and draws nothing itself
+        if (parent.title) throw new TraceError(`A ${parent.axis === 'v' ? 'column' : 'row'} that holds frames or other blocks has no title: put the title on a frame`);
+        parent.type = 'lane';
+        model.groups.splice(model.groups.indexOf(parent), 1);
+      }
       if (kind === 'frame') {
         let { rest, tags } = takeTags(hm[2], FRAME_TAGS, 'frame');
         let title = '';
@@ -368,6 +374,16 @@ async function layout(model, measure, ELK) {
     rm.frames.some(a => rm.frames.some(b => a.f.id < b.f.id && !within(a.f, b.f) && !within(b.f, a.f) &&
       Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 2 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 2)));
   const modes = { hier: [false, true], flat: [true, false], compound: [false, false] };
+  // rows and columns that hold frames (lanes) only exist in the per-frame mode; if that cannot place
+  // the diagram, the others draw it without the lanes
+  const hasLane = (function f(c) { return c.items.some(i => i.type === 'lane' || (i.items && f(i))); })(model.root);
+  if (hasLane && !env.TRACE_LAYOUT) {
+    const h = await layoutOnce(model, measure, ELK, false, true);
+    if (h) return h;
+    const rm = await layoutOnce(model, measure, ELK, false, false);
+    rm.notes = ['This diagram could not be placed in the rows and columns you wrote, so they were ignored.'];
+    return rm;
+  }
   const forced = modes[env.TRACE_LAYOUT];
   if (forced) return (await layoutOnce(model, measure, ELK, forced[0], forced[1])) || layoutOnce(model, measure, ELK, false, false);
   if (!model.frames.size) return layoutOnce(model, measure, ELK, false, false);
@@ -390,6 +406,9 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
   const S = model.spacing;
   if (HIER && (model.edges.some(e => model.frames.has(e.a) || model.frames.has(e.b)))) return null;
   const flowH = model.direction === 'RIGHT';
+  // inside a lane (per-frame layout only) the flow runs along the lane: a row left to right, a column downwards
+  const fhOf = it => HIER && it.parent && it.parent.type === 'lane' ? it.parent.axis === 'h' : flowH;
+  const sidesFor = fh => ({ IN: fh ? 'WEST' : 'NORTH', OUT: fh ? 'EAST' : 'SOUTH', PIN: fh ? 'NORTH' : 'WEST', POUT: fh ? 'SOUTH' : 'EAST' });
   for (const n of model.nodes.values()) sizeNode(n, measure);
   for (const f of model.frames.values()) f.titleW = f.title ? measure(f.title, FONT_TITLE) : 0;
 
@@ -397,7 +416,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
     const n = model.nodes.get(id);
     return n && n.parent && n.parent.type === 'group' ? n.parent : null;
   };
-  const firstLeaf = fr => { for (const it of fr.items) { if (it.type === 'node') return it.id; if (it.type === 'group' && it.items.length) return 'G:' + it.id; if (it.type === 'frame') { const r = firstLeaf(it); if (r) return r; } } return null; };
+  const firstLeaf = fr => { for (const it of fr.items) { if (it.type === 'node') return it.id; if (it.type === 'group' && it.items.length) return 'G:' + it.id; if (it.type === 'frame' || it.type === 'lane') { const r = firstLeaf(it); if (r) return r; } } return null; };
   const elkId = id => model.frames.has(id) ? (FLAT ? firstLeaf(model.frames.get(id)) : 'F:' + id) : id;
 
   model.edges.forEach((e, i) => {
@@ -411,9 +430,10 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
 
   // nodes stacked across the flow share one width (or height), like a table column
   for (const g of model.groups) {
-    if ((g.axis === 'v') !== flowH || !g.items.length) continue;
+    const fh = fhOf(g);
+    if ((g.axis === 'v') !== fh || !g.items.length) continue;
     const real = g.items.filter(n => n.kind !== 'start');
-    if (flowH) { const w = Math.max(...real.map(n => n.w)); real.forEach(n => { n.w = w; }); }
+    if (fh) { const w = Math.max(...real.map(n => n.w)); real.forEach(n => { n.w = w; }); }
     else { const h = Math.max(...real.map(n => n.h)); real.forEach(n => { n.h = h; }); }
   }
 
@@ -492,44 +512,45 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
   for (const n of model.nodes.values()) {
     if (!n.tags.includes('span') || (n.parent && n.parent.type === 'group')) continue;
     let best = null;
+    const fh = fhOf(n);
     for (const e of model.edges) {
       const other = e.a === n.id ? e.b : e.b === n.id ? e.a : null;
       if (!other) continue;
       const g = groupOf(other);
-      if (!g || (g.axis === 'v') !== flowH) continue;
+      if (!g || (g.axis === 'v') !== fh) continue;
       const first = g.items[0], last = g.items[g.items.length - 1];
-      const ext = flowH ? (last.ry + last.h) - first.ry : (last.rx + last.w) - first.rx;
-      if (!best || ext > best.ext) best = { g, ext, start: flowH ? first.ry : first.rx };
+      const ext = fh ? (last.ry + last.h) - first.ry : (last.rx + last.w) - first.rx;
+      if (!best || ext > best.ext) best = { g, ext, start: fh ? first.ry : first.rx };
     }
     if (!best) continue;
-    if (flowH) n.h = Math.max(n.h, Math.round(best.ext));
+    if (fh) n.h = Math.max(n.h, Math.round(best.ext));
     else n.w = Math.max(n.w, Math.round(best.ext));
     n.span = best;
     n.ports = [];
   }
 
   // ---- ports where links leave a group
-  const IN = flowH ? 'WEST' : 'NORTH', OUT = flowH ? 'EAST' : 'SOUTH';
-  const PIN = flowH ? 'NORTH' : 'WEST', POUT = flowH ? 'SOUTH' : 'EAST';
+  const { IN, OUT } = sidesFor(flowH);
   const portBuckets = new Map();
   function addPort(e, end) {
     const id = end === 's' ? e.a : e.b;
     const g = groupOf(id);
     const sn = model.nodes.get(id);
     if (!g && sn && sn.span) {
+      const fh = fhOf(sn), { IN, OUT } = sidesFor(fh);
       const otherId = end === 's' ? e.b : e.a;
       const om = model.nodes.get(otherId);
       const og = groupOf(otherId);
       const side = end === 's' ? OUT : IN;
-      let along = (flowH ? sn.h : sn.w) / 2;
+      let along = (fh ? sn.h : sn.w) / 2;
       if (og && om && og === sn.span.g) {
-        along = flowH ? om.ry + om.h / 2 - sn.span.start : om.rx + om.w / 2 - sn.span.start;
-      } else if (og && om && (og.axis === 'v') === flowH && og.items.length > 1) {
+        along = fh ? om.ry + om.h / 2 - sn.span.start : om.rx + om.w / 2 - sn.span.start;
+      } else if (og && om && (og.axis === 'v') === fh && og.items.length > 1) {
         // another stack on the other side: spread its links in proportion, so they meet it nearly level
         const f = og.items[0], l = og.items[og.items.length - 1];
-        const s0 = flowH ? f.ry : f.rx, ext = flowH ? l.ry + l.h - f.ry : l.rx + l.w - f.rx;
-        const c = flowH ? om.ry + om.h / 2 : om.rx + om.w / 2;
-        along = (c - s0) / ext * (flowH ? sn.h : sn.w);
+        const s0 = fh ? f.ry : f.rx, ext = fh ? l.ry + l.h - f.ry : l.rx + l.w - f.rx;
+        const c = fh ? om.ry + om.h / 2 : om.rx + om.w / 2;
+        along = (c - s0) / ext * (fh ? sn.h : sn.w);
       }
       const pid = `P${e.i}${end}`;
       const p = { id: pid, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } };
@@ -542,7 +563,8 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
     }
     if (!g) return elkId(id);
     const n = model.nodes.get(id), i = g.idx.get(id), last = g.items.length - 1;
-    const rank = (g.axis === 'v') === flowH; // stacked across the flow
+    const fh = fhOf(g), { IN, OUT, PIN, POUT } = sidesFor(fh);
+    const rank = (g.axis === 'v') === fh; // stacked across the flow
     let side;
     if (rank) side = end === 's' ? OUT : IN;
     else if (end === 't') side = i === 0 ? IN : PIN;
@@ -594,7 +616,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
         if (it.span) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_POS' }; }
         out.push(en);
       }
-      else if (it.type === 'frame' && FLAT) { out.push(...build(it)); }
+      else if ((it.type === 'frame' && FLAT) || it.type === 'lane') { out.push(...build(it)); }
       else if (it.type === 'frame') {
         out.push({
           id: 'F:' + it.id,
@@ -722,13 +744,16 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
     // a [bridge] stays inside its frame's run; fitFrames later moves the frame border to its centre
     const lifted = () => false;
     const effPar = c => c.parent;
-    const chainOf = n => { const a = []; for (let p = effPar(n); p; p = p.parent) if (p.type === 'frame') a.unshift(p); return a; };
+    // containers: frames, and lanes (a row or column holding frames), which draw nothing
+    const isBox = p => p.type === 'frame' || p.type === 'lane';
+    const prefix = c => c.type === 'lane' ? 'L:' : 'F:';
+    const chainOf = n => { const a = []; for (let p = effPar(n); p; p = p.parent) if (isBox(p)) a.unshift(p); return a; };
     const frames = [];
-    (function coll(c) { for (const it of c.items) if (it.type === 'frame') { coll(it); frames.push(it); } })(model.root);
-    const frameById = new Map(frames.map(f => [f.id, f]));
+    (function coll(c) { for (const it of c.items) if (isBox(it)) { coll(it); frames.push(it); } })(model.root);
+    const frameById = new Map(frames.map(f => [prefix(f) + f.id, f]));
+    const dirOf = Fr => Fr && Fr.type === 'lane' ? Fr.axis === 'h' : flowH;
     const chains = new Map([...model.nodes.values()].map(n => [n, chainOf(n)]));
     const lay = new Map();
-    const IN_ = IN, OUT_ = OUT;
     const byL = new Map();
     for (const e of model.edges) {
       if (e.intra) continue;
@@ -740,7 +765,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
       if (!byL.has(key)) byL.set(key, []);
       byL.get(key).push(e);
     }
-    const idOf = c => c.type === 'node' ? c.id : c.type === 'group' ? 'G:' + c.id : 'F:' + c.id;
+    const idOf = c => c.type === 'node' ? c.id : c.type === 'group' ? 'G:' + c.id : prefix(c) + c.id;
     function relPos(Fr, n) {
       let c = n;
       while (effPar(c) !== Fr) c = effPar(c);
@@ -751,8 +776,8 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
       return { x: q.x + r.x, y: q.y + r.y };
     }
     const sp2 = v => String(Math.round(v * S));
-    const baseOpts = pad => ({
-      'elk.algorithm': 'layered', 'elk.direction': model.direction, 'elk.edgeRouting': 'ORTHOGONAL',
+    const baseOpts = (pad, dirH) => ({
+      'elk.algorithm': 'layered', 'elk.direction': dirH ? 'RIGHT' : 'DOWN', 'elk.edgeRouting': 'ORTHOGONAL',
       'elk.padding': pad,
       'elk.spacing.nodeNode': sp2(30), 'elk.layered.spacing.nodeNodeBetweenLayers': sp2(44),
       'elk.spacing.edgeNode': sp2(18), 'elk.spacing.edgeEdge': sp2(14),
@@ -763,12 +788,13 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
       'elk.layered.thoroughness': '30', 'elk.layered.unnecessaryBendpoints': 'true',
     });
     // a port on frame T where link e reaches member m: a straight, unobstructed line to m
-    function portFor(T, e, end, m, reqs) {
+    function portFor(T, e, end, m, reqs, dirH) {
+      const { IN: IN_, OUT: OUT_ } = sidesFor(dirH);
       const rects = [];
       for (const [n, ch] of chains) if (n !== m && ch.includes(T)) { const r = relPos(T, n); rects.push({ x: r.x, y: r.y, w: n.w, h: n.h }); }
       const mp = relPos(T, m), cx = mp.x + m.w / 2, cy = mp.y + m.h / 2, W = lay.get(T).w;
-      const cross = flowH ? ['NORTH', 'SOUTH'] : ['WEST', 'EAST'];
-      if ((flowH ? cy : cx) > (flowH ? lay.get(T).h : W) / 2) cross.reverse();
+      const cross = dirH ? ['NORTH', 'SOUTH'] : ['WEST', 'EAST'];
+      if ((dirH ? cy : cx) > (dirH ? lay.get(T).h : W) / 2) cross.reverse();
       const sides = [end === 's' ? OUT_ : IN_, ...cross];
       const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
       for (const side of sides) {
@@ -784,9 +810,9 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
       }
       // blocked: run along the frame's inner margin instead, then turn into the member's side
       const Lt = lay.get(T);
-      const Wa = flowH ? Lt.w : Lt.h, Ca = flowH ? Lt.h : Lt.w;
-      const pt = (a, c) => flowH ? { x: a, y: c } : { x: c, y: a };
-      const ma0 = flowH ? mp.x : mp.y, ma1 = ma0 + (flowH ? m.w : m.h), c0 = flowH ? cy : cx;
+      const Wa = dirH ? Lt.w : Lt.h, Ca = dirH ? Lt.h : Lt.w;
+      const pt = (a, c) => dirH ? { x: a, y: c } : { x: c, y: a };
+      const ma0 = dirH ? mp.x : mp.y, ma1 = ma0 + (dirH ? m.w : m.h), c0 = dirH ? cy : cx;
       const margins = end === 's' ? ['far', 'near'] : ['near', 'far'];
       for (const margin of margins) {
         const a = margin === 'near' ? 9 : Wa - 9;
@@ -794,9 +820,9 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
         for (const side of cross) {
           const first = side === 'NORTH' || side === 'WEST';
           const cb = first ? 0 : Ca;
-          const seg1 = flowH ? { x: a - 5, y: Math.min(cb, c0), w: 10, h: Math.abs(c0 - cb) } : { x: Math.min(cb, c0), y: a - 5, w: Math.abs(c0 - cb), h: 10 };
+          const seg1 = dirH ? { x: a - 5, y: Math.min(cb, c0), w: 10, h: Math.abs(c0 - cb) } : { x: Math.min(cb, c0), y: a - 5, w: Math.abs(c0 - cb), h: 10 };
           const f0 = Math.min(a, margin === 'near' ? ma0 : ma1), f1 = Math.max(a, margin === 'near' ? ma0 : ma1);
-          const seg2 = flowH ? { x: f0, y: c0 - 8, w: f1 - f0, h: 16 } : { x: c0 - 8, y: f0, w: 16, h: f1 - f0 };
+          const seg2 = dirH ? { x: f0, y: c0 - 8, w: f1 - f0, h: 16 } : { x: c0 - 8, y: f0, w: 16, h: f1 - f0 };
           if (rects.some(r => hit(seg1, r) || hit(seg2, r))) continue;
           const rq = { T, e, end, m, side, mp, fixed: pt(a, cb), via: { corner: pt(a, c0), border: pt(margin === 'near' ? ma0 : ma1, c0) } };
           reqs.push(rq);
@@ -807,6 +833,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
     }
     async function layoutFrame(Fr) {
       const items = Fr ? Fr.items : model.root.items;
+      const dirH = dirOf(Fr);
       const reqs = [];
       const edgeEnds = [];
       for (const e of byL.get(Fr || null) || []) {
@@ -815,7 +842,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
           const T = end === 's' ? e.h.sa : e.h.sb;
           const m = model.nodes.get(end === 's' ? e.a : e.b);
           if (!T) { ends[end] = end === 's' ? e.srcBase : e.tgtBase; continue; }
-          const rq = portFor(T, e, end, m, reqs);
+          const rq = portFor(T, e, end, m, reqs, dirH);
           if (!rq) return null;
           rq.pid = `P${e.i}${end}`;
           ends[end] = rq.pid;
@@ -848,16 +875,19 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
       const children = [];
       const here = items.filter(it => !lifted(it));
       for (const it of items) if (it.type === 'frame') for (const b of it.items) if (lifted(b)) here.push(b);
+      const isLane = Fr && Fr.type === 'lane';
       for (const it of here) {
+        const part = isLane ? { 'elk.partitioning.partition': String(items.indexOf(it)) } : {};
         if (it.type === 'node') {
           const en = { id: it.id, width: it.w, height: it.h };
-          if (it.span) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_POS' }; }
+          en.layoutOptions = { ...part, ...(it.span ? { 'elk.portConstraints': 'FIXED_POS' } : {}) };
+          if (it.span) en.ports = it.ports;
           children.push(en);
         } else if (it.type === 'group') {
-          if (it.items.length) children.push({ id: 'G:' + it.id, width: it.w, height: it.h, ports: it.ports, layoutOptions: { 'elk.portConstraints': 'FIXED_POS' } });
-        } else if (it.type === 'frame') {
+          if (it.items.length) children.push({ id: 'G:' + it.id, width: it.w, height: it.h, ports: it.ports, layoutOptions: { ...part, 'elk.portConstraints': 'FIXED_POS' } });
+        } else if (isBox(it)) {
           const L = lay.get(it);
-          children.push({ id: 'F:' + it.id, width: L.w, height: L.h, ports: eports.get(it) || [], layoutOptions: { 'elk.portConstraints': 'FIXED_POS' } });
+          children.push({ id: prefix(it) + it.id, width: L.w, height: L.h, ports: eports.get(it) || [], layoutOptions: { ...part, 'elk.portConstraints': 'FIXED_POS' } });
         }
       }
       const edges = edgeEnds.map(([e, ends]) => {
@@ -865,9 +895,16 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
         if (e.lab) ee.labels = [{ id: 'L' + e.i, text: e.label.replace(/\n/g, ' '), width: e.lab.w, height: e.lab.h }];
         return ee;
       });
-      const pad = Fr ? `[top=${Fr.title ? 34 : 18},left=18,bottom=18,right=18]` : '[top=16,left=16,bottom=16,right=16]';
-      const r = await elk.layout({ id: Fr ? 'F:' + Fr.id : 'root', layoutOptions: baseOpts(pad), children, edges });
-      const minW = Fr ? Math.ceil(Fr.titleW + 36) : 0;
+      const pad = isLane ? '[top=0,left=0,bottom=0,right=0]' : Fr ? `[top=${Fr.title ? 34 : 18},left=18,bottom=18,right=18]` : '[top=16,left=16,bottom=16,right=16]';
+      const opts = baseOpts(pad, dirH);
+      if (isLane) {
+        opts['elk.partitioning.activate'] = 'true';
+        // a lane is a grid, not a flow diagram: line its children up instead of sliding them to straighten links
+        opts['elk.layered.nodePlacement.strategy'] = 'SIMPLE';
+        opts['elk.separateConnectedComponents'] = 'false'; // unlinked children still follow the lane's order
+      }
+      const r = await elk.layout({ id: Fr ? prefix(Fr) + Fr.id : 'root', layoutOptions: opts, children, edges });
+      const minW = Fr && !isLane ? Math.ceil(Fr.titleW + 36) : 0;
       const w = Math.max(r.width, minW), dx = (w - r.width) / 2;
       const pos = new Map(r.children.map(c => [c.id, { x: c.x + dx, y: c.y }]));
       lay.set(Fr || null, { res: r, w, h: r.height, dx, pos });
@@ -880,7 +917,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER) {
       const L = lay.get(Fr || null), r = L.res;
       const kids = r.children.map(c => {
         const o = { id: c.id, x: c.x + L.dx, y: c.y, width: c.width, height: c.height };
-        if (c.id.startsWith('F:')) o.children = assemble(frameById.get(c.id.slice(2)), ox + o.x, oy + o.y);
+        if (c.id.startsWith('F:') || c.id.startsWith('L:')) o.children = assemble(frameById.get(c.id), ox + o.x, oy + o.y);
         return o;
       });
       const mv = p => ({ x: p.x + ox + L.dx, y: p.y + oy });
@@ -959,14 +996,27 @@ function bridgePartner(n, model, flowH) {
     const Q = on ? frameOfItem(on) : model.frames.get(other) || null;
     if (!Q || within(Q, F) || within(F, Q)) continue;
     const end = contentEnd(Q, flowH);
-    if (end !== -Infinity && end <= n[A]) return { F, Q, end };
+    // the two frames must be level: a frame in another row or column of a lane shares no border
+    const X = flowH ? 'y' : 'x', XS = flowH ? 'h' : 'w';
+    const [q0, q1] = contentSpan(Q, X, XS);
+    const level = q1 > n[X] && q0 < n[X] + n[XS];
+    if (level && end !== -Infinity && end <= n[A]) return { F, Q, end };
   }
   return null;
 }
+function contentSpan(fr, A, SZ) {
+  let lo = Infinity, hi = -Infinity;
+  for (const it of leafItems(fr)) {
+    if ((it.type === 'node' || it.type === 'group') && it[A] !== undefined) { lo = Math.min(lo, it[A]); hi = Math.max(hi, it[A] + it[SZ]); }
+    else if (it.type === 'frame') { const [a, b] = contentSpan(it, A, SZ); lo = Math.min(lo, a); hi = Math.max(hi, b); }
+  }
+  return [lo, hi];
+}
+function* leafItems(c) { for (const it of c.items) { if (it.type === 'lane') yield* leafItems(it); else yield it; } }
 function contentEnd(fr, flowH) {
   const A = flowH ? 'x' : 'y', SZ = flowH ? 'w' : 'h';
   let m = -Infinity;
-  for (const it of fr.items) {
+  for (const it of leafItems(fr)) {
     if ((it.type === 'node' || it.type === 'group') && it[A] !== undefined) m = Math.max(m, it[A] + it[SZ]);
     else if (it.type === 'frame') m = Math.max(m, contentEnd(it, flowH));
   }
@@ -1108,7 +1158,7 @@ function fitFrames(rm, model, flowH) {
   for (const fr of [...rm.frames].sort((a, b) => b.depth - a.depth)) {
     let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
     const add = (x, y, w, h) => { x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x + w); y2 = Math.max(y2, y + h); };
-    for (const it of fr.f.items) {
+    for (const it of leafItems(fr.f)) {
       if ((it.type === 'node' || it.type === 'group') && it.x !== undefined) add(it.x, it.y, it.w, it.h);
       else if (it.type === 'frame' && box.has(it.id)) { const c = box.get(it.id); add(c.x, c.y, c.w, c.h); }
     }
@@ -1149,6 +1199,8 @@ function fitFrames(rm, model, flowH) {
       const Q = on ? frameOf(on) : model.frames.get(other) || null;
       if (!Q || !box.has(Q.id) || within(Q, F) || within(F, Q)) continue;
       const qb = box.get(Q.id);
+      const level = flowH ? qb.y < n.y + n.h && n.y < qb.y + qb.h : qb.x < n.x + n.w && n.x < qb.x + qb.w;
+      if (!level) continue;
       const before = flowH ? qb.x < fb.x : qb.y < fb.y;
       if (!best || (before && !best.before)) best = { Q, qb, before };
     }
@@ -1456,7 +1508,7 @@ async function compile(src, measure, ELK, opts) {
   for (const k of model.keys) k._tw = measure(k.text, FONT_NOTE);
   const iconsFailed = await loadIcons(model, opts && opts.loadIcon);
   const rm = await layout(model, measure, ELK);
-  return { model, rm, errors: [], warnings: iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), svg: render(rm, opts), standalone: () => render(rm, { ...opts, standalone: true }) };
+  return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || [])], svg: render(rm, opts), standalone: () => render(rm, { ...opts, standalone: true }) };
 }
 
 if (typeof module !== 'undefined') module.exports = { parse, layout, render, compile, diagramCSS, standaloneCSS, PALETTE, FONT_NAME, FONT_NOTE, withIcon };
