@@ -676,7 +676,21 @@ function placeLabels(rm, measure) {
   for (const r of labelled) {
     const w = r.e.lab.w, h = r.e.lab.h;
     const cur = boxOf(r.lab, r.e);
-    if (collisions(r, cur) === 0) { placed.push(cur); continue; }
+    if (collisions(r, cur) === 0) {
+      // clear already; but a label below a horizontal stretch reads better above it, when that is clear too
+      for (let i = 1; i < r.pts.length; i++) {
+        const a = r.pts[i - 1], p = r.pts[i];
+        if (Math.abs(a.y - p.y) > 0.5 || !(Math.min(a.x, p.x) - 2 < cur.x + cur.w / 2 && cur.x + cur.w / 2 < Math.max(a.x, p.x) + 2)) continue;
+        if (Math.abs(cur.y - a.y) < 10 && cur.y >= a.y - 1) {
+          const lab = { x: cur.x + cur.w / 2, y: a.y - 4 - h, anchor: 'middle' };
+          const up = boxOf(lab, r.e);
+          if (collisions(r, up) === 0) { r.lab = lab; placed.push(up); cur.moved = true; }
+        }
+        break;
+      }
+      if (!cur.moved) placed.push(cur);
+      continue;
+    }
     const cands = [];
     // the same label on two lines is narrower: a second shape to try when the single line has no room
     const words = r.e.lab.lines.length === 1 ? r.e.lab.lines[0].split(' ') : [];
