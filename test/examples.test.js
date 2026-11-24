@@ -604,3 +604,10 @@ test('hub: eight links with the same label into one node are merged into a bus, 
   const few = await compile('a: A\nb: B\nc: C\nh: H\na -> h : x\nb -> h : x\nc -> h : x', measure, ELK, {});
   assert.strictEqual(few.rm.edges.filter(r => r.merged).length, 0);
 });
+
+test('links leaving one short side of a node share the room out; stretches of different links are not squeezed together (aws case)', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/aws.trace'), 'utf8'), measure, ELK, {});
+  const ys = res.rm.edges.filter(r => r.e.a === 'app1' && Math.abs(r.pts[0].x - res.rm.nodes.find(n => n.id === 'app1').x) < 2).map(r => r.pts[0].y).sort((a, b) => a - b);
+  assert.ok(ys.length >= 3);
+  for (let i = 1; i < ys.length; i++) assert.ok(ys[i] - ys[i - 1] >= 9.5, `starts ${ys[i] - ys[i - 1]}px apart`);
+});

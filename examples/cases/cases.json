@@ -102,7 +102,7 @@
     "title": "Web stack in one VPC across two zones",
     "context": "A CDN and a load balancer in front of two availability zones, each with web, app and database, plus a shared cache, object storage and a NAT gateway to a payment API.",
     "uses": "`direction down`, two zones side by side in a row inside a VPC frame, a dashed replication link.",
-    "gap": "The weak case. Links from both app tiers to the cache, storage and NAT run around the outside of the VPC, side by side a few pixels apart, with the same port written twice. Shared services on the side (a column next to the zones) and merging of links that go to the same target with different labels would help."
+    "gap": "Links from both app tiers to the cache, storage and NAT still run around the outside of the VPC (they now keep 12px apart where they used to touch). Shared services on the side (a column next to the zones) and merging of links that go to the same target with different labels would help."
   },
   {
     "id": "mlops",

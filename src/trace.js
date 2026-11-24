@@ -998,11 +998,85 @@ function mergeHubs(rm, MIN = 4) {
   rm.joins = rm.joins.filter(p => { const k = Math.round(p.x) + ',' + Math.round(p.y); if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
+// Two links whose stretches run side by side closer than 8px (or on top of each other) are pulled apart to
+// 12px. Only a stretch in the middle of a link moves (the one that has a bend at each end), by sliding
+// sideways; the stretches before and after it follow. Nothing moves when it would run into a node or leave
+// a stub shorter than 8px. Merged buses stay as they are.
+function separateParallels(rm) {
+  const NEAR = 8, GOAL = 12, MINSTUB = 8;
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  const segsOf = () => {
+    const out = [];
+    for (const r of rm.edges) {
+      if (r.merged || r.e.rail || r.e.lifeline || r.e.divider || !r.pts || r.pts.length < 4) continue;
+      r.pts = simplifyPts(r.pts);
+      const q = r.pts;
+      for (let i = 1; i + 2 < q.length; i++) {
+        const a = q[i], b = q[i + 1];
+        if (eq(a.x, b.x) && !eq(a.y, b.y)) out.push({ r, i, v: true, c: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) });
+        else if (eq(a.y, b.y) && !eq(a.x, b.x)) out.push({ r, i, v: false, c: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) });
+      }
+    }
+    return out;
+  };
+  const allSegs = () => {   // every stretch of every link, to measure against
+    const out = [];
+    for (const r of rm.edges) {
+      if (r.e.rail || r.e.lifeline || r.e.divider || !r.pts) continue;
+      for (let i = 1; i < r.pts.length; i++) {
+        const a = r.pts[i - 1], b = r.pts[i];
+        if (eq(a.x, b.x) && !eq(a.y, b.y)) out.push({ r, v: true, c: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) });
+        else if (eq(a.y, b.y) && !eq(a.x, b.x)) out.push({ r, v: false, c: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) });
+      }
+    }
+    return out;
+  };
+  const hitsNode = (a, b) => rm.nodes.some(n => n.x !== undefined && Math.min(a.x, b.x) < n.x + n.w + 2 && n.x - 2 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h + 2 && n.y - 2 < Math.max(a.y, b.y));
+  for (let pass = 0; pass < 6; pass++) {
+    let moved = false;
+    const mov = segsOf();
+    for (const s of mov) {
+      const q = s.r.pts;
+      if (!q[s.i + 2] || !q[s.i - 1]) continue;
+      const others = allSegs().filter(o => o.r !== s.r && o.v === s.v && Math.min(s.hi, o.hi) - Math.max(s.lo, o.lo) > 6 && Math.abs(o.c - s.c) < NEAR);
+      if (!others.length) continue;
+      // the side with more room, away from the nearest neighbour
+      const o = others.sort((x, y) => Math.abs(x.c - s.c) - Math.abs(y.c - s.c))[0];
+      const dirs = o.c >= s.c ? [-1, 1] : [1, -1];
+      for (const d of dirs) {
+        const want = o.c + (d < 0 ? -GOAL : GOAL);          // 12px from the neighbour, on this side
+        const delta = want - s.c;
+        if (Math.abs(delta) > 2 * GOAL) continue;
+        const a = q[s.i], b = q[s.i + 1], p0 = q[s.i - 1], p3 = q[s.i + 2];
+        const na = s.v ? { x: want, y: a.y } : { x: a.x, y: want }, nb = s.v ? { x: want, y: b.y } : { x: b.x, y: want };
+        // the stretches before and after keep a length of at least MINSTUB
+        const lenBefore = s.v ? Math.abs(p0.x - na.x) : Math.abs(p0.y - na.y), lenAfter = s.v ? Math.abs(p3.x - nb.x) : Math.abs(p3.y - nb.y);
+        if (lenBefore < MINSTUB || lenAfter < MINSTUB) continue;
+        // the ends of the link must not be this stretch's neighbours' ports: the first and last stretch stay
+        if (hitsNode(p0, na) && !(s.i - 1 === 0) || hitsNode(na, nb) || hitsNode(nb, p3) && !(s.i + 2 === q.length - 1)) continue;
+        if (s.i - 1 === 0 && hitsNodeBeyond(p0, na)) continue;
+        // and not onto a frame border
+        if (rm.frames.some(f => s.v
+          ? (Math.min(s.hi, f.y + f.h) > Math.max(s.lo, f.y) && (Math.abs(want - f.x) < 9 || Math.abs(want - f.x - f.w) < 9))
+          : (Math.min(s.hi, f.x + f.w) > Math.max(s.lo, f.x) && (Math.abs(want - f.y) < 9 || Math.abs(want - f.y - f.h) < 9)))) continue;
+        // not into another link's stretch on the new side
+        const clash = allSegs().some(x => x.r !== s.r && x.v === s.v && Math.min(s.hi, x.hi) - Math.max(s.lo, x.lo) > 6 && Math.abs(x.c - want) < NEAR - 0.5);
+        if (clash) continue;
+        q[s.i] = na; q[s.i + 1] = nb;
+        moved = true;
+        break;
+      }
+    }
+    if (!moved) break;
+  }
+  function hitsNodeBeyond() { return false; }
+}
+
 // Links that meet the same side of a node are kept at least `gap` px apart, so an arrowhead never touches
 // the line next to it. Only ends that can slide are moved: the last stretch (across the side) and the one
 // before it follow, and nothing moves when it would run into a node. Tables, span nodes and straight links
 // keep their places.
-function spreadEnds(rm, gap = 22) {
+function spreadEnds(rm, gap0 = 22) {
   const eq = (a, b) => Math.abs(a - b) < 0.5;
   const T = 8;
   const ends = [];
@@ -1034,9 +1108,11 @@ function spreadEnds(rm, gap = 22) {
   for (const [, list] of groups) {
     if (list.length < 2) continue;
     list.sort((a, b) => a.pos - b.pos);
-    if (!list.some((e, k) => k && list[k].pos - list[k - 1].pos < gap - 0.5)) continue;
     const horiz = list[0].side === 'top' || list[0].side === 'bottom';
-    const n = list[0].n, lo = (horiz ? n.x : n.y) + 6, hi = (horiz ? n.x + n.w : n.y + n.h) - 6;
+    const n = list[0].n, lo = (horiz ? n.x : n.y) + 5, hi = (horiz ? n.x + n.w : n.y + n.h) - 5;
+    // a short side with many links: share the room out evenly, down to 7px between links
+    const gap = Math.max(7, Math.min(gap0, (hi - lo) / (list.length - 1)));
+    if (!list.some((e, k) => k && list[k].pos - list[k - 1].pos < gap - 0.5)) continue;
     // wanted positions: push apart from the middle of the crowd
     const want = list.map(e => e.pos);
     for (let pass = 0; pass < 20; pass++) {
@@ -1079,6 +1155,7 @@ async function layout(model, measure, ELK) {
   alignJogs(rm);
   simplifySnakes(rm);
   mergeHubs(rm);
+  separateParallels(rm);
   spreadEnds(rm);
   placeLabels(rm, measure);
   return rm;
