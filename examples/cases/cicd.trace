@@ -12,14 +12,16 @@ column {
       }
       ask gate: all green?
     }
-    store registry [package]: Image registry | signed with cosign
   }
   row {
+    store registry [package]: Image registry | signed with cosign
     frame staging "staging" [green] {
       deploy [rocket]: Deploy | Helm
       e2e [monitor-check]: E2E + smoke tests
     }
     ask approve: release approved?
+  }
+  row {
     frame prod "production" [orange] {
       canary [bird]: Canary 5%
       ask slo: SLOs held 30 min?

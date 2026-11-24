@@ -38,8 +38,8 @@
     "id": "cicd",
     "title": "CI/CD with canary releases",
     "context": "Every commit is built and checked in parallel; green builds are signed and pushed, deployed to staging, approved, then rolled out to production through a canary that rolls back on its own if SLOs slip.",
-    "uses": "[span] on the build step fans out to the three parallel checks on straight lines; red and green paths come from link tags; dev <- gate sends the failure back to the developer while keeping the pipeline flowing left to right. A column of two rows folds the pipeline into build and test on top, staging and release below, so it is 1,640 wide instead of 2,460 and the text stays legible when the page is fitted to a screen.",
-    "gap": "The fan-in to “all green?” converges on one point; hand-drawn pipelines often show the parallel stage as a bracket. A column could offer a “join” option that merges its outgoing links. The link from the registry back to the staging deploy has to run across the page, because a row cannot flow right to left yet (a snake)."
+    "uses": "[span] on the build step fans out to the three parallel checks on straight lines; red and green paths come from link tags; dev <- gate sends the failure back to the developer while keeping the pipeline flowing left to right. A column of three rows gives each stage of the pipeline its own row: CI with the developer push, then the registry and staging, then production and the rollback. It is 1,000 wide instead of 2,460, so the text stays legible when the page is fitted to a screen.",
+    "gap": "The fan-in to “all green?” converges on one point; hand-drawn pipelines often show the parallel stage as a bracket. A column could offer a “join” option that merges its outgoing links. The links from one row to the next run back to the left, because a row cannot flow right to left yet (a snake), so each hop drops and crosses back."
   },
   {
     "id": "kafka",
