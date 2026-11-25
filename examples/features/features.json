@@ -294,6 +294,20 @@
     "wide": false
   },
   {
+    "id": "mark",
+    "title": "Mark",
+    "group": "Links",
+    "does": "The links into one node are not drawn. Each node they come from carries that node’s icon after its name instead, in the colour of its zone, and the legend says what the icon means.",
+    "effect": "A node that most of the diagram uses (feature flags, a config service, an identity provider) no longer pulls a fan of links across every tier. The links stay in the source: delete the line and they are drawn again.",
+    "beforeLabel": "links drawn",
+    "afterLabel": "with mark",
+    "beforeOff": [],
+    "afterOff": [],
+    "syntax": "mark flagd \"reads its feature flags from Flagd\"\nmark config [settings] \"reads its settings\"",
+    "use": "Use it when a node is linked from most of the diagram and those links say little more than “uses it”. The icon is the node’s own, or the one in brackets.",
+    "wide": false
+  },
+  {
     "id": "tables",
     "title": "Tables and cardinality",
     "group": "Other diagram types",

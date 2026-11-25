@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const ELK = require('elkjs/lib/elk.bundled.js');
-const { compile } = require('../src/trace.js');
+const { compile, parse } = require('../src/trace.js');
 const { measure } = require('../tools/measure.js');
 
 const root = path.join(__dirname, '..');
@@ -864,6 +864,30 @@ test('zones side by side in a row share their top, same-height makes them equal,
     const a = fr[i], b = fr[j];
     assert.ok(!overlap(a, b), `${a.f.id} and ${b.f.id} overlap`);
   }
+});
+
+test('mark: the links into the node are not drawn; each source carries its icon, in the zone ink, and the legend says what it means', async () => {
+  const src = fs.readFileSync(path.join(root, 'examples/features/mark.after.trace'), 'utf8');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  assert.ok(!res.rm.edges.some(r => r.e.b === 'flagd' || r.e.a === 'flagd'), 'no link into flagd is drawn');
+  assert.strictEqual((res.svg.match(/class="mki ink-purple"/g) || []).length, 5 + 1, 'five marked nodes and the legend');
+  assert.match(res.svg, /reads its feature flags from Flagd/);
+  const plain = await compile(src.replace(/^mark .*$/m, ''), measure, ELK, {});
+  const w = id => res.rm.nodes.find(n => n.id === id).w - plain.rm.nodes.find(n => n.id === id).w;
+  assert.ok(w('orders') > 0, 'a marked node grows to hold the icon');
+  assert.strictEqual(w('db'), 0, 'an unmarked node keeps its size');
+});
+
+test('mark: errors say what to write', () => {
+  const err = src => (parse(src).errors[0] || {}).msg || '';
+  assert.match(err('a: A\nb: B\na -> b\nmark nope "x"'), /no node called "nope"/);
+  assert.match(err('a: A\nb: B\na -> b\nmark b "uses b"'), /needs an icon.*mark b \[flag\]/);
+  assert.match(err('a: A\nb [flag]: B\nb -> a\nmark b "uses b"'), /no link arrives there/);
+  assert.match(err('a: A\nb [flag]: B\na -> b\nmark b'), /needs the words for the legend/);
+  assert.match(err('frame f "F" {\n  a: A\n}\nb: B\nb -> a\nmark f [flag] "x"'), /takes a node, not a frame/);
+  assert.match(err('a: A\nb [flag]: B\na -> b\nmark b [nosuchicon] "x"'), /no icon called "nosuchicon"/);
+  assert.deepStrictEqual(parse('mark: Mark\nmark -> b').errors, [], 'a node called mark still works');
 });
 
 test('every link is orthogonal: each stretch is horizontal or vertical, in every example and held-out diagram', async () => {

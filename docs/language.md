@@ -315,6 +315,23 @@ key frame [orange] : DMZ
 Shape is any node kind, `frame`, or an arrow (`->`, `-->`, `--`). Keys are laid out in a row under
 the diagram.
 
+## Marks
+
+```
+mark flagd "reads its feature flags from Flagd"
+mark config [settings] "reads its settings"
+```
+
+A node that most of the diagram uses (feature flags, a config service, an identity provider) draws a fan of
+links across every tier. `mark <node> "text"` stops drawing the links that arrive at that node: each node they
+come from carries a small icon after its name instead, and the legend under the diagram shows the icon with the
+text. The links stay in the source and stay out of the layout; delete the `mark` line and they are drawn again.
+
+- The icon is the marked node's own icon; write one in brackets when it has none, or to use another.
+- The icon takes the colour of the zone the marked node stands in (muted grey outside any zone).
+- Only links whose arrow ends at the marked node become marks; links leaving it are drawn as usual.
+- One `mark` line per node. A frame cannot be marked, and a mark needs at least one link arriving.
+
 ## Errors
 
 Every problem is reported with its line number and what to write instead; the playground lists

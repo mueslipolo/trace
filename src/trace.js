@@ -32,6 +32,7 @@ const ICON_ALIASES = {
   camera: 'cctv', cache: 'zap', function: 'square-function', document: 'file-text', chart: 'chart-column', key: 'key-round',
 };
 const ICON_SIZE = 22;
+const MARK_SIZE = 12;                 // the icon a mark draws on a node, after its name
 const ICON_CDN = 'https://cdn.jsdelivr.net/npm/lucide-static@1.79.0/icons/';
 function lucideName(name) { return name.startsWith('lucide/') ? name.slice(7) : (ICON_ALIASES[name] || name); }
 function iconKnown(name) { return ICON_NAMES.has(lucideName(name)); }
@@ -59,7 +60,7 @@ function withIcon(line, name) {
   return m[1] + ` [${[...keep, name].join(' ')}]` + rest;
 }
 async function loadIcons(model, loader) {
-  const need = [...new Set([...model.nodes.values()].filter(n => n.icon && !iconSvg(n.icon)).map(n => lucideName(n.icon)))];
+  const need = [...new Set([...[...model.nodes.values()].map(n => n.icon), ...(model.marks || []).map(k => k.icon)].filter(i => i && !iconSvg(i)).map(lucideName))];
   const failed = [];
   await Promise.all(need.map(async name => {
     try { if (!(await loadIcon(name, loader))) throw new Error('no drawing'); } catch (e) { failed.push(name); }
@@ -150,7 +151,7 @@ function splitLabel(text) {
 
 function parse(src) {
   const model = {
-    direction: 'RIGHT', spacing: 1, title: '', caption: [], cartouche: [],
+    direction: 'RIGHT', spacing: 1, title: '', caption: [], cartouche: [], marks: [],
     nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], sameSize: [], events: [], mode: 'flow', errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
@@ -255,6 +256,20 @@ function parse(src) {
       if (ids.length < 2) throw new TraceError('align takes two or more nodes that are linked, one after the other: align topic consumer');
       for (const id of ids) if (!ID_RE.test(id)) throw new TraceError(`"${id}" is not a valid name`);
       for (let i = 1; i < ids.length; i++) model.aligns.push({ a: ids[i - 1], b: ids[i], line: ln });
+      return;
+    }
+    if ((m = line.match(/^mark\s+([A-Za-z0-9_][\w.-]*)\s*(.*)$/i)) && !/^\s*(->|-->|<-|<->|--|:)/.test(m[2])) {
+      // mark flagd [flag] "reads feature flags from Flagd": the links into flagd are not drawn; each node they
+      // come from carries the icon instead, and the legend says what it means
+      if (model.mode === 'sequence') throw new TraceError('A mark belongs to a flow diagram, not a sequence diagram');
+      const mm = m[2].match(/^(?:\[([^\]]*)\])?\s*(?:"([^"]*)"|:\s*(.*))?\s*$/);
+      if (!mm) throw new TraceError('A mark reads: mark flagd [flag] "reads feature flags from Flagd"');
+      const icon = (mm[1] || '').trim() || null;
+      if (icon && !iconKnown(icon)) throw new TraceError(`There is no icon called "${icon}"${iconHint(icon)}`);
+      const text = (mm[2] !== undefined ? mm[2] : mm[3] || '').trim();
+      if (!text) throw new TraceError(`A mark needs the words for the legend: mark ${m[1]}${icon ? ` [${icon}]` : ''} "reads feature flags from ${m[1]}"`);
+      if (model.marks.some(k => k.id === m[1])) throw new TraceError(`"${m[1]}" is already marked: one mark line per node`);
+      model.marks.push({ id: m[1], icon, text, line: ln });
       return;
     }
     if ((m = line.match(/^key\s+(.*)$/i))) {
@@ -474,6 +489,24 @@ function parse(src) {
     const linked = model.edges.some(e => (e.a === al.a && e.b === al.b) || (e.a === al.b && e.b === al.a));
     if (!linked) model.errors.push({ line: al.line, msg: `align ${al.a} ${al.b} keeps the link between them straight, so they need one: write ${al.a} -> ${al.b}` });
   }
+  for (const mk of model.marks) {
+    const t = model.nodes.get(mk.id);
+    if (!t) { model.errors.push({ line: mk.line, msg: model.frames.has(mk.id) ? `mark takes a node, not a frame: mark a node inside "${mk.id}"` : `mark: there is no node called "${mk.id}"` }); continue; }
+    mk.icon = mk.icon || t.icon || null;
+    if (!mk.icon) { model.errors.push({ line: mk.line, msg: `mark ${mk.id} needs an icon, since "${mk.id}" has none: mark ${mk.id} [flag] "${mk.text}"` }); continue; }
+    // a link points into the marked node when its arrow ends there (b -> t, or t <- b)
+    const into = e => (e.b === mk.id && (e.end || !e.start)) || (e.a === mk.id && e.start && !e.end);
+    const links = model.edges.filter(e => into(e) && model.nodes.has(e.a === mk.id ? e.b : e.a) && (e.a === mk.id ? e.b : e.a) !== mk.id);
+    if (!links.length) { model.errors.push({ line: mk.line, msg: `mark ${mk.id} draws the links into "${mk.id}" as an icon on the nodes they come from, but no link arrives there: write  checkout -> ${mk.id}` }); continue; }
+    for (const e of links) {
+      const src = model.nodes.get(e.a === mk.id ? e.b : e.a);
+      src.marks = src.marks || [];
+      if (!src.marks.includes(mk)) src.marks.push(mk);
+    }
+    mk.links = links;
+    model.edges = model.edges.filter(e => !links.includes(e));
+    t.markTarget = mk;
+  }
   if (!model.errors.length) desugarSides(model);
   return model;
 }
@@ -599,11 +632,13 @@ function sizeNode(n, measure) {
   n.noteLines = n.note ? wrap(n.note, FONT_NOTE, 230, measure) : [];
   const tw = Math.max(0, ...n.nameLines.map(l => measure(l, FONT_NAME)), ...n.noteLines.map(l => measure(l, FONT_NOTE)));
   n.textH = n.nameLines.length * 16 + n.noteLines.length * 14;
+  n._nameW = n.nameLines.length ? measure(n.nameLines[0], FONT_NAME) : 0;
   const padX = (n.kind === 'ask' || n.kind === 'pill') ? 24 : 15;
   n.padX = padX;
   n.iconMarkup = n.icon ? iconSvg(n.icon) : null;
   const slot = n.iconMarkup && !n.iconTop ? ICON_SIZE + 8 : 0;
-  n.w = even(Math.max(72, tw + 2 * padX + slot));
+  n.markW = n.marks && n.marks.length ? n.marks.length * (MARK_SIZE + 5) + 3 : 0;
+  n.w = even(Math.max(72, tw + 2 * padX + slot + n.markW));
   n.h = even(Math.max(36, n.textH + 16 + (n.iconMarkup && n.iconTop ? ICON_SIZE + 4 : 0)));
   if (n.kind === 'final') { n.w += 8; n.h += 8; }
 }
@@ -3426,18 +3461,18 @@ const PALETTE = {
   light: {
     fg: '#1d2330', muted: '#5d6677', panel: '#ffffff', box: '#ffffff', line: '#1d2330', engine: '#f2f3f5',
     storeFill: '#fff8db', storeLine: '#9a6700', ok: '#1a7f37', bad: '#c62a2f', soft: '#9aa1ad',
-    zones: { green: ['#eef7f1', '#7fb38f'], blue: ['#eef2f8', '#8aa0c2'], orange: ['#fbf1e6', '#d0a06a'], purple: ['#f3effb', '#a78fd6'], grey: ['#f4f5f7', '#b5bac4'] },
+    zones: { green: ['#eef7f1', '#7fb38f', '#3f7a52'], blue: ['#eef2f8', '#8aa0c2', '#4a6491'], orange: ['#fbf1e6', '#d0a06a', '#9a6427'], purple: ['#f3effb', '#a78fd6', '#7d62b8'], grey: ['#f4f5f7', '#b5bac4', '#6b7280'] },
   },
   dark: {
     fg: '#e3e6ec', muted: '#9aa3b2', panel: '#181b21', box: '#1b1e25', line: '#c9ced8', engine: '#23262d',
     storeFill: '#33290f', storeLine: '#e5b94e', ok: '#5cc97a', bad: '#ff7b7b', soft: '#6b7385',
-    zones: { green: ['#15241b', '#4f8a62'], blue: ['#18202d', '#4f6a94'], orange: ['#2a1f14', '#a3743d'], purple: ['#211a33', '#7d62b8'], grey: ['#1d2027', '#4a505c'] },
+    zones: { green: ['#15241b', '#4f8a62', '#7fc497'], blue: ['#18202d', '#4f6a94', '#8fb0e0'], orange: ['#2a1f14', '#a3743d', '#e0a868'], purple: ['#211a33', '#7d62b8', '#b39ce8'], grey: ['#1d2027', '#4a505c', '#a3aab6'] },
   },
 };
 
 function diagramCSS(p, scope) {
   const s = scope ? scope + ' ' : '';
-  const z = Object.entries(p.zones).map(([k, [f, st]]) => `${s}.zone-${k}{fill:${f};stroke:${st}}`).join('');
+  const z = Object.entries(p.zones).map(([k, [f, st, ink]]) => `${s}.zone-${k}{fill:${f};stroke:${st}}${s}.mki.ink-${k}{stroke:${ink}}`).join('');
   return `${s}text{font:12px Inter,system-ui,-apple-system,"Segoe UI",sans-serif}` +
     `${s}.fg{fill:${p.fg}}${s}.muted{fill:${p.muted}}` +
     `${s}.dtitle{font-size:16px;font-weight:700}${s}.cap{font-size:12px}${s}.ck{font-size:10.5px}${s}.cv{font-size:11px;font-weight:600}${s}.name{font-size:13px;font-weight:600}${s}.note{font-size:11px;font-weight:400}${s}.ztitle{font-size:11.5px;font-weight:600}` +
@@ -3452,6 +3487,7 @@ function diagramCSS(p, scope) {
     `${s}.tframe.ok{stroke:${p.ok};stroke-width:1.6}${s}.tframe.bad{stroke:${p.bad};stroke-width:1.6}${s}.tframe.muted{stroke:${p.soft}}` +
     `${s}.mk{font-size:9px;font-weight:700;letter-spacing:.03em}${s}.cn{font-size:12px;font-weight:400}${s}.cn.pk{font-weight:700}${s}.ct{font-size:11px}` +
     `${s}.ico{fill:none;stroke:${p.line};stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}` +
+    `${s}.mki{fill:none;stroke:${p.muted};stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}` +
     `${s}.zone{stroke-width:1}${z}` +
     `${s}.arrow{fill:none;stroke:${p.line};stroke-width:1.2}${s}.arrow.ok{stroke:${p.ok}}${s}.arrow.bad{stroke:${p.bad}}${s}.arrow.muted{stroke:${p.soft}}` +
     `${s}.head{fill:${p.line}}${s}.head-ok{fill:${p.ok}}${s}.head-bad{fill:${p.bad}}${s}.head-muted{fill:${p.soft}}`;
@@ -3558,6 +3594,17 @@ function nodeSVG(n) {
     if (n.iconTop) { iy = y + (h - n.textH - ICON_SIZE - 4) / 2; ix = x + w / 2 - ICON_SIZE / 2; top = iy + ICON_SIZE + 4; }
     else { ix = x + n.padX; iy = y + (h - ICON_SIZE) / 2; cx = r1(x + n.padX + ICON_SIZE + 8 + (w - 2 * n.padX - ICON_SIZE - 8) / 2); }
     out.push(`<g class="ico" transform="translate(${r1(ix)} ${r1(iy)}) scale(${r1(ICON_SIZE / 24 * 1000) / 1000})">${n.iconMarkup}</g>`);
+  }
+  // marks: their icons stand after the name, at the right of the box; the text centres in what is left
+  if (n.markW) {
+    cx = r1(cx - n.markW / 2);
+    const nameW = n._nameW || 0;
+    let mx = Math.min(x + w - n.padX - n.markW + 3, cx + nameW / 2 + 6);
+    const my = top + (n.nameLines.length ? 2 : (n.textH - MARK_SIZE) / 2);
+    for (const mk of n.marks) {
+      out.push(`<g class="mki ink-${mk.ink || 'none'}" transform="translate(${r1(mx)} ${r1(my)}) scale(${r1(MARK_SIZE / 24 * 1000) / 1000})">${mk.iconMarkup || ''}</g>`);
+      mx += MARK_SIZE + 5;
+    }
   }
   for (const l of n.nameLines) { out.push(`<text class="name fg" x="${cx}" y="${r1(top + 12.5)}" text-anchor="middle">${esc(l)}</text>`); top += 16; }
   for (const l of n.noteLines) { out.push(`<text class="note muted" x="${cx}" y="${r1(top + 10.5)}" text-anchor="middle">${esc(l)}</text>`); top += 14; }
@@ -3726,7 +3773,8 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
   body.push(...labels);
 
   // legend
-  if (model.keys.length) {
+  const marks = model.marks || [];
+  if (model.keys.length || marks.length) {
     let x = 16, y = H + 2;
     const rowH = 26, maxX = Math.max(W, 420) - 16;
     const items = [];
@@ -3735,6 +3783,13 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
       const iw = 34 + 8 + tw + 22;
       if (x + iw > maxX && x > 16) { x = 16; y += rowH; }
       items.push(keySVG(k, x, y, pfx));
+      x += iw;
+    }
+    for (const mk of marks) {
+      const tw = (mk._tw || mk.text.length * 6.2);
+      const iw = 14 + 8 + tw + 22;
+      if (x + iw > maxX && x > 16) { x = 16; y += rowH; }
+      items.push(`<g class="mki ink-${mk.ink || 'none'}" transform="translate(${r1(x)} ${r1(y + 4)}) scale(${r1(MARK_SIZE / 24 * 1000) / 1000})">${mk.iconMarkup || ''}</g><text class="note muted" x="${r1(x + 20)}" y="${r1(y + 14)}">${esc(mk.text)}</text>`);
       x += iw;
     }
     body.push(...items);
@@ -3815,6 +3870,14 @@ async function compile(src, measure, ELK, opts) {
   if (!model.nodes.size) return { model, errors: [], empty: true };
   for (const k of model.keys) k._tw = measure(k.text, FONT_NOTE);
   const iconsFailed = await loadIcons(model, opts && opts.loadIcon);
+  // a mark is drawn in the ink of the zone its node stands in (muted grey outside any zone)
+  for (const mk of model.marks) {
+    mk._tw = measure(mk.text, FONT_NOTE);
+    mk.iconMarkup = iconSvg(mk.icon);
+    const t = model.nodes.get(mk.id), f = t && frameOfItem(t);
+    mk.ink = f ? (f.tags || []).find(v => PALETTE.light.zones[v === 'gray' ? 'grey' : v]) || 'green' : null;
+    if (mk.ink === 'gray') mk.ink = 'grey';
+  }
   const rm = model.mode === 'sequence' ? await layoutSequence(model, measure) : await layout(model, measure, ELK, opts);
   rm.head = measureHead(model, rm, measure);
   return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || [])], svg: render(rm, opts), standalone: theme => render(rm, { ...opts, standalone: true, theme: typeof theme === 'string' ? theme : null }) };

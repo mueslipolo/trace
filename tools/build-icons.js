@@ -14,7 +14,7 @@ const dir = path.join(pkg, 'icons');
 const CORE = ['database', 'server', 'user', 'cloud', 'app-window', 'list-end', 'brick-wall-fire', 'archive', 'graph-hub',
   'container', 'webhook', 'lock', 'smartphone', 'globe', 'router', 'ethernet-port', 'wifi', 'shield-check', 'network',
   'shield', 'laptop', 'monitor', 'printer', 'cctv', 'zap', 'square-function', 'clock', 'file-text', 'bell', 'chart-column',
-  'settings', 'mail', 'key-round'];
+  'settings', 'mail', 'key-round', 'flag'];
 const icons = {};
 for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.svg')).sort()) {
   const m = /<svg[^>]*>([\s\S]*)<\/svg>/.exec(fs.readFileSync(path.join(dir, f), 'utf8'));

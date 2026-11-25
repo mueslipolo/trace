@@ -5,7 +5,7 @@ this, then `docs/roadmap.md` for the backlog.
 
 ## Where things stand
 
-- **Tests:** `npm test` runs 113 tests (parse, layout invariants for every example, the simple forms, the
+- **Tests:** `npm test` runs 118 tests (parse, layout invariants for every example, the simple forms, the
   showcase and features pages, and targeted tests per feature). All pass.
 - **Examples:** 11 playground examples, 20 showcase cases (each in a full and a simple form), 25 feature pairs.
 - **Pages:** `npm run build` writes `dist/playground.html`, `dist/showcase.html` (the 20 cases, simple and full),
@@ -64,6 +64,11 @@ features page uses it to draw "without". Environment switches for Node: `TRACE_L
 `TRACE_NOCYCLE`, `TRACE_NOFOLD`, `TRACE_DEBUG`.
 
 ## Recently built (last sessions)
+
+- **`mark`** (language.md, "Marks"): `mark flagd "text"` draws the links into a node as its icon after the name
+  of each node they come from, in the ink of the node's zone, with a legend line; the links leave the layout.
+  The owner chose this look (a small icon inside the box) over a corner badge and a tab. Feature page entry
+  `mark`; `flag` added to the bundled icons.
 
 - **Metrics and the held-out set** (`npm run metrics`, `examples/holdout/`): 19 real C4 and Mermaid diagrams,
   never tuned on; a layout change is kept only if they do not get worse. `tools/mermaid-to-trace.js` converts a

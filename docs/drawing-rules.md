@@ -69,5 +69,6 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 |---|---|---|---|
 | Two directions between the same groups are told apart by style. | Kafka (publishes dashed) | usage: `[dashed]` on one direction | links both ways between two stacks |
 | Cross-cutting concerns are not drawn as a line per node. | the platform study | feature: side zones, a collector per zone, the bus | a node with links from most of the diagram |
+| A node linked from most of the diagram is shown as a mark on each user (its icon after the name, a legend line) rather than a fan of links. | OpenTelemetry services (twelve links into Flagd from every tier; the owner chose the small icon inside the box) | feature: `mark` | a node with links arriving from most of the diagram |
 | Every diagram that leaves your hands has a title; a caption and a cartouche when it is shared. | owner's request | feature: `title`, `caption`, `cartouche` | no title |
 | Drawings on a page are the same size, scaled down, never up. | features page | page design | n/a |
