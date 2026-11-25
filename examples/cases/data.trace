@@ -24,9 +24,11 @@ column "consumers" {
   rev [send]: Reverse ETL | to CRM
 }
 
-airflow [muted calendar-clock]: Airflow | schedules dbt runs
-dq [list-checks]: Data quality checks | Great Expectations
-alert [bad bell]: Alert data on-call
+frame ops "orchestration and quality" [grey side span] {
+  airflow [muted calendar-clock]: Airflow | schedules dbt runs
+  dq [list-checks]: Data quality checks | Great Expectations
+  alert [bad bell]: Alert data on-call
+}
 
 app -> debezium
 logs -> flink

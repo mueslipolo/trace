@@ -474,11 +474,10 @@ test('labels and titles stay off the links in the DMZ case', async () => {
     const x0 = a === 'end' ? x - w : x;
     assert.ok(!crosses(x0, x0 + w, y - 11, y + 3), `the title of ${fr.f.id} is not crossed by a link`);
   }
-  // the log links' labels are past the zones, between their borders and the bus
-  const right = Math.max(...res.rm.frames.map(f => f.x + f.w));
-  const taps = res.rm.edges.filter(r => r.e.b === 'logs' && r.e.a !== 'logs');
+  // the log links run to the SIEM in the side zone, and their labels sit beyond the firewall they leave
+  const taps = res.rm.edges.filter(r => r.e.b === 'siem');
   assert.strictEqual(taps.length, 3);
-  for (const t of taps) assert.ok(t.lab.x - t.e.lab.w / 2 >= right - 1, 'a rail label is clear of the zones');
+  for (const t of taps) { const n = res.rm.nodes.find(x => x.id === t.e.a); assert.ok(t.lab.x - t.e.lab.w / 2 >= n.x + n.w - 1, 'a log label is clear of its firewall'); }
   // a step's label is above the step, not on it
   const step = res.rm.edges.find(r => r.e.a === 'api1' && r.e.b === 'fw3');
   const ys = step.pts.filter((p, i) => i && Math.abs(p.y - step.pts[i - 1].y) < 0.5 && Math.abs(p.x - step.pts[i - 1].x) > 1).map(p => p.y);

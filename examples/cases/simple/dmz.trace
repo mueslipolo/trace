@@ -26,7 +26,9 @@ frame data "data zone, 10.0.3.0/24" [purple] {
   store redis: Redis | sessions, cache
 }
 
-siem: SIEM | log collection, alerts
+frame mgmt "management VLAN, 10.0.9.0/24" [grey] {
+  siem: SIEM | log collection, alerts
+}
 
 users -> ddos : 443/tcp
 partners -> ddos : 443/tcp

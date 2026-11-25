@@ -36,7 +36,7 @@ frame data "data zone, 10.0.3.0/24" [purple] {
   }
 }
 
-rail logs "management VLAN" [right] {
+frame mgmt "management VLAN, 10.0.9.0/24" [grey side span] {
   siem [monitor]: SIEM | log collection, alerts
 }
 
@@ -61,6 +61,6 @@ pgp -> pgr : 5432, streaming replication
 
 key frame [orange] : DMZ
 key box : firewall on a zone border
-fw1 -> logs [dashed] : 514/udp
-fw2 -> logs [dashed] : 514/udp
-fw3 -> logs [dashed] : 514/udp
+fw1 -> siem [dashed] : 514/udp
+fw2 -> siem [dashed] : 514/udp
+fw3 -> siem [dashed] : 514/udp

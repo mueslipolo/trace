@@ -18,9 +18,11 @@ bi: BI dashboards | Looker
 ml: ML features | Feast
 rev: Reverse ETL | to CRM
 
-airflow [muted]: Airflow | schedules dbt runs
-dq: Data quality checks | Great Expectations
-alert [bad]: Alert data on-call
+frame ops "orchestration and quality" [grey] {
+  airflow [muted]: Airflow | schedules dbt runs
+  dq: Data quality checks | Great Expectations
+  alert [bad]: Alert data on-call
+}
 
 app -> debezium
 logs -> flink

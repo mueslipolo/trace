@@ -1332,8 +1332,12 @@ function spanSides(rm, model) {
       if (!inside || !outside || !mainItem(outside.id)) continue;
       // from the main flow across the gutter into the zone
       const o1 = toward > 0 ? outside[C] + outside[CS] : outside[C], i1 = toward > 0 ? inside[C] : inside[C] + inside[CS];
-      const co = outside[A] + outside[S] / 2, ci = inside[A] + inside[S] / 2;
       const gut = toward > 0 ? FB[C] - 16 : FB[C] + FB[CS] + 16;
+      // a node that sits on a zone border (a bridge) would send the link along that border: leave lower down
+      const onBorder = v => rm.frames.some(f => f[C] < Math.max(o1, gut) && Math.min(o1, gut) < f[C] + f[CS] && (Math.abs(v - f[A]) < 8 || Math.abs(v - f[A] - f[S]) < 8));
+      let co = outside[A] + outside[S] / 2;
+      if (onBorder(co)) co = [0.75, 0.25].map(k => outside[A] + outside[S] * k).find(v => !onBorder(v)) ?? co;
+      const ci = inside[A] + inside[S] / 2;
       const pts = Math.abs(co - ci) < 0.5 ? [Q(co, o1), Q(ci, i1)] : [Q(co, o1), Q(co, gut), Q(ci, gut), Q(ci, i1)];
       if (a) pts.reverse();
       r.pts = pts;
@@ -1949,7 +1953,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
         if (!pts.length) pts.push(mv(s.startPoint));
         pts.push(...(s.bendPoints || []).map(mv), mv(s.endPoint));
       }
-      const viaPts = st => { const O = abs.get('F:' + st.T.id); return [{ x: O.x + st.via.corner.x, y: O.y + st.via.corner.y }, { x: O.x + st.via.border.x, y: O.y + st.via.border.y }]; };
+      const viaPts = st => { const O = abs.get((st.T.type === 'lane' ? 'L:' : 'F:') + st.T.id); return [{ x: O.x + st.via.corner.x, y: O.y + st.via.corner.y }, { x: O.x + st.via.border.x, y: O.y + st.via.border.y }]; };
       if (e.stub && e.stub.s) pts.unshift(...(e.stub.s.via ? viaPts(e.stub.s).reverse() : [stubPoint(e.stub.s, pts[0])]));
       if (e.stub && e.stub.t) pts.push(...(e.stub.t.via ? viaPts(e.stub.t) : [stubPoint(e.stub.t, pts[pts.length - 1])]));
       if (e.lab && r.labels && r.labels[0]) {
@@ -2090,7 +2094,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
           const m = model.nodes.get(end === 's' ? e.a : e.b);
           if (!T) { ends[end] = end === 's' ? e.srcBase : e.tgtBase; continue; }
           const rq = portFor(T, e, end, m, reqs, dirH);
-          if (!rq) return null;
+          if (!rq) { if (typeof process !== 'undefined' && process.env && process.env.TRACE_DEBUG) console.error('no port', e.a, '->', e.b, 'at', T.id); return null; }
           rq.pid = `P${e.i}${end}`;
           ends[end] = rq.pid;
           e.stub = e.stub || {};
