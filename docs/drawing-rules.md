@@ -47,6 +47,7 @@ When a review leads to a change, add the rule here in the same commit.
 | Sources feeding one node do not bunch up at its edge. | DMZ (users and partners into DDoS) | feature: `[span]` | links converging on a node narrower than its sources |
 | A firewall belongs on the border it guards. | DMZ | feature: `[bridge]` | a node linked into two adjacent zones |
 | What watches or administers the diagram stands beside it, not after it. | DMZ (SIEM), data platform (orchestration), the platform study | feature: `[side]`, `[side span]` | a zone that only receives links from several tiers and is placed last |
+| A node in a side zone linked to several tiers sits level with the middle link (where it really leaves, off any border), so that one is straight and the others spread evenly round it. | DMZ (internal firewall to SIEM 3 px off) | engine: `spanSides` | a link into a side zone with a step under 6 px |
 | A side zone is as tall as the zones it serves, so its links cross the gutter straight. | side-zone mockups | feature: `[side span]` | links into a side zone with steps |
 | A diagram is roughly page-shaped; a long chain folds into rows, but not at the price of a link crossing the page. | CI/CD, k8s | engine: chain wrap, `foldCandidate` with its guards | width over 3.5 times the height |
 | A long pipeline reads as one row per stage, each row a level line. | ML pipeline (nodes scattered by the automatic wrap) | usage: a `column` of `row`s, one per stage | nodes of one chain at many different heights |

@@ -1623,10 +1623,22 @@ function spanSides(rm, model) {
     const { F, FB, mine, ext, inner, flat } = m, lo = m.lo, hi = m.hi;
     if (flat && inner.length) {
       const want = new Map();
+      // where each link will leave the main flow (off any zone border, as below), and the node level with the
+      // middle one of them: with the ends spread evenly round the node's middle, that link is straight
+      const tw = F.side === 'right' || F.side === 'bottom' ? 1 : -1;
+      const gutC = tw > 0 ? FB[C] - 16 : FB[C] + FB[CS] + 16;
+      const leaveAt = o => {
+        const o1 = tw > 0 ? o[C] + o[CS] : o[C];
+        const onB = v => rm.frames.some(f => f[C] < Math.max(o1, gutC) && Math.min(o1, gutC) < f[C] + f[CS] && (Math.abs(v - f[A]) < 8 || Math.abs(v - f[A] - f[S]) < 8));
+        let v = o[A] + o[S] / 2;
+        if (onB(v)) v = [0.75, 0.25].map(k => o[A] + o[S] * k).find(u => !onB(u)) ?? v;
+        return v;
+      };
       for (const nb of inner) {
-        const cs = ext.filter(x => x.mine === nb.id).map(x => x.other[A] + x.other[S] / 2);
+        const cs = ext.filter(x => x.mine === nb.id).map(x => leaveAt(x.other)).sort((a, b) => a - b);
         const rel = (nb[A] + nb[S] / 2 - FB[A]) / FB[S];
-        want.set(nb, cs.length ? cs.reduce((t, v) => t + v, 0) / cs.length : lo + rel * (hi - lo));
+        const mid = cs.length % 2 ? cs[(cs.length - 1) / 2] : (cs[cs.length / 2 - 1] + cs[cs.length / 2]) / 2;
+        want.set(nb, cs.length ? mid : lo + rel * (hi - lo));
       }
       const ord = [...inner].sort((p, q) => want.get(p) - want.get(q));
       let pos = lo + TITLE;
