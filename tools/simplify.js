@@ -4,6 +4,7 @@
 //   - icons and the tags span, bridge and top,
 //   - rows and columns (the members become plain nodes in their frame),
 //   - same-width and same-height lines,
+//   - side and span on frames (side zones go back to being the next tier),
 //   - rails (the nodes in the rail become plain nodes; links to the rail go to its first node),
 //   - the reversed links <- and <-- (written the natural way round, source first).
 // Usage: node tools/simplify.js          writes examples/cases/simple/*.trace from examples/cases/*.trace
@@ -36,7 +37,7 @@ function simplify(src) {
       const kind = m ? m[1].toLowerCase() : 'frame';
       stack.push(kind);
       if (kind === 'rail') { curRail = { id: t.split(/\s+/)[1], first: null }; rails.set(curRail.id, curRail); }
-      if (kind === 'frame') { emit('  '.repeat(depth) + t); depth++; }
+      if (kind === 'frame') { emit('  '.repeat(depth) + t.replace(/\[([^\]]*)\]/, (m, tags) => { const k = tags.split(/[\s,]+/).filter(w => w && !/^(side|span|left|right|top|bottom)$/.test(w)); if (k.length !== tags.split(/[\s,]+/).filter(Boolean).length) stats.side = (stats.side || 0) + 1; return k.length ? '[' + k.join(' ') + ']' : ''; }).replace(/\s+\{$/, ' {')); depth++; }
       continue;
     }
     if (/^same-(width|height)\b/i.test(t)) { stats.sizing++; continue; }
