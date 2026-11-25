@@ -7,8 +7,18 @@ One statement per line. `#` starts a comment (outside quotes, at line start or a
 ```
 direction down        # right (default, also lr) or down (also td, tb)
 spacing 1.3           # multiplies layout spacing, 0.5 to 3
-title "Job states"    # used as the SVG's aria-label and the download file name
+title "Job states"    # drawn above the diagram; also the SVG's aria-label and the download file name
+caption "Production, eu-west-1. Dashed links are optional."   # a muted line under the title, wrapped
+cartouche {           # a small table at the bottom right: free key: value lines
+  author: Yves
+  date: 2026-11-25
+  version: 1.2
+}
 ```
+
+All three are optional. The title and the caption sit above the drawing, which moves down to make room; a
+long caption wraps to the drawing's width, and several `caption` lines make several paragraphs. The
+cartouche is the title block of an engineering drawing: any keys you like, in the order you write them.
 
 ## Layout is automatic
 

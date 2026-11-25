@@ -747,3 +747,26 @@ test('links to a zone are refused with side zones, and the message names a way o
   assert.match(m.errors[0].msg, /Link a node in it/);
   assert.strictEqual(m.errors[0].line, 9);
 });
+
+test('title, caption and cartouche are drawn: the title and caption above, the cartouche at the bottom right', async () => {
+  const src = 'title "Orders"\ncaption "Production. Dashed links are optional."\ncartouche {\n  author: Yves\n  version: 1.2\n}\na: A\nb: B\na -> b';
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  assert.match(res.svg, /<text class="dtitle fg" x="16" y="29">Orders<\/text>/);
+  assert.match(res.svg, /<text class="cap muted"[^>]*>Production\. Dashed links are optional\.<\/text>/);
+  assert.match(res.svg, /<g transform="translate\(0,\d+\)">/, 'the drawing moves down under the title');
+  assert.match(res.svg, /class="ck muted"[^>]*>author<\/text><text class="cv fg"[^>]*>Yves<\/text>/);
+  const vb = +res.svg.match(/viewBox="0 0 [\d.]+ ([\d.]+)"/)[1];
+  assert.ok(vb > res.rm.height + 60, 'the drawing grows by the header and the cartouche');
+  // a long caption wraps
+  const long = await compile('caption "' + 'word '.repeat(120).trim() + '"\na: A', measure, ELK, {});
+  assert.ok((long.svg.match(/class="cap muted"/g) || []).length > 2, 'a long caption is several lines');
+  // without them nothing moves
+  const bare = await compile('a: A\nb: B\na -> b', measure, ELK, {});
+  assert.doesNotMatch(bare.svg, /dtitle|translate\(0,/);
+  // a cartouche left open is an error with its line
+  const { parse } = require('../src/trace.js');
+  const m = parse('a: A\ncartouche {\n  author: Yves');
+  assert.strictEqual(m.errors[0].line, 2);
+  assert.match(parse('cartouche {\n  just text\n}').errors[0].msg, /key: value/);
+});

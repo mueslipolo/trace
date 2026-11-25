@@ -14,6 +14,20 @@
     "wide": true
   },
   {
+    "id": "furniture",
+    "title": "Title, caption and cartouche",
+    "group": "The whole diagram",
+    "does": "`title` is drawn above the diagram, `caption` adds a muted line under it, and `cartouche { key: value }` a small table at the bottom right: author, date, version, anything.",
+    "effect": "The drawing moves down to make room for the title and caption, and grows at the bottom for the cartouche. A long caption wraps to the drawing's width. Nothing else moves.",
+    "beforeLabel": "Without",
+    "afterLabel": "With",
+    "beforeOff": [],
+    "afterOff": [],
+    "syntax": "title \"Request path\"\ncaption \"Production, eu-west-1.\"\ncartouche {\n  author: Yves\n  version: 1.2\n}",
+    "use": "For any diagram that leaves your hands: the title says what it is, the cartouche who made it and when.",
+    "wide": false
+  },
+  {
     "id": "kinds",
     "title": "Node kinds",
     "group": "Nodes",

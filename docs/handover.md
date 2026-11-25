@@ -91,8 +91,7 @@ features page uses it to draw "without". Environment switches for Node: `TRACE_L
 
 ## Open, in rough order of value
 
-1. **Title, caption, cartouche** (roadmap, "Smaller items"). Waiting on one decision from the owner: is
-   `title` drawn by default (changes every example) or only with `[visible]`?
+1. Done since this was written: title (always drawn, the owner's choice), `caption`, `cartouche`.
 2. **A bus in the gutter:** three or more links from the main flow into one side-zone node arrive side by
    side; joining them in one line along the gutter was mocked up and liked (the "thin bus").
 3. **Links to a zone with layout blocks:** a link that names a frame disables the per-frame layout, so with

@@ -1,0 +1,12 @@
+title "Request path"
+caption "Production, eu-west-1. Every hop is TLS."
+cartouche {
+  author: Yves
+  date: 2026-11-25
+  version: 1.2
+}
+a [user]: Users
+b [server]: Web
+c [database]: Postgres
+a -> b : 443
+b -> c : 5432

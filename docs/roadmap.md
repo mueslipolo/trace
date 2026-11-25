@@ -126,10 +126,7 @@ author, or tried automatically and compared with the same cost the engine uses. 
   hybrid case: 1038 px), so most strips with frames stay strips. The real fix is a snake: alternate rows flowing
   right to left, so the end of one row sits above the start of the next (ELK has `direction LEFT`; the fixed
   ports and the frames' insides need to be mirrored with it). Not built.
-- Document furniture, all optional: a visible title (today `title` only names the SVG and the download), a general note
-  or caption (not `note`, which is a sequence statement), and a cartouche, the title block of an engineering
-  drawing: a small table at the bottom right with free `key: value` fields (author, date, version, status). Open:
-  whether `title` becomes visible by default (it would change every example) or takes a tag like `[visible]`.
+- Done: title (always drawn), `caption`, `cartouche { key: value }`.
 - Done: side zones (`[side]`, `[side left|right|top|bottom]`, `[span]` on a frame): placed beside the main flow, level
   with the zones they are linked to, optionally spanning them; several per side, both sides, nested frames, root nodes
   in the main flow. Left: links to a zone (not a node) are refused while side zones exist; the bus along the gutter

@@ -51,7 +51,7 @@ async function loadIcon(name, loader) {
 // Returns null when the line is not a node line (links, blocks, keys), so the caller can say so.
 function withIcon(line, name) {
   const c = firstColon(line);
-  if (c < 0 || ARROWS.test(line.slice(0, c)) || /^\s*(frame|column|row|key|title|direction|spacing)\b/.test(line)) return null;
+  if (c < 0 || ARROWS.test(line.slice(0, c)) || /^\s*(frame|column|row|key|title|caption|cartouche|direction|spacing)\b/.test(line)) return null;
   const lhs = line.slice(0, c), rest = line.slice(c);
   const m = lhs.match(/^(.*?)\s*\[([^\]]*)\]\s*$/);
   if (!m) return lhs.trimEnd() + ` [${name}]` + rest;
@@ -150,7 +150,7 @@ function splitLabel(text) {
 
 function parse(src) {
   const model = {
-    direction: 'RIGHT', spacing: 1, title: '',
+    direction: 'RIGHT', spacing: 1, title: '', caption: [], cartouche: [],
     nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], sameSize: [], events: [], mode: 'flow', errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
@@ -179,7 +179,21 @@ function parse(src) {
     }
   }
 
+  let inCartouche = false;
   function handle(line, ln) {
+    if (inCartouche) {
+      // cartouche { author: Yves ... }: free key: value lines, drawn as a small table at the bottom right
+      if (line === '}') { inCartouche = false; return; }
+      const c = line.indexOf(':');
+      if (c <= 0) throw new TraceError('A cartouche line reads  key: value  (author: Yves, date: 2026-11-25, version: 1.2)');
+      model.cartouche.push({ key: line.slice(0, c).trim(), value: unquote(line.slice(c + 1).trim()) });
+      return;
+    }
+    if (/^cartouche\s*\{$/i.test(line)) {
+      if (stack.length > 1) throw new TraceError('A cartouche goes at the top level, outside every block');
+      inCartouche = true;
+      return;
+    }
     if (line === '}') {
       if (stack.length === 1) throw new TraceError('There is no open block for this } to close');
       const closed = stack.pop();
@@ -226,6 +240,7 @@ function parse(src) {
       return;
     }
     if ((m = line.match(/^title\s+(.+)$/i))) { model.title = unquote(m[1]); return; }
+    if ((m = line.match(/^caption\s+(.+)$/i))) { model.caption.push(unquote(m[1])); return; }
     if ((m = line.match(/^same-(width|height)\s+(.+)$/i))) {
       // same-width a b c: make them as wide as the widest (nodes, or frames; not a mix)
       const ids = m[2].trim().split(/[\s,]+/).filter(Boolean);
@@ -422,6 +437,7 @@ function parse(src) {
       else throw e;
     }
   });
+  if (inCartouche) model.errors.push({ line: src.split('\n').findIndex(l => /^\s*cartouche\s*\{\s*$/i.test(l)) + 1, msg: 'The cartouche is never closed with }' });
   if (stack.length > 1) {
     const open = stack[stack.length - 1];
     model.errors.push({ line: open.line, msg: `This ${open.type === 'frame' ? 'frame' : open.axis === 'v' ? 'column' : 'row'} is never closed with }` });
@@ -534,6 +550,10 @@ function desugarSides(model) {
 const FONT_NAME = '600 13px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 const FONT_NOTE = '400 11px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 const FONT_TITLE = '600 11.5px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+const FONT_HEAD = '700 16px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+const FONT_CAP = '400 12px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+const FONT_CK = '400 10.5px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+const FONT_CV = '600 11px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 
 function wrap(text, font, maxW, measure) {
   const out = [];
@@ -2951,7 +2971,7 @@ function diagramCSS(p, scope) {
   const z = Object.entries(p.zones).map(([k, [f, st]]) => `${s}.zone-${k}{fill:${f};stroke:${st}}`).join('');
   return `${s}text{font:12px Inter,system-ui,-apple-system,"Segoe UI",sans-serif}` +
     `${s}.fg{fill:${p.fg}}${s}.muted{fill:${p.muted}}` +
-    `${s}.name{font-size:13px;font-weight:600}${s}.note{font-size:11px;font-weight:400}${s}.ztitle{font-size:11.5px;font-weight:600}` +
+    `${s}.dtitle{font-size:16px;font-weight:700}${s}.cap{font-size:12px}${s}.ck{font-size:10.5px}${s}.cv{font-size:11px;font-weight:600}${s}.name{font-size:13px;font-weight:600}${s}.note{font-size:11px;font-weight:400}${s}.ztitle{font-size:11.5px;font-weight:600}` +
     `${s}.halo{paint-order:stroke;stroke:${p.panel};stroke-width:4px;stroke-linejoin:round}` +
     `${s}.box{fill:${p.box};stroke:${p.line};stroke-width:1.2}` +
     `${s}.box.engine{fill:${p.engine}}${s}.box.store{fill:${p.storeFill};stroke:${p.storeLine};stroke-width:1.4}` +
@@ -3087,6 +3107,26 @@ function headId(e, pfx) {
   return pfx + 'a';
 }
 
+// The title, the caption (wrapped to the drawing's width) and the cartouche, measured once for the renderer.
+function measureHead(model, rm, measure) {
+  const head = { title: null, caption: [], cart: null };
+  if (model.title) head.title = { text: model.title, w: measure(model.title, FONT_HEAD) };
+  const maxW = Math.max(rm.width - 32, 320);
+  for (const c of model.caption) {
+    let line = '';
+    for (const word of c.split(/\s+/)) {
+      const t = line ? line + ' ' + word : word;
+      if (line && measure(t, FONT_CAP) > maxW) { head.caption.push({ text: line, w: measure(line, FONT_CAP) }); line = word; } else line = t;
+    }
+    if (line) head.caption.push({ text: line, w: measure(line, FONT_CAP) });
+  }
+  if (model.cartouche.length) {
+    const rows = model.cartouche.map(r => ({ ...r, kw: measure(r.key, FONT_CK), vw: measure(r.value, FONT_CV) }));
+    head.cart = { rows, kw: Math.max(...rows.map(r => r.kw)), vw: Math.max(...rows.map(r => r.vw)) };
+  }
+  return head;
+}
+
 function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) {
   const pfx = idPrefix + '-';
   const model = rm.model;
@@ -3203,6 +3243,32 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     const [id, c] = s.split(':');
     return `<marker id="${pfx}${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" class="${c}"/></marker>`;
   }).join('');
+  // the title and caption above the drawing, the cartouche at the bottom right
+  const head = rm.head || { title: null, caption: [], cart: null };
+  let hh = 0;
+  const top = [];
+  if (head.title || head.caption.length) {
+    let y = 14;
+    if (head.title) { top.push(`<text class="dtitle fg" x="16" y="${y + 15}">${esc(head.title.text)}</text>`); y += 24; W = Math.max(W, Math.ceil(head.title.w) + 32); }
+    for (const c of head.caption) { top.push(`<text class="cap muted" x="16" y="${y + 12}">${esc(c.text)}</text>`); y += 17; W = Math.max(W, Math.ceil(c.w) + 32); }
+    hh = y + 8;
+  }
+  const shifted = hh ? [`<g transform="translate(0,${hh})">`, ...body, '</g>'] : body.slice();
+  H += hh;
+  if (head.cart) {
+    const c = head.cart, rowH = 18, cw = Math.ceil(10 + c.kw + 16 + c.vw + 10), ch = c.rows.length * rowH + 10;
+    W = Math.max(W, cw + 32);
+    const x = W - cw - 16, y = H + 4;
+    const rows = [`<rect class="card" x="${x}" y="${y}" width="${cw}" height="${ch}" rx="4"/>`];
+    c.rows.forEach((r, i) => {
+      const by = y + 5 + i * rowH + 13;
+      rows.push(`<text class="ck muted" x="${x + 10}" y="${by}">${esc(r.key)}</text><text class="cv fg" x="${x + 10 + Math.ceil(c.kw) + 16}" y="${by}">${esc(r.value)}</text>`);
+      if (i) rows.push(`<path class="tsep" d="M${x} ${y + 5 + i * rowH} H${x + cw}"/>`);
+    });
+    shifted.push(...rows);
+    H = y + ch + 14;
+  }
+  body.length = 0; body.push(...top, ...shifted);
   const aria = esc(model.title || describe(model));
   const style = standalone ? `<style>${standaloneCSS(theme)}</style>` : '';
   // a fixed theme has its own ground, so the file reads the same on any background
@@ -3248,6 +3314,7 @@ async function compile(src, measure, ELK, opts) {
   for (const k of model.keys) k._tw = measure(k.text, FONT_NOTE);
   const iconsFailed = await loadIcons(model, opts && opts.loadIcon);
   const rm = model.mode === 'sequence' ? await layoutSequence(model, measure) : await layout(model, measure, ELK, opts);
+  rm.head = measureHead(model, rm, measure);
   return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || [])], svg: render(rm, opts), standalone: theme => render(rm, { ...opts, standalone: true, theme: typeof theme === 'string' ? theme : null }) };
 }
 

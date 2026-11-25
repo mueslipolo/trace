@@ -37,7 +37,8 @@ async function once() {
   if (!out) process.stdout.write(svg);
   else fs.writeFileSync(out, png ? toPng(svg, { zoom, dark: theme === 'dark' }) : svg);
   for (const w of res.warnings || []) console.error(`${inp}: ${w}`);
-  if (out) console.error(`${out}: ${Math.round(res.rm.width)} x ${Math.round(res.rm.height)}`);
+  const vb = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+  if (out) console.error(`${out}: ${vb ? Math.round(+vb[1]) + " x " + Math.round(+vb[2]) : Math.round(res.rm.width) + " x " + Math.round(res.rm.height)}`);
   return true;
 }
 
