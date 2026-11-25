@@ -936,14 +936,14 @@ function clearFrames(rm) {
 // A link that runs through a node that is not one of its ends is routed again: an orthogonal route on the
 // grid of lines just outside every node, the shortest with the fewest bends, from where it leaves its source to
 // the side of its target that its route reaches first. Links that are clear are not touched.
-function rerouteBlocked(rm) {
+function rerouteBlocked(rm, force) {
   const M = 8;                                             // the route keeps this far from every node
   const boxes = rm.nodes.filter(n => n.x !== undefined && n.kind !== 'start');
   const inside = (b, x, y, m) => x > b.x - m + 0.01 && x < b.x + b.w + m - 0.01 && y > b.y - m + 0.01 && y < b.y + b.h + m - 0.01;
   const segHits = (a, p, b, m) => Math.min(a.x, p.x) < b.x + b.w + m - 0.5 && b.x - m + 0.5 < Math.max(a.x, p.x) && Math.min(a.y, p.y) < b.y + b.h + m - 0.5 && b.y - m + 0.5 < Math.max(a.y, p.y);
-  for (const r of rm.edges) {
+  for (const r of force ? rm.edges.filter(x => force.has(x)) : rm.edges) {
     const e = r.e;
-    if (e.rail || e.lifeline || e.divider || r.merged || !r.pts || r.pts.length < 2 || e.a === e.b) continue;
+    if (e.rail || e.lifeline || e.divider || (r.merged && !force) || !r.pts || r.pts.length < 2 || e.a === e.b) continue;
     let S = boxes.find(n => n.id === e.a), T = boxes.find(n => n.id === e.b);
     if (!S || !T) continue;
     // the points may run either way round (a link written with <-): S is the node at the first point
@@ -966,8 +966,8 @@ function rerouteBlocked(rm) {
     // a link with three or more bends is tried again too, and kept only if the new route is clearly shorter:
     // it catches the detours (out one way, round, and back) that a layout leaves behind
     const curCost = q0.reduce((t, p, i) => i ? t + len(q0[i - 1], p) : 0, 0) + 60 * Math.max(0, q0.length - 2);
-    const detour = !blocked && !hugs && !along && q0.length >= 5;
-    if (!blocked && !hugs && !along && !detour) continue;
+    const detour = !force && !blocked && !hugs && !along && q0.length >= 5;
+    if (!force && !blocked && !hugs && !along && !detour) continue;
     // first choice: one straight line, when the two nodes overlap across the gap between them
     if (!S.cols && !S.span && !T.cols && !T.span) {
       const ox0 = Math.max(S.x, T.x) + 10, ox1 = Math.min(S.x + S.w, T.x + T.w) - 10;
@@ -1040,8 +1040,12 @@ function rerouteBlocked(rm) {
     const goals = new Map(ports.map(o => [key(ix.get(o.q.x), iy.get(o.q.y)), o]));
     // Dijkstra over (grid point, direction): length plus a price per bend
     const BEND = 60, dist = new Map(), prev = new Map(), heap = [];
+    const occupied = rm.edges.filter(o => o !== r && o.pts && !o.e.rail && !o.e.lifeline).flatMap(o => o.pts.slice(1).map((p, i) => [o.pts[i], p]));
     const push = (k, d, c) => { const id = k * 4 + d; if (c < (dist.get(id) ?? Infinity)) { dist.set(id, c); heap.push([c, id]); } };
     const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    // a start whose first stub already lies on another link (the trunk of a bus) is as dear as running on one
+    for (const o of starts) if (occupied.some(([u, w]) => overlapSeg(o.p, o.s, u, w))) o.extra += 600;
+    for (const o of ports) if (occupied.some(([u, w]) => overlapSeg(o.q, o.p, u, w))) o.extra = (o.extra || 0) + 600;
     for (const [k, o] of startAt) { const d0 = DIRS.findIndex(([a, b]) => a === o.d[0] && b === o.d[1]); push(k, d0 < 0 ? 0 : d0, o.extra); }
     let best = null;
     while (heap.length) {
@@ -1064,8 +1068,10 @@ function rerouteBlocked(rm) {
         const P = { x: X[i], y: Y[j] }, Q = { x: X[ni], y: Y[nj] };
         if (!free(Q.x, Q.y) && !goals.has(key(ni, nj))) continue;
         if (all.some(bx => segHits(P, Q, bx, M - 2))) continue;
-        push(key(ni, nj), nd, c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND));
-        if (!prev.has(key(ni, nj) * 4 + nd) || dist.get(key(ni, nj) * 4 + nd) === c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND)) prev.set(key(ni, nj) * 4 + nd, id);
+        // running on top of another link is never wanted: it costs as much as a long detour
+        const onLink = occupied.some(([u, w]) => overlapSeg(P, Q, u, w, 8)) ? 600 : 0;
+        push(key(ni, nj), nd, c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND) + onLink);
+        if (!prev.has(key(ni, nj) * 4 + nd) || dist.get(key(ni, nj) * 4 + nd) === c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND) + onLink) prev.set(key(ni, nj) * 4 + nd, id);
       }
     }
     if (!best) continue;
@@ -1073,6 +1079,7 @@ function rerouteBlocked(rm) {
     let from = starts[0];
     for (let id = best.id; id !== undefined; id = prev.get(id)) { const k = Math.floor(id / 4); path.unshift({ x: X[Math.floor(k / Y.length)], y: Y[k % Y.length] }); if (startAt.has(k) && !prev.has(id)) { from = startAt.get(k); break; } if (startAt.has(k) && dist.get(id) === startAt.get(k).extra) { from = startAt.get(k); break; } }
     const pts = simplifyPts([from.p, ...path, best.o.p]);
+    if (overlapsLinks(rm, pts, new Set([r])) && (force || !overlapsLinks(rm, r.pts, new Set([r])))) continue;
     if (detour) { const c = pts.reduce((t, p, i) => i ? t + len(pts[i - 1], p) : 0, 0) + 60 * Math.max(0, pts.length - 2); if (c > curCost * 0.8) continue; }
     if (pts.some((p, i) => i && others.some(b => segHits(pts[i - 1], p, b, 0)))) continue;
     r.pts = pts;
@@ -1165,6 +1172,26 @@ function reorderEnds(rm) {
   }
 }
 
+// Last: two links that still lie on top of each other (not two links of one bus) are pulled apart by routing
+// one of them again: the one that is not part of a bus, with the more bends.
+function resolveOverlaps(rm) {
+  const E = rm.edges.filter(r => r.pts && r.pts.length > 1 && !r.e.rail && !r.e.lifeline && !r.e.divider && r.e.a !== r.e.b);
+  for (let round = 0; round < 3; round++) {
+    const victims = new Set();
+    for (let i = 0; i < E.length; i++) for (let j = i + 1; j < E.length; j++) {
+      const A = E[i], B = E[j];
+      if (A.merged && B.merged) continue;
+      let hit = false;
+      for (let a = 1; a < A.pts.length && !hit; a++) for (let b = 1; b < B.pts.length && !hit; b++) if (overlapSeg(A.pts[a - 1], A.pts[a], B.pts[b - 1], B.pts[b], 8)) hit = true;
+      if (!hit) continue;
+      const pick = A.merged ? B : B.merged ? A : (A.pts.length >= B.pts.length ? A : B);
+      if (!victims.has(A) && !victims.has(B)) victims.add(pick);
+    }
+    if (!victims.size) return;
+    rerouteBlocked(rm, victims);
+  }
+}
+
 // A link with one small step (12px or less) is made straight, by sliding its end along the side of its
 // target (or its start along its source), when that side has room and no other link ends there.
 function straightenSmallJogs(rm) {
@@ -1248,7 +1275,8 @@ function mergeHubs(rm, MIN = 4) {
     const last = items.find(it => sideOf(it.P[it.P.length - 1]) === side).P;
     const endM = M(last[last.length - 1]);
     const trunkC = vert ? hub.x + hub.w / 2 : hub.y + hub.h / 2;
-    const hits = (a, b, skip) => rm.nodes.some(n => n.x !== undefined && !skip.has(n.id) && Math.min(a.x, b.x) < n.x + n.w - 0.5 && n.x + 0.5 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h - 0.5 && n.y + 0.5 < Math.max(a.y, b.y));
+    // a bus and its branches keep 6px clear of every node they do not serve, like any link
+    const hits = (a, b, skip) => rm.nodes.some(n => n.x !== undefined && !skip.has(n.id) && Math.min(a.x, b.x) < n.x + n.w + 6 && n.x - 6 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h + 6 && n.y - 6 < Math.max(a.y, b.y));
     const ok = items.filter(it => sideOf(it.P[it.P.length - 1]) === side);
     // the bus stands where the branches are short: just past the sources, as near to them as a free place allows
     const build = busM => {
@@ -1260,6 +1288,8 @@ function mergeHubs(rm, MIN = 4) {
         const skip = new Set([hub.id, it.r.e.a, it.r.e.b]);
         const path = [...head, mk(busM, c), mk(busM, trunkC), mk(endM, trunkC)];
         for (let i = Math.max(1, head.length); i < path.length; i++) if (hits(path[i - 1], path[i], skip)) return null;
+        // nor on another link (the links of this group share the bus, that is the point)
+        if (overlapsLinks(rm, path, new Set(ok.map(x => x.r)))) return null;
         return { it, path, c };
       };
       const lane = (c, m1, m2) => !taken.some(t => Math.abs(t.c - c) < 14 && Math.min(t.m1, t.m2) < Math.max(m1, m2) && Math.min(m1, m2) < Math.max(t.m1, t.m2));
@@ -1694,7 +1724,7 @@ async function layout(model, measure, ELK, opts) {
   const env = (typeof process !== 'undefined' && process.env) || {};
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
-  const finish = rm => { spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } placeLabels(rm, measure); return rm; };
+  const finish = rm => { spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -3054,6 +3084,21 @@ function straightenSpans(rm, model, flowH) {
 // channel assignment put it: right under one source, near the target for another. Put the steps of the
 // links that share a target (or a source) at one height, in the middle of the gap between them, so the
 // bends line up. Skipped for a group when that would touch a node or run along another link.
+// Do two orthogonal stretches lie on top of each other (closer than 4px, sharing more than 6px)?
+function overlapSeg(a, b, c, d, near = 4) {
+  const h1 = Math.abs(a.y - b.y) < 0.5, h2 = Math.abs(c.y - d.y) < 0.5, v1 = Math.abs(a.x - b.x) < 0.5, v2 = Math.abs(c.x - d.x) < 0.5;
+  if (h1 && h2) return Math.abs(a.y - c.y) < near && Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) > 6;
+  if (v1 && v2) return Math.abs(a.x - c.x) < near && Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) - Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) > 6;
+  return false;
+}
+function overlapsLinks(rm, path, skip) {
+  for (const o of rm.edges) {
+    if (skip.has(o) || !o.pts || o.e.rail || o.e.lifeline || o.e.divider) continue;
+    for (let i = 1; i < path.length; i++) for (let j = 1; j < o.pts.length; j++) if (overlapSeg(path[i - 1], path[i], o.pts[j - 1], o.pts[j])) return true;
+  }
+  return false;
+}
+
 function simplifyPts(pts) {
   const o = [{ ...pts[0] }];
   for (let i = 1; i < pts.length - 1; i++) {
@@ -3324,13 +3369,23 @@ function standaloneCSS(theme) {
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const r1 = v => Math.round(v * 10) / 10;
 
-function roundPath(pts, r = 7) {
-  const p = [];
-  for (const q of pts) {
+// hops: for each stretch of the original points, the x positions where it hops over another link (in the order
+// it meets them); only horizontal stretches have any
+function roundPath(pts, r = 7, hops = null) {
+  const p = [], seg = [];
+  pts.forEach((q, k) => {
     const l = p[p.length - 1];
-    if (!l || Math.abs(l.x - q.x) > 0.1 || Math.abs(l.y - q.y) > 0.1) p.push({ x: q.x, y: q.y });
-  }
+    if (!l || Math.abs(l.x - q.x) > 0.1 || Math.abs(l.y - q.y) > 0.1) { p.push({ x: q.x, y: q.y }); if (p.length > 1) seg.push(hops ? hops[k - 1] || [] : []); }
+  });
   if (p.length < 2) return '';
+  const H = 5;
+  // the straight run of stretch i, up to (x, y), with its hops: a half circle above the line
+  const run = (i, x, y) => {
+    let t = '';
+    const a = p[i], b = p[i + 1], dir = Math.sign(b.x - a.x);
+    for (const hx of seg[i] || []) t += ` L${r1(hx - dir * H)} ${r1(a.y)} A${H} ${H} 0 0 ${dir > 0 ? 1 : 0} ${r1(hx + dir * H)} ${r1(a.y)}`;
+    return t + ` L${r1(x)} ${r1(y)}`;
+  };
   let d = `M${r1(p[0].x)} ${r1(p[0].y)}`;
   for (let i = 1; i < p.length - 1; i++) {
     const a = p[i - 1], b = p[i], c = p[i + 1];
@@ -3338,10 +3393,10 @@ function roundPath(pts, r = 7) {
     const rr = Math.min(r, l1 / 2, l2 / 2);
     const p1 = { x: b.x - (b.x - a.x) / l1 * rr, y: b.y - (b.y - a.y) / l1 * rr };
     const p2 = { x: b.x + (c.x - b.x) / l2 * rr, y: b.y + (c.y - b.y) / l2 * rr };
-    d += ` L${r1(p1.x)} ${r1(p1.y)} Q${r1(b.x)} ${r1(b.y)} ${r1(p2.x)} ${r1(p2.y)}`;
+    d += run(i - 1, p1.x, p1.y) + ` Q${r1(b.x)} ${r1(b.y)} ${r1(p2.x)} ${r1(p2.y)}`;
   }
   const z = p[p.length - 1];
-  return d + ` L${r1(z.x)} ${r1(z.y)}`;
+  return d + run(p.length - 2, z.x, z.y);
 }
 
 function shorten(pts, atStart, atEnd, by = 1.5) {
@@ -3527,7 +3582,30 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     body.push(`<text class="note muted" x="${r1(spot.x)}" y="${r1(spot.y)}" text-anchor="middle">${esc(g.title)}</text>`);
   }
   const labels = [];
-  for (const { e, pts, lab } of rm.edges) {
+  // where two links cross, the horizontal one hops over the vertical one with a small arc, so a crossing never
+  // reads as a junction. Sequence lifelines, rails and the links of one bus are left out.
+  const verticals = [];
+  for (const r of rm.edges) {
+    if (!r.pts || r.e.lifeline || r.e.divider || r.e.rail) continue;
+    for (let i = 1; i < r.pts.length; i++) { const a = r.pts[i - 1], b = r.pts[i]; if (Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) > 0.5) verticals.push({ r, x: a.x, y0: Math.min(a.y, b.y), y1: Math.max(a.y, b.y) }); }
+  }
+  const hopsFor = r => {
+    if (!r.pts || r.e.lifeline || r.e.divider || r.e.rail) return null;
+    const out = [];
+    for (let i = 1; i < r.pts.length; i++) {
+      const a = r.pts[i - 1], b = r.pts[i], xs = [];
+      if (Math.abs(a.y - b.y) < 0.5 && Math.abs(a.x - b.x) > 0.5) {
+        for (const v of verticals) {
+          if (v.r === r || (r.merged && v.r.merged)) continue;
+          if (v.x > Math.min(a.x, b.x) + 9 && v.x < Math.max(a.x, b.x) - 9 && a.y > v.y0 + 2 && a.y < v.y1 - 2) xs.push(v.x);
+        }
+      }
+      out.push(xs.sort((u, w) => (b.x - a.x) * (u - w)).filter((x, k, arr) => !k || Math.abs(x - arr[k - 1]) > 12));
+    }
+    return out.some(h => h.length) ? out : null;
+  };
+  for (const r of rm.edges) {
+    const { e, pts, lab } = r;
     const cls = ['arrow'];
     for (const t of ['ok', 'bad', 'muted']) if (e.tags.includes(t)) cls.push(t);
     if (e.dashed) cls.push('dashed');
@@ -3535,7 +3613,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     // a link with cardinalities has its ends drawn as crow's feet, bars and circles instead of arrowheads
     const hp = card ? pts : shorten(pts, e.start, e.end);
     const mk = card ? '' : (e.end ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.start ? ` marker-start="url(#${headId(e, pfx)})"` : '');
-    body.push(`<path class="${cls.join(' ')}" d="${roundPath(hp)}"${mk}/>`);
+    body.push(`<path class="${cls.join(' ')}" d="${roundPath(hp, 7, hopsFor(r))}"${mk}/>`);
     if (card && pts.length > 1) { body.push(cardinalitySVG(pts[0], pts[1], card[1]), cardinalitySVG(pts[pts.length - 1], pts[pts.length - 2], card[2])); }
     if (lab && e.lab) {
       let y = lab.y + 11;

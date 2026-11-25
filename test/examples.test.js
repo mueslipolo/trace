@@ -797,3 +797,30 @@ test('no link runs through a node that is not one of its ends, in any example', 
     }
   }
 });
+
+test('no two links lie on top of each other, in any example (links merged into one bus excepted)', async () => {
+  const ov = (a, b, c, d) => {
+    if (Math.abs(a.y - b.y) < 0.5 && Math.abs(c.y - d.y) < 0.5) return Math.abs(a.y - c.y) < 7 && Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) > 8;
+    if (Math.abs(a.x - b.x) < 0.5 && Math.abs(c.x - d.x) < 0.5) return Math.abs(a.x - c.x) < 7 && Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) - Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) > 8;
+    return false;
+  };
+  const bad = [];
+  for (const file of files) {
+    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
+    const E = res.rm.edges.filter(r => r.pts && !r.e.rail && !r.e.lifeline && !r.e.divider);
+    for (let i = 0; i < E.length; i++) for (let j = i + 1; j < E.length; j++) {
+      const A = E[i], B = E[j];
+      if (A.merged && B.merged) continue;            // a bus is shared on purpose
+      // links into the same row of a table converge there (the ER convention), and two links between the same
+      // two nodes run side by side by nature
+      const tab = id => res.rm.nodes.find(n => n.id === id && n.cols);
+      if ((A.e.b === B.e.b && tab(A.e.b)) || (A.e.a === B.e.a && tab(A.e.a))) continue;
+      if ((A.e.a === B.e.a && A.e.b === B.e.b) || (A.e.a === B.e.b && A.e.b === B.e.a)) continue;
+      // two links that leave or reach the same node may share the first few pixels at the port
+      let hit = false;
+      for (let a = 1; a < A.pts.length && !hit; a++) for (let b = 1; b < B.pts.length && !hit; b++) if (ov(A.pts[a - 1], A.pts[a], B.pts[b - 1], B.pts[b])) hit = true;
+      if (hit) bad.push(`${file}: ${A.e.a}->${A.e.b} / ${B.e.a}->${B.e.b}`);
+    }
+  }
+  assert.deepStrictEqual(bad, []);
+});
