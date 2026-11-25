@@ -1066,6 +1066,92 @@ function rerouteBlocked(rm) {
   }
 }
 
+// Links that leave (or reach) one side of a node are put in the order that crosses least: the places where
+// they meet the side are shared out again among them, trying every order (up to five links), and the best one
+// is kept when it has fewer crossings. A straight link that has to move gets a short step near the node.
+function reorderEnds(rm) {
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  const X = (a, b, c, d) => {                     // proper crossing of two orthogonal segments
+    const h1 = eq(a.y, b.y), h2 = eq(c.y, d.y);
+    if (h1 === h2) return false;
+    const [H0, H1, V0, V1] = h1 ? [a, b, c, d] : [c, d, a, b];
+    const y = H0.y, x = V0.x;
+    return Math.min(H0.x, H1.x) + 0.5 < x && x < Math.max(H0.x, H1.x) - 0.5 && Math.min(V0.y, V1.y) + 0.5 < y && y < Math.max(V0.y, V1.y) - 0.5;
+  };
+  // two stretches on top of each other (closer than 4px, overlapping by more than 4px) count as a crossing
+  const OV = (a, b, c, d) => {
+    if (eq(a.y, b.y) && eq(c.y, d.y)) return Math.abs(a.y - c.y) < 4 && Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) > 4;
+    if (eq(a.x, b.x) && eq(c.x, d.x)) return Math.abs(a.x - c.x) < 4 && Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) - Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) > 4;
+    return false;
+  };
+  const cross = (P, Q) => { let n = 0; for (let i = 1; i < P.length; i++) for (let j = 1; j < Q.length; j++) if (X(P[i - 1], P[i], Q[j - 1], Q[j]) || OV(P[i - 1], P[i], Q[j - 1], Q[j])) n++; return n; };
+  const perms = a => a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(p => [x, ...p]));
+  const live = rm.edges.filter(r => r.pts && r.pts.length > 1 && !r.e.rail && !r.e.lifeline && !r.e.divider && !r.merged && r.e.a !== r.e.b);
+  for (const n of rm.nodes) {
+    if (n.x === undefined || n.cols || n.span) continue;
+    for (const side of ['left', 'right', 'top', 'bottom']) {
+      const horiz = side === 'left' || side === 'right';           // the stretch at the node is horizontal
+      const sv = side === 'left' ? n.x : side === 'right' ? n.x + n.w : side === 'top' ? n.y : n.y + n.h;
+      const ends = [];
+      for (const r of live) {
+        const q = r.pts, L = q.length;
+        for (const at of [0, L - 1]) {
+          const p = q[at], nx = q[at === 0 ? 1 : L - 2];
+          const on = horiz ? Math.abs(p.x - sv) < 1.5 && p.y > n.y && p.y < n.y + n.h : Math.abs(p.y - sv) < 1.5 && p.x > n.x && p.x < n.x + n.w;
+          if (!on || !(horiz ? eq(p.y, nx.y) : eq(p.x, nx.x))) continue;
+          ends.push({ r, at });
+        }
+      }
+      if (ends.length < 2 || ends.length > 5) continue;
+      const A = horiz ? 'y' : 'x';
+      const slots = ends.map(e => e.r.pts[e.at][A]).sort((a, b) => a - b);
+      const out = side === 'right' || side === 'bottom' ? 1 : -1;
+      // the links as they would be with their end at `pos`
+      // the link as it would be with its end at `pos`; a straight link gets a step, near this node (near: true)
+      // or near its other end
+      const moved = (e, pos, near) => {
+        const q = e.r.pts.map(p => ({ ...p })), L = q.length, i = e.at, j = i === 0 ? 1 : L - 2;
+        if (eq(q[i][A], pos)) return q;
+        if (L === 2) {
+          const C = horiz ? 'x' : 'y';
+          const sx = near ? q[i][C] + out * 24 : q[j][C] - out * 24;
+          const s0 = { ...q[i], [A]: pos };
+          const a = { [C]: sx, [A]: pos }, b = { [C]: sx, [A]: q[j][A] };
+          return i === 0 ? [s0, a, b, q[1]] : [q[0], b, a, s0];
+        }
+        q[i] = { ...q[i], [A]: pos }; q[j] = { ...q[j], [A]: pos };
+        return q;
+      };
+      const others = live.filter(r => !ends.some(e => e.r === r));
+      const score = sets => {
+        let c = 0;
+        // links from the same side crossing each other read worst: a fan that twists on itself
+        for (let a = 0; a < sets.length; a++) { for (const o of others) c += cross(sets[a], o.pts); for (let b = a + 1; b < sets.length; b++) c += 3 * cross(sets[a], sets[b]); }
+        return c;
+      };
+      // a candidate may not pass within 6px of a node that is not one of its ends, nor run along a frame border
+      const hitsNode = (q, r) => q.some((p, i) => {
+        if (!i) return false;
+        const a = q[i - 1];
+        if (rm.nodes.some(m => m.x !== undefined && m.id !== r.e.a && m.id !== r.e.b &&
+          Math.min(a.x, p.x) < m.x + m.w + 6 && m.x - 6 < Math.max(a.x, p.x) && Math.min(a.y, p.y) < m.y + m.h + 6 && m.y - 6 < Math.max(a.y, p.y))) return true;
+        return rm.frames.some(f => eq(a.x, p.x) ? Math.min(Math.max(a.y, p.y), f.y + f.h) - Math.max(Math.min(a.y, p.y), f.y) > 6 && (Math.abs(a.x - f.x) < 8 || Math.abs(a.x - f.x - f.w) < 8)
+          : Math.min(Math.max(a.x, p.x), f.x + f.w) - Math.max(Math.min(a.x, p.x), f.x) > 6 && (Math.abs(a.y - f.y) < 8 || Math.abs(a.y - f.y - f.h) < 8));
+      });
+      const now = score(ends.map(e => e.r.pts));
+      if (!now) continue;
+      let best = null;
+      for (const perm of perms(slots)) for (const near of [false, true]) {
+        const sets = ends.map((e, k) => moved(e, perm[k], near));
+        if (sets.some((q, k) => q !== ends[k].r.pts && hitsNode(q, ends[k].r) && !hitsNode(ends[k].r.pts, ends[k].r))) continue;
+        const c = score(sets), bends = sets.reduce((t, q) => t + q.length, 0);
+        if (c < now && (!best || c < best.c || (c === best.c && bends < best.bends))) best = { c, bends, sets };
+      }
+      if (best) ends.forEach((e, k) => { e.r.pts = best.sets[k]; });
+    }
+  }
+}
+
 // A link with one small step (12px or less) is made straight, by sliding its end along the side of its
 // target (or its start along its source), when that side has room and no other link ends there.
 function straightenSmallJogs(rm) {
@@ -1583,7 +1669,7 @@ async function layout(model, measure, ELK, opts) {
   const env = (typeof process !== 'undefined' && process.env) || {};
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
-  const finish = rm => { spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } placeLabels(rm, measure); return rm; };
+  const finish = rm => { spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
