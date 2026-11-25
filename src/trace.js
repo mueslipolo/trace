@@ -1154,17 +1154,18 @@ function spreadEnds(rm, gap0 = 22) {
 
 // The tidy-up runs on the layout that was chosen, after the choice: it changes the number of points in a
 // link without changing how it looks, and the choice is made on those counts.
-// opts.off lists the automatic tidy-ups to leave out (for showing what they do): 'fold', 'merge', 'tidy'
+// opts.off lists the automatic tidy-ups to leave out (for showing what they do): 'wrap', 'fold', 'merge', 'tidy'
 async function layout(model, measure, ELK, opts) {
   const env = (typeof process !== 'undefined' && process.env) || {};
   const off = new Set((opts && opts.off) || []);
+  model.noWrap = off.has('wrap');
   const finish = rm => { clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); if (!off.has('tidy')) { separateParallels(rm); spreadEnds(rm); } placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
   // two or three rows (items above each other stay one column). Kept only when the finished drawing is
   // clearly better: less width, and no more tangle.
-  if (!env.TRACE_NOFOLD && !off.has('fold') && rm.width / rm.height > 3.5 && model.frames.size) {
+  if (!env.TRACE_NOFOLD && !off.has('fold') && rm.width / rm.height > 3.5 && rm.width > 1500 && model.frames.size) {
     const fold = await foldCandidate(model, rm, run);
     if (fold) return fold;
     rm = await run();      // the model holds the last try: draw the strip again
@@ -1231,7 +1232,7 @@ async function chooseLayout(model, measure, ELK) {
   // without frames the three ways are the same layout, so only the plain one is tried
   for (const m of model.frames.size ? ['hier', 'hierwrap', 'flat', 'compound'] : ['compound', 'hierwrap']) {
     // folding into rows is only tried for a strip much wider than it is tall
-    if (m === 'hierwrap' && !(tried.length && tried[0].rm.width / tried[0].rm.height > 4 && !env.TRACE_NOWRAP)) continue;
+    if (m === 'hierwrap' && !(tried.length && tried[0].rm.width / tried[0].rm.height > 4 && !env.TRACE_NOWRAP && !model.noWrap)) continue;
     for (const cyc of cycles) {
       // ELK itself throws on a few combinations (fixed table ports with MODEL_ORDER cycle breaking): that way of placing is skipped
       let rm = null;
@@ -1264,6 +1265,19 @@ function crossingsOf(rm) {
     for (const s of segs[i]) for (const t of segs[j]) if (X(s[0], s[1], t[0], t[1])) n++;
   }
   return n;
+}
+
+// The longest stretch of one link that runs against the direction of flow (leftwards, in a diagram that flows
+// right). A strip has none; every fold adds one, where the row ends and the next begins.
+function longestReturn(rm) {
+  let max = 0;
+  for (const { e, pts } of rm.edges) {
+    if (!pts || e.rail || e.lifeline) continue;
+    let len = 0;
+    for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i]; if (Math.abs(a.y - b.y) < 0.5 && b.x < a.x - 1) len += a.x - b.x; }
+    max = Math.max(max, len);
+  }
+  return max;
 }
 
 // Link labels with another link running through them (after the labels are placed).
@@ -1346,8 +1360,10 @@ async function foldCandidate(model, rm, choose) {
     if (!r2) continue;
     const c2 = cost(r2, bendsOf(r2));
     if (DEBUG) console.error('fold', rows, Math.round(r2.width) + 'x' + Math.round(r2.height), 'cost', c2.toFixed(1), 'vs', best.cost.toFixed(1));
-    // a fold may not trade the width for a tangle: no more crossings and no more than 15% more bends than the strip
-    const worse = crossingsOf(r2) > crossingsOf(best.rm) || bendsOf(r2) > bendsOf(best.rm) * 1.15 + 2 || labelHits(r2) > labelHits(best.rm);
+    // a fold may not trade the width for a tangle: no more crossings, no more than 15% more bends, and no return link longer than 30% of the width than the strip
+    const worse = crossingsOf(r2) > crossingsOf(best.rm) || bendsOf(r2) > bendsOf(best.rm) * 1.15 + 2 || labelHits(r2) > labelHits(best.rm)
+      // the link that comes back to the start of the next row must not cross most of the page
+      || longestReturn(r2) > Math.max(0.3 * r2.width, longestReturn(best.rm));
     if (!worse && c2 < best.cost * 0.92 && (!winner || c2 < winner.cost)) winner = { cost: c2, rows };
   }
   if (!winner) { restore(); return null; }

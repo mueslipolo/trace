@@ -612,13 +612,20 @@ test('links leaving one short side of a node share the room out; stretches of di
   for (let i = 1; i < ys.length; i++) assert.ok(ys[i] - ys[i - 1] >= 9.5, `starts ${ys[i] - ys[i - 1]}px apart`);
 });
 
-test('a strip much wider than tall is folded into rows when that is clearly better (k8s case)', async () => {
-  const src = fs.readFileSync(path.join(root, 'examples/cases/k8s.trace'), 'utf8');
+test('a chain much wider than tall folds into rows; a zoned strip is only folded when the return link is short', async () => {
+  const src = fs.readFileSync(path.join(root, 'examples/features/fold.after.trace'), 'utf8');
   const res = await compile(src, measure, ELK, {});
   assert.deepStrictEqual(res.errors, []);
-  assert.ok(res.rm.width / res.rm.height < 3.5, `page-shaped (${Math.round(res.rm.width)}x${Math.round(res.rm.height)})`);
+  assert.ok(res.rm.width / res.rm.height < 2.5, `page-shaped (${Math.round(res.rm.width)}x${Math.round(res.rm.height)})`);
+  const strip0 = await compile(src, measure, ELK, { off: ['wrap', 'fold'] });
+  assert.ok(strip0.rm.width / strip0.rm.height > 4, 'a strip without the fold');
   process.env.TRACE_NOFOLD = '1';
-  try { const strip = await compile(src, measure, ELK, {}); assert.ok(strip.rm.width / strip.rm.height > 4, 'a strip without the fold'); } finally { delete process.env.TRACE_NOFOLD; }
+  try { const strip = await compile(src, measure, ELK, { off: ['wrap'] }); assert.ok(strip.rm.width / strip.rm.height > 4, 'a strip without the fold');
+  } finally { delete process.env.TRACE_NOFOLD; }
+  // k8s would fold into a page shape, but with a return link of 900px: the strip is kept
+  const k8s = await compile(fs.readFileSync(path.join(root, 'examples/cases/k8s.trace'), 'utf8'), measure, ELK, {});
+  assert.ok(k8s.rm.width / k8s.rm.height > 4, 'k8s stays a strip rather than get a link that runs the width of the page');
+  try { } finally { delete process.env.TRACE_NOFOLD; }
 });
 
 test('the engine runs where there is no `process` (the page): nothing outside the guarded env reads it', () => {

@@ -113,8 +113,13 @@ column of nodes keep table-level attachment only; a table generated from SQL or 
 - Edge labels in direction down take a whole row; find a placement that sits beside the link.
 - “Call back” links that run backwards into the previous column (k8s: web pods calling svc/cart)
   should loop around the column edge.
-- Done: a strip wider than 3.5:1 is folded into two or three rows when the result is clearly better (less width, no
-  more crossings, at most 15% more bends, no more labels crossed); `foldCandidate`, `TRACE_NOFOLD=1` switches it off.
+- Done: a strip wider than 3.5:1 is retried as two or three rows (`foldCandidate`; `TRACE_NOFOLD=1` or
+  `compile(..., { off: ['fold'] })` switches it off). Kept only when the finished drawing has less width, no more
+  crossings, at most 15% more bends, no more labels crossed and no return link longer than 30% of the width.
+  Analysis: every fold of a chain adds one link that returns to the start of the next row (k8s: 907 px, the
+  hybrid case: 1038 px), so most strips with frames stay strips. The real fix is a snake: alternate rows flowing
+  right to left, so the end of one row sits above the start of the next (ELK has `direction LEFT`; the fixed
+  ports and the frames' insides need to be mirrored with it). Not built.
 - Fan-in to one point (CI “all green?”): optional join/bracket for a column's outgoing links.
 - Done (first version): links that go to or leave one node with the same label and style, four or more, are merged
   into a bus (`mergeHubs`; case `hub`). Branches that cannot run straight to the bus take a free lane of their own. Left: an escape hatch to
