@@ -25,14 +25,14 @@
     "title": "Hybrid cloud: datacenter to AWS",
     "context": "An on-prem datacenter reaches an AWS VPC through a transit gateway, over Direct Connect with an IPsec VPN as backup. Public, private and database subnets; apps still authenticate against on-prem Active Directory.",
     "uses": "Four levels of nesting (region, VPC, subnet tiers) and a transit gateway as a [bridge] on the AWS border, where the datacenter link lands. tgw <- app1 sends the LDAP call back to the datacenter without turning the whole layout around. A column holds the three subnet tiers as bands inside the VPC, the way AWS reference diagrams draw them, and same-width makes the bands one width. The two app nodes and the two databases are rows (siblings across the flow inside the VPC's downward column), so the load balancer's and the apps' links drop straight; Internet users sit in a column above AWS and enter the internet gateway from the top; `same-height dc aws` gives the datacenter and AWS the same top and bottom. Inside the datacenter a column holding a row makes a block that flows down, so its contents run top to bottom and the zone is about as tall as it is wide, in proportion with AWS.",
-    "gap": "The three subnets are as wide as each other but not lined up: inside the VPC's column each is centred on its own links, and same-width cannot move a zone sideways."
+    "gap": "The subnets now share their edges, but the two 8080 links from the load balancer cross on the way down to the app servers."
   },
   {
     "id": "office",
     "title": "Branch office LAN with dual ISPs",
     "context": "Two internet links (fiber and LTE backup), a firewall HA pair, a core switch doing inter-VLAN routing, a TLS-inspecting web proxy for staff, and four access VLANs, with guests isolated and sent straight out.",
     "uses": "Top-down, with the two ISPs and the four VLANs as titled rows; [span] stretches the core switch across all four VLANs. fw <- proxy and fw <- guest send inspected and guest traffic back up to the firewall without breaking the layering. same-width makes the edge, core and access zones one width, so the three tiers line up on both sides.",
-    "gap": "The four trunks jog sideways. The layout engine keeps the core and access frames centred on each other instead of lining the switch up with the VLANs, and Trace only slides a frame back into line when nothing is in the way (here the guest bypass is). The proxy would also sit better beside the firewall, which needs a placement hint."
+    "gap": "The proxy would sit better beside the firewall it sends its egress to; that needs a placement hint (“this node beside that one”). Its link up to the firewall runs the height of the diagram."
   },
   {
     "id": "cicd",
@@ -53,14 +53,14 @@
     "title": "Payment lifecycle",
     "context": "The states a card payment moves through, from creation to capture, refunds, voids and disputes.",
     "uses": "Start dot, rounded states, double-bordered end states and coloured paths; captured <- disputed keeps the “dispute won” loop from flipping the layout.",
-    "gap": "Self-loops (another partial refund) are still small and tucked against the box. A proper loop shape with room for its label is on the list."
+    "gap": "Close to what a careful hand would draw. The self-loop (another partial refund) has its room and its label beside it."
   },
   {
     "id": "data",
     "title": "Analytics platform, sources to dashboards",
     "context": "Operational data arrives by CDC, streaming and SaaS syncs, lands in a lakehouse in bronze, silver and gold layers built by dbt, and feeds BI, ML features and reverse ETL. Airflow schedules the dbt runs; quality checks gate silver.",
     "uses": "Sources, ingestion and consumers as titled columns that line up row for row; bronze and gold are [span] nodes meeting the columns on either side; Airflow’s control links are muted so the data flow stays dominant. Airflow, the quality checks and the alert are a side zone below the pipeline ([side span]): control-plane, beside the data flow instead of in it.",
-    "gap": "Without the lakehouse frame, bronze and gold line up exactly with the columns beside them; with it, the layout engine nudges the frame and the links jog."
+    "gap": "Close to what a careful hand would draw. Airflow’s two dashed links climb into the lakehouse from below, through the gap between the zones."
   },
   {
     "id": "incident",

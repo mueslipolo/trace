@@ -926,6 +926,17 @@ test('logos: beside the technology name with a role icon, in its place without o
   assert.strictEqual(parse('frame f "F" [orange] {\n  a: A\n}').frames.get('f').tags[0], 'orange', 'orange stays a colour');
 });
 
+test('zones stacked in a column share their left edge (hybrid: the three subnets), and same-width then gives them straight sides', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/hybrid.trace'), 'utf8'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const F = id => res.rm.frames.find(f => f.f.id === id);
+  const subnets = ['pub', 'priv', 'dbs'].map(F);
+  for (const f of subnets) {
+    assert.ok(Math.abs(f.x - subnets[0].x) < 0.5, `${f.f.id} starts at ${f.x}, ${subnets[0].f.id} at ${subnets[0].x}`);
+    assert.ok(Math.abs(f.w - subnets[0].w) < 0.5, `${f.f.id} is ${f.w} wide`);
+  }
+});
+
 test('every link is orthogonal: each stretch is horizontal or vertical, in every example and held-out diagram', async () => {
   const holdout = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace')).map(f => 'examples/holdout/' + f);
   for (const file of [...files, ...holdout]) {

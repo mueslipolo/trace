@@ -2850,7 +2850,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       }
       const r = await elk.layout({ id: Fr ? prefix(Fr) + Fr.id : 'root', layoutOptions: opts, children, edges });
       // (not the rows that side zones are built from: spanSides places those zones level with what they serve)
-      if (isLane && dirH && !String(Fr.id).startsWith('_side')) alignRowTops(r, children);
+      if (isLane && !/^_(side|fold)/.test(String(Fr.id))) { if (dirH) alignRowTops(r, children); else alignColumnLefts(r, children); }
       const minW = Fr && !isLane ? Math.ceil(Fr.titleW + 36) : 0;
       const w = Math.max(r.width, minW), dx = (w - r.width) / 2;
       const pos = new Map(r.children.map(c => [c.id, { x: c.x + dx, y: c.y }]));
@@ -2860,9 +2860,10 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     // a row of zones shares its top: ELK's layered placement slides each one up or down to straighten links,
     // which leaves zones side by side at different heights. Every zone goes to the top of the row, and the
     // links between them are drawn again as plain orthogonal routes (the router later takes any blocked one round)
-    function alignRowTops(r, children) {
-      // zones only: a node in the row keeps the place ELK gave it, level with what it links to
-      const zones = r.children.filter(c => /^[FL]:/.test(c.id));
+    function alignRowTops(r, children, framesOnly) {
+      // zones only: a node in the row keeps the place ELK gave it, level with what it links to (in a column,
+      // only frames: rows and columns stacked in a column keep their own centring)
+      const zones = r.children.filter(c => (framesOnly ? /^F:/ : /^[FL]:/).test(c.id));
       if (zones.length < 2) return;
       const top = Math.min(...zones.map(c => c.y));
       const dy = new Map(r.children.map(c => [c.id, zones.includes(c) ? top - c.y : 0]));
@@ -2905,6 +2906,22 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       const ys = r.children.map(c => c.y + c.height);
       for (const ed of r.edges || []) for (const sc of ed.sections || []) ys.push(sc.startPoint.y, sc.endPoint.y, ...(sc.bendPoints || []).map(q => q.y));
       r.height = Math.max(...ys);
+    }
+    // a column of zones shares its left edge: the same as a row, on a mirrored copy (x and y swapped)
+    function alignColumnLefts(r, children) {
+      const SW = { NORTH: 'WEST', WEST: 'NORTH', SOUTH: 'EAST', EAST: 'SOUTH' };
+      const flip = q => { if (!q) return; const { x, y } = q; q.x = y; q.y = x; };
+      const flipBox = b => { flip(b); if (b.width !== undefined) { const w = b.width; b.width = b.height; b.height = w; } };
+      const flipAll = () => {
+        for (const c of r.children) flipBox(c);
+        for (const ed of r.edges || []) { for (const sc of ed.sections || []) { flip(sc.startPoint); flip(sc.endPoint); (sc.bendPoints || []).forEach(flip); } (ed.labels || []).forEach(flipBox); }
+        const w = r.width; r.width = r.height; r.height = w;
+      };
+      const sides = children.map(c => (c.ports || []).map(q => { const o = q.layoutOptions || {}; const was = o['elk.port.side']; if (was) o['elk.port.side'] = SW[was]; return [o, was]; }));
+      flipAll();
+      alignRowTops(r, children, true);
+      flipAll();
+      for (const list of sides) for (const [o, was] of list) if (was) o['elk.port.side'] = was;
     }
     for (const Fr of frames) if (!(await layoutFrame(Fr))) return null;
     if (!(await layoutFrame(null))) return null;
