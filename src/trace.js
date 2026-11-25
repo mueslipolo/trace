@@ -970,9 +970,14 @@ function mergeHubs(rm, MIN = 4) {
     };
     const frameNear = m => rm.frames.some(f => vert ? (Math.abs(m - f.y) < 20 || Math.abs(m - f.y - f.h) < 20) : (Math.abs(m - f.x) < 20 || Math.abs(m - f.x - f.w) < 20));
     const startMax = Math.max(...ok.map(it => M(it.P[0]) * dir)) ;
-    const near = Math.min(startMax + 24, endM * dir - TRUNK);
-    let plan = [], busM = endM - dir * TRUNK;
-    for (let m = near; m <= endM * dir - TRUNK + 0.1; m += 6) {
+    // the side of the bus that carries the arrowheads needs room for them (30px); the other side 16px
+    const e0 = ok[0].r.e, arrowAtHub = role === 'b' ? !!e0.end : !!e0.start;
+    const TR = arrowAtHub ? 30 : 16, BR = arrowAtHub ? 16 : 30;
+    if (endM * dir - startMax < TR + BR) continue;
+    const near = startMax + Math.min(BR + 10, endM * dir - startMax - TR);
+    const far = endM * dir - Math.min(TR + 6, endM * dir - startMax - BR);
+    let plan = [], busM = near * dir;
+    for (let m = near; m <= far + 0.1; m += 6) {
       const bm = m * dir;
       if (frameNear(bm)) continue;
       const pl = build(bm);
