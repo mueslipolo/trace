@@ -16,10 +16,14 @@ const cases = fs.readdirSync(dir).filter(f => f.endsWith('.trace')).sort().map(f
   const mermaid = fs.readFileSync(mmdPath, 'utf8');
   const title = (trace.match(/^title\s+"([^"]*)"/m) || [, id])[1];
   const origin = (trace.match(/^#\s*(.*)$/m) || [, ''])[1];
+  // the Mermaid files written for this page say so on their first line; the others are the originals
+  const written = /^%%\s*Written for comparison/.test(mermaid);
   const converted = /^Converted with/.test(origin);
-  const context = converted
-    ? origin.replace(/^Converted with tools\/mermaid-to-trace\.js from /, 'From ').replace(/; original in .*$/, '') + '. The Mermaid side is the original; the Trace side is converted from it with no layout help.'
-    : origin.replace(/^Adapted from /, 'From ') + '. The Trace side is adapted by hand with no layout help; the Mermaid side is a flowchart written from the same nodes and links.';
+  const from = origin.replace(/^Converted with tools\/mermaid-to-trace\.js from /, 'From ').replace(/; original in .*$/, '').replace(/^Adapted from /, 'From ');
+  const traceSide = converted ? 'the Trace side is converted from it with no layout help' : 'the Trace side is adapted by hand with no layout help';
+  const context = written
+    ? `${from}. The Trace side is adapted by hand with no layout help; the Mermaid side is a flowchart written from the same nodes and links.`
+    : `${from}. The Mermaid side is the original; ${traceSide}.`;
   return { id, title, context, trace, mermaid };
 });
 
