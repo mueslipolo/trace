@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const ELK = require('elkjs/lib/elk.bundled.js');
-const { compile, parse } = require('../src/trace.js');
+const { compile, parse, FONT_NOTE } = require('../src/trace.js');
 const { measure } = require('../tools/measure.js');
 
 const root = path.join(__dirname, '..');
@@ -903,6 +903,27 @@ test('mark: errors say what to write', () => {
   assert.match(err('frame f "F" {\n  a: A\n}\nb: B\nb -> a\nmark f [flag] "x"'), /takes a node, not a frame/);
   assert.match(err('a: A\nb [flag]: B\na -> b\nmark b [nosuchicon] "x"'), /no icon called "nosuchicon"/);
   assert.deepStrictEqual(parse('mark: Mark\nmark -> b').errors, [], 'a node called mark still works');
+});
+
+test('logos: beside the technology name with a role icon, in its place without one, before a zone title; errors say what to write', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'test/fixtures/logos.trace'), 'utf8'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  assert.deepStrictEqual(res.warnings, []);
+  const N = id => res.rm.nodes.find(n => n.id === id);
+  assert.ok(N('pg').logoSmall && N('pg').note === 'PostgreSQL', 'a node with a role icon and no note gets the technology name as its note');
+  assert.ok(N('cache').logoSmall && N('cache').note === 'Redis · sessions, 1 h', 'a note of its own comes after the technology name');
+  assert.ok(N('api').logoMain, 'no role icon: the logo takes its place');
+  assert.ok(N('events').logoSmall && N('events').note === 'Apache Kafka', 'kafka is the short name of apachekafka');
+  assert.strictEqual((res.svg.match(/class="logo-soft"/g) || []).length, 6 + 1, 'six small logos and the zone');
+  assert.strictEqual((res.svg.match(/class="logo"/g) || []).length, 2, 'two logos in the icon place');
+  // the logo and its text fit in the box
+  for (const n of res.rm.nodes.filter(n => n.logoSmall)) assert.ok(measure(n.noteLines[0], FONT_NOTE) + 15 <= n.w - 2 * n.padX - 30 + 0.5, `${n.id}: the note and its logo fit`);
+  const err = src => (parse(src).errors[0] || {}).msg || '';
+  assert.match(err('a [postgresqll]: A'), /technology such as postgresql/);
+  assert.deepStrictEqual(parse('a [vault]: A').errors, [], 'vault is a Lucide icon');
+  assert.strictEqual(parse('a [vault]: A').nodes.get('a').icon, 'vault');
+  assert.strictEqual(parse('a [logo/vault]: A').nodes.get('a').logo, 'logo/vault');
+  assert.strictEqual(parse('frame f "F" [orange] {\n  a: A\n}').frames.get('f').tags[0], 'orange', 'orange stays a colour');
 });
 
 test('every link is orthogonal: each stretch is horizontal or vertical, in every example and held-out diagram', async () => {

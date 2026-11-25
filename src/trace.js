@@ -61,16 +61,53 @@ function withIcon(line, name) {
 }
 async function loadIcons(model, loader) {
   const need = [...new Set([...[...model.nodes.values()].map(n => n.icon), ...(model.marks || []).map(k => k.icon)].filter(i => i && !iconSvg(i)).map(lucideName))];
+  const logos = [...new Set([...[...model.nodes.values()].map(n => n.logo), ...[...model.frames.values()].map(f => f.logo)].filter(i => i && !logoData(i)).map(logoName))];
   const failed = [];
-  await Promise.all(need.map(async name => {
+  await Promise.all([...need.map(async name => {
     try { if (!(await loadIcon(name, loader))) throw new Error('no drawing'); } catch (e) { failed.push(name); }
-  }));
+  }), ...logos.map(async name => {
+    try { if (!(await loadLogo(name))) throw new Error('no drawing'); } catch (e) { failed.push(name); }
+  })]);
   return failed;
 }
 async function defaultIconLoader(name) {
   if (IN_NODE) { const all = require('./lucide.js'); return all[name] ? `<svg>${all[name]}</svg>` : null; }
   const r = await fetch(ICON_CDN + name + '.svg');
   return r.ok ? r.text() : null;
+}
+// Technology logos (Simple Icons, CC0; trademarks of their owners), written like icons: [postgresql].
+// A name that is also a Lucide icon or a Trace tag keeps that meaning; `logo/name` always means the logo.
+// The common ones ship with the engine; any other is taken from simple-icons in Node, fetched in a page.
+const LOGO_CORE = IN_NODE ? require('./logo-core.js') : LOGO_CORE_DATA;
+const LOGO_NAMES = new Set(IN_NODE ? require('./logo-names.js') : LOGO_NAME_LIST);
+const LOGO_LOADED = new Map();
+const LOGO_ALIASES = {
+  kafka: 'apachekafka', postgres: 'postgresql', k8s: 'kubernetes', node: 'nodedotjs', nodejs: 'nodedotjs', vue: 'vuedotjs',
+  mongo: 'mongodb', elastic: 'elasticsearch', gcp: 'googlecloud', otel: 'opentelemetry', golang: 'go', ts: 'typescript',
+  js: 'javascript', 'hashicorp-vault': 'vault', traefik: 'traefikproxy', argocd: 'argo',
+  // Java's own logo is not available (its owner had it removed): OpenJDK's stands in, and says so in the note
+  java: 'openjdk', httpd: 'apache',
+};
+const LOGO_CDN = 'https://cdn.jsdelivr.net/npm/simple-icons@16.37.0/icons/';
+const LOGO_SMALL = 11;               // a logo beside the technology's name, in the note line
+function logoName(name) { const n = name.startsWith('logo/') ? name.slice(5) : name; return LOGO_ALIASES[n] || n; }
+function logoKnown(name) { return LOGO_NAMES.has(logoName(name)); }
+// a tag is a logo when it says so, or when it is no icon (nor tag) and is a logo's name
+function isLogoTag(t) { return t.startsWith('logo/') ? logoKnown(t) : !iconKnown(t) && logoKnown(t); }
+function logoData(name) { const l = logoName(name); return LOGO_CORE[l] || LOGO_LOADED.get(l) || null; }
+async function loadLogo(name) {
+  const l = logoName(name);
+  if (LOGO_CORE[l] || LOGO_LOADED.has(l)) return logoData(name);
+  let t = null, d = null;
+  if (IN_NODE) {
+    try { const x = Object.values(require('simple-icons')).find(i => i && i.slug === l); if (x) { t = x.title; d = x.path; } } catch (e) { /* not installed */ }
+  } else {
+    const r = await fetch(LOGO_CDN + l + '.svg');
+    if (r.ok) { const svg = await r.text(); t = (/<title>([^<]*)<\/title>/.exec(svg) || [])[1] || l; d = (/<path[^>]* d="([^"]+)"/.exec(svg) || [])[1]; }
+  }
+  if (!d) return null;
+  LOGO_LOADED.set(l, { t, d });
+  return LOGO_LOADED.get(l);
 }
 function editDistance(a, b) {
   let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
@@ -90,8 +127,13 @@ function iconHint(name) {
 }
 // the tags a node accepts: the fixed ones, `top`, and any icon name
 const NODE_TAG_SET = {
-  has: t => NODE_TAGS.has(t) || t === 'top' || iconKnown(t),
-  hint: t => `Unknown tag "${t}" on a node. Use ${[...NODE_TAGS, 'top'].join(', ')}, or an icon name such as database, server, user, firewall.${iconHint(t)}`,
+  has: t => NODE_TAGS.has(t) || t === 'top' || iconKnown(t) || isLogoTag(t),
+  hint: t => `Unknown tag "${t}" on a node. Use ${[...NODE_TAGS, 'top'].join(', ')}, an icon name such as database, server, user, firewall, or a technology such as postgresql, kafka, kubernetes.${iconHint(t)}`,
+};
+// a frame takes its colour and side tags, and a technology's logo (shown before its title)
+const FRAME_TAG_SET = {
+  has: t => SIDE_FRAME_TAGS.has(t) || isLogoTag(t),
+  hint: t => `Unknown tag "${t}" on a frame. Use ${[...SIDE_FRAME_TAGS].join(', ')}, or a technology such as kubernetes, googlecloud.`,
 };
 
 const COL_MARKS = new Set(['pk', 'fk', 'unique', 'null']);
@@ -354,7 +396,9 @@ function parse(src) {
         model.groups.splice(model.groups.indexOf(parent), 1);
       }
       if (kind === 'frame') {
-        let { rest, tags } = takeTags(hm[2], SIDE_FRAME_TAGS, 'frame');
+        let { rest, tags } = takeTags(hm[2], FRAME_TAG_SET, 'frame');
+        const flogo = tags.find(t => !SIDE_FRAME_TAGS.has(t));
+        tags = tags.filter(t => SIDE_FRAME_TAGS.has(t));
         let title = '';
         const qm = rest.match(/"([^"]*)"\s*$/);
         if (qm) { title = qm[1]; rest = rest.slice(0, qm.index).trim(); }
@@ -369,6 +413,7 @@ function parse(src) {
           model.nodes.delete(id);
         }
         const f = { type: 'frame', id, title: title || (id.startsWith('_') ? '' : id), tags, items: [], parent, line: ln };
+        if (flogo) f.logo = flogo;
         model.frames.set(id, f);
         parent.items.push(f);
         stack.push(f);
@@ -418,8 +463,8 @@ function parse(src) {
     // node declaration
     let { rest, tags } = takeTags(lhs.trim(), NODE_TAG_SET, 'a node');
     if (label) { const lt = labelTags(label, NODE_TAG_SET); label = lt.label; tags = tags.concat(lt.tags); }
-    let icon = null, iconTop = false;
-    tags = tags.filter(t => { if (t === 'top') { iconTop = true; return false; } if (!NODE_TAGS.has(t)) { icon = t; return false; } return true; });
+    let icon = null, iconTop = false, logo = null;
+    tags = tags.filter(t => { if (t === 'top') { iconTop = true; return false; } if (!NODE_TAGS.has(t)) { if (isLogoTag(t)) logo = t; else icon = t; return false; } return true; });
     const words = rest.split(/\s+/).filter(Boolean);
     let kind = null, id;
     if (words.length === 2 && KINDS.has(words[0])) { kind = words[0]; id = words[1]; }
@@ -436,7 +481,8 @@ function parse(src) {
     if (label !== null) Object.assign(n, splitLabel(label));
     n.tags = [...new Set(n.tags.concat(tags))];
     if (icon) n.icon = icon;
-    if (iconTop) { if (!n.icon) throw new TraceError('"top" places an icon above the text, so give the node an icon: db [database top]: Orders'); n.iconTop = true; }
+    if (logo) n.logo = logo;
+    if (iconTop) { if (!n.icon && !n.logo) throw new TraceError('"top" places an icon above the text, so give the node an icon: db [database top]: Orders'); n.iconTop = true; }
     if (n.implicit || n.parent !== cur()) placeNode(n, cur());
     n.implicit = false;
     n.line = ln;
@@ -635,6 +681,11 @@ function sizeNode(n, measure) {
     n.w = n.barV ? 6 : L; n.h = n.barV ? L : 6; n.nameLines = []; n.noteLines = []; n.textH = 0; n.ports = []; return;
   }
   n.nameLines = n.name ? wrap(n.name, FONT_NAME, 210, measure) : [];
+  // with a role icon and a logo, the note starts with the technology's name ("Redis · sessions, 1 h"), so the
+  // logo before it always stands beside its name; the note as written is kept for the next sizing
+  if (n.noteWritten === undefined) n.noteWritten = n.note || '';
+  const lg = n.logo && n.icon && n.kind !== 'table' ? logoData(n.logo) : null;
+  n.note = lg && iconSvg(n.icon) ? (!n.noteWritten ? lg.t : n.noteWritten.toLowerCase().startsWith(lg.t.toLowerCase()) ? n.noteWritten : `${lg.t} · ${n.noteWritten}`) : n.noteWritten;
   n.noteLines = n.note ? wrap(n.note, FONT_NOTE, 230, measure) : [];
   const tw = Math.max(0, ...n.nameLines.map(l => measure(l, FONT_NAME)), ...n.noteLines.map(l => measure(l, FONT_NOTE)));
   n.textH = n.nameLines.length * 16 + n.noteLines.length * 14;
@@ -642,10 +693,16 @@ function sizeNode(n, measure) {
   const padX = (n.kind === 'ask' || n.kind === 'pill') ? 24 : 15;
   n.padX = padX;
   n.iconMarkup = n.icon ? iconSvg(n.icon) : null;
-  const slot = n.iconMarkup && !n.iconTop ? ICON_SIZE + 8 : 0;
+  // a logo: in the icon's place when there is no icon, else small, before the technology's name in the note
+  n.logoD = n.logo ? (logoData(n.logo) || {}).d || null : null;
+  n.logoMain = !!(n.logoD && !n.iconMarkup);
+  n.logoSmall = !!(n.logoD && n.iconMarkup);
+  const tw2 = n.logoSmall ? Math.max(0, ...n.nameLines.map(l => measure(l, FONT_NAME)), ...n.noteLines.map((l, i) => measure(l, FONT_NOTE) + (i ? 0 : LOGO_SMALL + 4))) : 0;
+  if (n.logoSmall) { n.textH = n.nameLines.length * 16 + n.noteLines.length * 14; n._noteW = measure(n.noteLines[0], FONT_NOTE); }
+  const slot = (n.iconMarkup || n.logoMain) && !n.iconTop ? ICON_SIZE + 8 : 0;
   n.markW = n.marks && n.marks.length ? n.marks.length * (MARK_SIZE + 5) + 3 : 0;
-  n.w = even(Math.max(72, tw + 2 * padX + slot + n.markW));
-  n.h = even(Math.max(36, n.textH + 16 + (n.iconMarkup && n.iconTop ? ICON_SIZE + 4 : 0)));
+  n.w = even(Math.max(72, Math.max(tw, tw2) + 2 * padX + slot + n.markW));
+  n.h = even(Math.max(36, n.textH + 16 + ((n.iconMarkup || n.logoMain) && n.iconTop ? ICON_SIZE + 4 : 0)));
   if (n.kind === 'final') { n.w += 8; n.h += 8; }
 }
 
@@ -2191,7 +2248,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   const sidesFor = fh => ({ IN: fh ? 'WEST' : 'NORTH', OUT: fh ? 'EAST' : 'SOUTH', PIN: fh ? 'NORTH' : 'WEST', POUT: fh ? 'SOUTH' : 'EAST' });
   for (const n of model.nodes.values()) if (n.kind === 'junction') n.barV = model.direction === 'RIGHT';
   for (const n of model.nodes.values()) sizeNode(n, measure);
-  for (const f of model.frames.values()) f.titleW = f.title ? measure(f.title, FONT_TITLE) : 0;
+  for (const f of model.frames.values()) { f.textW = f.title ? measure(f.title, FONT_TITLE) : 0; f.titleW = f.textW + (f.logo && f.title && logoData(f.logo) ? 16 : 0); }
 
   const groupOf = id => {
     const n = model.nodes.get(id);
@@ -3686,6 +3743,7 @@ function diagramCSS(p, scope) {
     `${s}.tframe.ok{stroke:${p.ok};stroke-width:1.6}${s}.tframe.bad{stroke:${p.bad};stroke-width:1.6}${s}.tframe.muted{stroke:${p.soft}}` +
     `${s}.mk{font-size:9px;font-weight:700;letter-spacing:.03em}${s}.cn{font-size:12px;font-weight:400}${s}.cn.pk{font-weight:700}${s}.ct{font-size:11px}` +
     `${s}.ico{fill:none;stroke:${p.line};stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}` +
+    `${s}.logo{fill:${p.line};stroke:none}${s}.logo-soft{fill:${p.muted};stroke:none}` +
     `${s}.mki{fill:none;stroke:${p.muted};stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}` +
     `${s}.zone{stroke-width:1}${z}` +
     `${s}.arrow{fill:none;stroke:${p.line};stroke-width:1.2}${s}.arrow.ok{stroke:${p.ok}}${s}.arrow.bad{stroke:${p.bad}}${s}.arrow.muted{stroke:${p.soft}}` +
@@ -3789,11 +3847,13 @@ function nodeSVG(n) {
   }
   let cx = r1(x + w / 2);
   let top = y + (h - n.textH) / 2;
-  if (n.iconMarkup) {
+  if (n.iconMarkup || n.logoMain) {
     let ix, iy;
     if (n.iconTop) { iy = y + (h - n.textH - ICON_SIZE - 4) / 2; ix = x + w / 2 - ICON_SIZE / 2; top = iy + ICON_SIZE + 4; }
     else { ix = x + n.padX; iy = y + (h - ICON_SIZE) / 2; cx = r1(x + n.padX + ICON_SIZE + 8 + (w - 2 * n.padX - ICON_SIZE - 8) / 2); }
-    out.push(`<g class="ico" transform="translate(${r1(ix)} ${r1(iy)}) scale(${r1(ICON_SIZE / 24 * 1000) / 1000})">${n.iconMarkup}</g>`);
+    // a filled logo reads heavier than a line icon: drawn a little smaller, in the same slot
+    if (n.iconMarkup) out.push(`<g class="ico" transform="translate(${r1(ix)} ${r1(iy)}) scale(${r1(ICON_SIZE / 24 * 1000) / 1000})">${n.iconMarkup}</g>`);
+    else out.push(`<g class="logo" transform="translate(${r1(ix + 1.5)} ${r1(iy + 1.5)}) scale(${r1((ICON_SIZE - 3) / 24 * 1000) / 1000})"><path d="${n.logoD}"/></g>`);
   }
   // marks: their icons stand after the name, at the right of the box; the text centres in what is left
   if (n.markW) {
@@ -3807,7 +3867,15 @@ function nodeSVG(n) {
     }
   }
   for (const l of n.nameLines) { out.push(`<text class="name fg" x="${cx}" y="${r1(top + 12.5)}" text-anchor="middle">${esc(l)}</text>`); top += 16; }
-  for (const l of n.noteLines) { out.push(`<text class="note muted" x="${cx}" y="${r1(top + 10.5)}" text-anchor="middle">${esc(l)}</text>`); top += 14; }
+  n.noteLines.forEach((l, i) => {
+    // the small logo and the technology's name are centred together, the logo on the text's middle
+    if (i === 0 && n.logoSmall) {
+      const tw = n._noteW || 0, gx = cx - (tw + LOGO_SMALL + 4) / 2;
+      out.push(`<g class="logo-soft" transform="translate(${r1(gx)} ${r1(top + 10.5 - 4 - LOGO_SMALL / 2)}) scale(${r1(LOGO_SMALL / 24 * 1000) / 1000})"><path d="${n.logoD}"/></g>`);
+      out.push(`<text class="note muted" x="${r1(gx + LOGO_SMALL + 4)}" y="${r1(top + 10.5)}">${esc(l)}</text>`);
+    } else out.push(`<text class="note muted" x="${cx}" y="${r1(top + 10.5)}" text-anchor="middle">${esc(l)}</text>`);
+    top += 14;
+  });
   return out.join('');
 }
 
@@ -3893,7 +3961,13 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
         sp = out.find(clear);
       }
       sp = sp || spots[0];
-      body.push(`<text class="ztitle muted" x="${r1(sp.x)}" y="${r1(sp.y)}" text-anchor="${sp.a}">${esc(fr.f.title)}</text>`);
+      const zl = fr.f.logo && logoData(fr.f.logo);
+      if (zl) {
+        // the logo before the title, both in the title's grey
+        const tx0 = sp.a === 'end' ? sp.x - (fr.f.textW || tw - 16) : sp.x + 16;
+        body.push(`<g class="logo-soft" transform="translate(${r1(tx0 - 16)} ${r1(sp.y - 10)}) scale(${r1(12 / 24 * 1000) / 1000})"><path d="${zl.d}"/></g>`);
+        body.push(`<text class="ztitle muted" x="${r1(tx0)}" y="${r1(sp.y)}">${esc(fr.f.title)}</text>`);
+      } else body.push(`<text class="ztitle muted" x="${r1(sp.x)}" y="${r1(sp.y)}" text-anchor="${sp.a}">${esc(fr.f.title)}</text>`);
     }
   }
   for (const rl of rm.rails || []) {

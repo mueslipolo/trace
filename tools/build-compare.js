@@ -33,7 +33,7 @@ let page = fs.readFileSync(path.join(root, 'playground/compare-template.html'), 
 page = page
   .replace('@@NAV@@', () => nav)
   .replace('@@OPTIONS@@', () => options)
-  .replace('/*CORE*/', () => ['lucide-core', 'lucide-names', 'trace'].map(n => fs.readFileSync(path.join(root, 'src', n + '.js'), 'utf8')).join('\n'))
+  .replace('/*CORE*/', () => ['lucide-core', 'lucide-names', 'logo-core', 'logo-names', 'trace'].map(n => fs.readFileSync(path.join(root, 'src', n + '.js'), 'utf8')).join('\n'))
   .replace('/*CASES*/', () => 'const CASES = ' + JSON.stringify(cases).replace(/</g, '\\u003c') + ';');
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist/compare.html'), page);

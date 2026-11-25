@@ -126,15 +126,33 @@ Links keep clear of frame borders by themselves (a stretch within 8px of a borde
 cases stay: a link that leaves its node already running along a border, and a link between two nodes that
 both sit on the same border.
 
-## 7. Things that are not layout, and are always worth doing
+## 7. Many links into one node
+
+Ten links into one node read as a tangle. Three answers, from the least to the most written:
+
+- **Same label, nothing to write:** four or more links with the same label and style to or from one node are
+  drawn as one bus, the label written once.
+- **Put the senders in a zone:** when five or more of them stand in one zone the node is not in (the services
+  that all validate a token, the devices behind one switch), the engine gathers them on a bar inside the zone,
+  and only one link crosses its edge. A zone round the group, and a `row` or `column` so the members line up
+  along the bar, is often all it takes (the home network case).
+- **`mark` the node** when the links say no more than “uses it” and it is not what the diagram is about
+  (feature flags, a shared library): the links are no longer drawn, each sender carries the node's icon, and
+  a legend line explains it. Not for a node whose links carry their own labels, nor for the subject of the
+  diagram.
+
+## 8. Things that are not layout, and are always worth doing
 
 - **Ports and protocols on the links**: `lb -> fw2 : 443/tcp`. They cost nothing and make a network
   diagram worth reading.
 - **Icons** for recognisable elements, left of the text; `top` for tall, narrow nodes. Not on
   decisions or states.
+- **Technology logos** when the reader cares what a part is built with: `[database postgresql]` keeps the
+  role icon and writes “PostgreSQL” with its logo under the name; `[kubernetes]` on a zone. A logo alone
+  (`[go]`) when the technology is the point.
 - **Frames named for what they are**, with the address range or owner in the title.
 
-## 8. Checklist
+## 9. Checklist
 
 1. Write the plain version and look at it.
 2. Pick the direction (down for tiers, right for pipelines).
@@ -142,7 +160,8 @@ both sit on the same border.
 4. Let zones follow the flow; tag borders with `[bridge]`.
 5. Only then add layout blocks, and only for what the flow cannot do.
 6. Check the shape: roughly page-shaped, links straight, no detours.
-7. Add labels, ports and icons.
+7. Many links into one node: give them one label, gather the senders in a zone, or `mark` the node.
+8. Add labels, ports, icons and logos.
 
 ## The DMZ, step by step
 
