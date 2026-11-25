@@ -73,8 +73,8 @@
     "id": "hub",
     "title": "Microservices sharing one identity provider",
     "context": "A web and a mobile app reach seven services through a gateway; every one of them, the gateway and both apps also check a token with the same identity provider.",
-    "uses": "Icons and one zone, nothing else on purpose. Both fans are merged automatically and built inside the services zone: the gateway sends one link in and branches out just inside the edge; the seven services gather on one line just inside the other edge and send one “validate token” link to the provider. The gateway’s own token check, from outside the zone, stays a link of its own.",
-    "gap": "The gateway’s branches step a little to reach Billing and Catalog, and the two login links still go round the outside to the provider."
+    "uses": "Icons and one zone, nothing else on purpose. Both fans are gathered automatically on a bar inside the services zone: the gateway’s link enters a bar on the left, which feeds every service in a straight line; every service feeds a bar on the right, which sends one “validate token” link to the provider. The gateway’s own token check, from outside the zone, stays a link of its own.",
+    "gap": "Search stands in front of Catalog, so their links to the right bar go round each other in the middle of the zone; the two login links still go round the outside."
   },
   {
     "id": "oauth",

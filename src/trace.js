@@ -629,7 +629,11 @@ function sizeTable(n, measure) {
 function sizeNode(n, measure) {
   if (n.kind === 'table') return sizeTable(n, measure);
   if (n.kind === 'start') { n.w = 18; n.h = 18; n.nameLines = []; n.noteLines = []; return; }
-  if (n.kind === 'junction') { n.w = 8; n.h = 8; n.nameLines = []; n.noteLines = []; n.textH = 0; return; }
+  if (n.kind === 'junction') {
+    // a bar as long as its links need, 14px apart; it runs across the flow (flowH: set by the layout)
+    const L = Math.max(28, (n.links - 1) * 14 + 14);
+    n.w = n.barV ? 6 : L; n.h = n.barV ? L : 6; n.nameLines = []; n.noteLines = []; n.textH = 0; n.ports = []; return;
+  }
   n.nameLines = n.name ? wrap(n.name, FONT_NAME, 210, measure) : [];
   n.noteLines = n.note ? wrap(n.note, FONT_NOTE, 230, measure) : [];
   const tw = Math.max(0, ...n.nameLines.map(l => measure(l, FONT_NAME)), ...n.noteLines.map(l => measure(l, FONT_NOTE)));
@@ -1022,14 +1026,14 @@ function rerouteBlocked(rm, force) {
     // a stub long enough that the turn after it is not on a frame border
     const stubOut = (p, dx, dy) => { for (const L of [12, 20, 28, 36, 44]) { const q = { x: p.x + dx * L, y: p.y + dy * L }; if (!(dx ? nearB(q.x, true) : nearB(q.y, false))) return q; } return { x: p.x + dx * 12, y: p.y + dy * 12 }; };
     // a start that would send the link up along a frame border slides along its side, away from it
-    if (!S.cols && !S.span) {
+    if (!S.cols && !S.span && S.kind !== 'junction') {
       const along = dy0 ? 'x' : 'y', lo = (dy0 ? S.x : S.y) + 8, hi = (dy0 ? S.x + S.w : S.y + S.h) - 8;
       if (nearB(p0[along], !!dy0)) for (const k of [16, -16, 28, -28, 40, -40]) { const v = p0[along] + k; if (v >= lo && v <= hi && !nearB(v, !!dy0)) { p0 = { ...p0, [along]: v }; break; } }
     }
     const s1 = stubOut(p0, dx0, dy0);
     // it may also leave from the middle of another side of its source (a little dearer than where it was)
     const starts = [{ p: p0, s: s1, d: [dx0, dy0], extra: 0 }];
-    if (!S.cols && !S.span) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+    if (!S.cols && !S.span && S.kind !== 'junction') for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
       if (dx === dx0 && dy === dy0) continue;
       const p = { x: dx < 0 ? S.x : dx > 0 ? S.x + S.w : S.x + S.w / 2, y: dy < 0 ? S.y : dy > 0 ? S.y + S.h : S.y + S.h / 2 };
       if (nearB(dx ? p.y : p.x, !dx)) continue;
@@ -1039,11 +1043,12 @@ function rerouteBlocked(rm, force) {
     // where it may arrive: the middle of each side of the target, or level with where it leaves (a straight
     // link when the two overlap); a table or a span node keeps the attachment point it was given
     const pend = r.pts[r.pts.length - 1];
-    const sides = T.cols || T.span ? [sideOf(T, pend)] : [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    // a table, a span node or a concentrator keeps the place the link was given on it
+    const sides = T.cols || T.span || T.kind === 'junction' ? [sideOf(T, pend)] : [[-1, 0], [1, 0], [0, -1], [0, 1]];
     const ports = [];
     for (const [dx, dy] of sides) {
       const cands = [];
-      if (T.cols || T.span) cands.push({ ...pend });
+      if (T.cols || T.span || T.kind === 'junction') cands.push({ ...pend });
       else {
         cands.push({ x: dx < 0 ? T.x : dx > 0 ? T.x + T.w : T.x + T.w / 2, y: dy < 0 ? T.y : dy > 0 ? T.y + T.h : T.y + T.h / 2 });
         if (dy && p0.x > T.x + 10 && p0.x < T.x + T.w - 10) cands.push({ x: p0.x, y: dy < 0 ? T.y : T.y + T.h });
@@ -1052,7 +1057,7 @@ function rerouteBlocked(rm, force) {
       // a side where other links already arrive costs more: arrowheads side by side read as one
       const ends = rm.edges.filter(o => o !== r && o.pts && o.pts.length > 1).flatMap(o => [o.pts[0], o.pts[o.pts.length - 1]]).filter(q => dx ? Math.abs(q.x - (dx < 0 ? T.x : T.x + T.w)) < 2 && q.y > T.y - 1 && q.y < T.y + T.h + 1 : Math.abs(q.y - (dy < 0 ? T.y : T.y + T.h)) < 2 && q.x > T.x - 1 && q.x < T.x + T.w + 1);
       // and where one already arrives, the new one takes a quarter of the side away from it
-      if (ends.length && !T.cols && !T.span) {
+      if (ends.length && !T.cols && !T.span && T.kind !== 'junction') {
         cands.length = 0;
         for (const k of [0.25, 0.75]) {
           const p = dx ? { x: dx < 0 ? T.x : T.x + T.w, y: T.y + T.h * k } : { x: T.x + T.w * k, y: dy < 0 ? T.y : T.y + T.h };
@@ -1060,7 +1065,7 @@ function rerouteBlocked(rm, force) {
         }
       }
       // and not where the link would run along a frame border
-      for (const p of cands) if (T.cols || T.span || !nearB(dx ? p.y : p.x, !dx)) ports.push({ p, q: stubOut(p, dx, dy), d: [dx, dy], extra: ends.length * 150 });
+      for (const p of cands) if (T.cols || T.span || T.kind === 'junction' || !nearB(dx ? p.y : p.x, !dx)) ports.push({ p, q: stubOut(p, dx, dy), d: [dx, dy], extra: ends.length * 150 });
     }
     const xs = new Set([...starts.map(o => o.s.x), ...ports.map(o => o.q.x)]), ys = new Set([...starts.map(o => o.s.y), ...ports.map(o => o.q.y)]);
     for (const b of others.concat([S, T])) { xs.add(b.x - M - 2); xs.add(b.x + b.w + M + 2); ys.add(b.y - M - 2); ys.add(b.y + b.h + M + 2); }
@@ -1150,7 +1155,9 @@ function reorderEnds(rm) {
   const cross = (P, Q) => { let n = 0; for (let i = 1; i < P.length; i++) for (let j = 1; j < Q.length; j++) if (X(P[i - 1], P[i], Q[j - 1], Q[j]) || OV(P[i - 1], P[i], Q[j - 1], Q[j])) n++; return n; };
   const perms = a => a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(p => [x, ...p]));
   // a merged link takes part at the far end of its branch, where its end is an ordinary arrow; its bus stays put
-  const live = rm.edges.filter(r => r.pts && r.pts.length > 1 && !r.e.rail && !r.e.lifeline && !r.e.divider && r.e.a !== r.e.b);
+  // links on a concentrator were put in order when they were placed on it
+  const onBar = r => rm.nodes.some(n => n.kind === 'junction' && (n.id === r.e.a || n.id === r.e.b));
+  const live = rm.edges.filter(r => r.pts && r.pts.length > 1 && !r.e.rail && !r.e.lifeline && !r.e.divider && r.e.a !== r.e.b && !onBar(r));
   // points in a straight line are dropped first: moving an end moves the next point too, which must be a corner
   for (const r of live) if (r.pts.length > 2) r.pts = simplifyPts(r.pts);
   const orthogonal = q => q.every((p, i) => !i || eq(p.x, q[i - 1].x) || eq(p.y, q[i - 1].y));
@@ -1323,7 +1330,8 @@ function mergeHubs(rm, MIN = 4) {
     const mk = (m, c) => vert ? { x: c, y: m } : { x: m, y: c };
     const last = items.find(it => sideOf(it.P[it.P.length - 1]) === side).P;
     // a junction is a point on its own bus: the bus line runs through it
-    const J = hub.kind === 'junction';
+    if (hub.kind === 'junction') continue;
+    const J = false;
     const endM = J ? M({ x: hub.x + hub.w / 2, y: hub.y + hub.h / 2 }) : M(last[last.length - 1]);
     const trunkC = vert ? hub.x + hub.w / 2 : hub.y + hub.h / 2;
     // a bus and its branches keep 6px clear of every node they do not serve, like any link
@@ -1798,7 +1806,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); return rm; };
+  const finish = rm => { placeOnConcentrators(rm); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -1851,6 +1859,7 @@ function addJunctions(model) {
     list.splice(0, list.length, ...list.filter(e => { const x = model.nodes.get(e[other]); return x && !x.span && inF(x); }));
     // a fan-in gathers where the zone is left, a fan-out spreads where it is entered
     const j = { type: 'node', id: '_junction' + (++n), kind: 'junction', name: '', note: '', tags: [], parent: F, line: list[0].line, junction: role === 'b' ? 'last' : 'first' };
+    j.links = list.length;
     F.items.push(j);
     model.nodes.set(j.id, j);
     const e0 = list[0];
@@ -1866,6 +1875,99 @@ function addJunctions(model) {
       used.add(e);
     }
     model.edges.push(trunk);
+  }
+}
+
+// Links on a concentrator: in the order their other ends lie, 14px apart, centred on its one link, each
+// arriving straight; the step of each link stands beside the concentrator, staggered so that none cross.
+function placeOnConcentrators(rm) {
+  for (const j of rm.nodes.filter(n => n.kind === 'junction' && n.x !== undefined)) {
+    const vert = !!j.barV;                    // links arrive on the left or right side
+    const A = vert ? 'y' : 'x', B = vert ? 'x' : 'y', S = vert ? 'h' : 'w', Bs = vert ? 'w' : 'h';
+    const fanIn = j.junction === 'last';
+    const mine = rm.edges.filter(r => r.pts && (r.e.a === j.id || r.e.b === j.id));
+    const one = mine.find(r => r.e.trunk);
+    const many = mine.filter(r => r !== one);
+    const c = j[A] + j[S] / 2;
+    // the wide side faces the many links: left (or top) for a fan-in, right (or bottom) for a fan-out
+    const wide = fanIn ? j[B] : j[B] + j[Bs], narrow = fanIn ? j[B] + j[Bs] : j[B];
+    const dir = fanIn ? -1 : 1;                    // from the wide side toward the members
+    const other = r => rm.nodes.find(n => n.id === (r.e.a === j.id ? r.e.b : r.e.a));
+    const items = many.map(r => ({ r, n: other(r) })).filter(x => x.n && x.n.x !== undefined);
+    items.sort((a, b) => (a.n[A] + a.n[S] / 2) - (b.n[A] + b.n[S] / 2));
+    // each link arrives level with its member, so it runs straight; two members at nearly the same level
+    // share out the room 14px apart. The bar then reaches from the first link to the last (and its own link).
+    items.forEach((it, k) => { it.from = it.n[A] + it.n[S] / 2; it.at = Math.max(it.from, k ? items[k - 1].at + 14 : -Infinity); });
+    if (items.length) {
+      const lo = Math.min(items[0].at, c), hi = Math.max(items[items.length - 1].at, c);
+      j[A] = lo - 7; j[S] = hi - lo + 14;
+    }
+    // steps: links going toward the middle from above step nearer the concentrator the higher they arrive
+    const down = items.filter(it => it.from <= it.at), up = items.filter(it => it.from > it.at);
+    down.sort((a, b) => a.at - b.at); up.sort((a, b) => b.at - a.at);
+    const stepAt = new Map();
+    down.forEach((it, k) => stepAt.set(it, wide + dir * (12 + 8 * k)));
+    up.forEach((it, k) => stepAt.set(it, wide + dir * (12 + 8 * k)));
+    for (const it of items) {
+      const n = it.n, nearSide = fanIn ? n[B] + n[Bs] : n[B];
+      const P = (a, b) => vert ? { x: b, y: a } : { x: a, y: b };
+      const st = stepAt.get(it);
+      let pts = Math.abs(it.from - it.at) < 0.5 ? [P(it.at, nearSide), P(it.at, wide)] : [P(it.from, nearSide), P(it.from, st), P(it.at, st), P(it.at, wide)];
+      if (!fanIn) pts = pts.reverse();
+      // the plain route only when nothing stands in its way; otherwise the layout's route, its last stretch
+      // moved to the link's place on the concentrator
+      const blocks = q => q.some((b, i) => i && rm.nodes.some(m => m.x !== undefined && m !== n && m !== j &&
+        Math.min(q[i - 1].x, b.x) < m.x + m.w + 4 && m.x - 4 < Math.max(q[i - 1].x, b.x) && Math.min(q[i - 1].y, b.y) < m.y + m.h + 4 && m.y - 4 < Math.max(q[i - 1].y, b.y)));
+      if (blocks(pts)) {
+        // the layout's route, arriving at a free place on the bar: not level with the bar's own link (it would
+        // read as one line through the bar) nor with another link; tried at its own level, then 14px steps away
+        const q0 = it.r.pts.map(p => ({ ...p })), L = q0.length;
+        const e = fanIn ? L - 1 : 0, e1 = fanIn ? L - 2 : 1, e2 = fanIn ? L - 3 : 2;
+        const taken = v => Math.abs(v - c) < 10 || items.some(o => o !== it && o.placed !== undefined && Math.abs(o.placed - v) < 10);
+        pts = it.r.pts;
+        if (L >= 3 && Math.abs(q0[e][A] - q0[e1][A]) < 0.5 && Math.abs(q0[e1][B] - q0[e2][B]) < 0.5) {
+          for (const d of [0, 14, -14, 28, -28, 42, -42]) {
+            const v = q0[e][A] + d;
+            if (taken(v)) continue;
+            const q = q0.map(p => ({ ...p }));
+            q[e] = { ...q[e], [A]: v, [B]: wide }; q[e1] = { ...q[e1], [A]: v };
+            if (!blocks(q)) { pts = q; break; }
+          }
+        }
+      }
+      it.placed = (fanIn ? pts[pts.length - 1] : pts[0])[A];
+      it.r.pts = pts;
+    }
+    if (items.length) {
+      const lo = Math.min(c, ...items.map(it => it.placed)), hi = Math.max(c, ...items.map(it => it.placed));
+      j[A] = lo - 7; j[S] = hi - lo + 14;
+    }
+    if (one) {
+      // the bar's own link arrives at a free level: level with a member's link it would read as one line
+      // through the bar, so it takes the nearest gap between two of them (with a short step before the bar)
+      const P = (a, b) => vert ? { x: b, y: a } : { x: a, y: b };
+      const lv = items.map(it => it.placed).sort((u, v) => u - v);
+      let t = c;
+      if (lv.some(v => Math.abs(v - t) < 10)) {
+        const gaps = [];
+        for (let k = 1; k < lv.length; k++) if (lv[k] - lv[k - 1] >= 20) gaps.push((lv[k] + lv[k - 1]) / 2);
+        if (lv.length) gaps.push(lv[0] - 14, lv[lv.length - 1] + 14);
+        t = gaps.sort((u, v) => Math.abs(u - c) - Math.abs(v - c))[0];
+      }
+      const q = one.pts.map(p => ({ ...p })), L = q.length;
+      const step = narrow - dir * 12;            // just outside the narrow side, away from the members
+      if (fanIn) {
+        if (Math.abs(t - q[0][A]) < 0.5 && L > 1 && Math.abs(q[1][A] - q[0][A]) < 0.5) { q[0] = P(t, narrow); }
+        else if (L > 1 && Math.abs(q[1][A] - c) < 0.5) { q.splice(0, 1, P(t, narrow), P(t, step), P(q[1][A], step)); }
+        else q[0] = P(t, narrow);
+      } else {
+        if (L > 1 && Math.abs(q[L - 2][A] - c) < 0.5 && Math.abs(t - c) > 0.5) q.splice(L - 1, 1, P(q[L - 2][A], step), P(t, step), P(t, narrow));
+        else q[L - 1] = P(t, narrow);
+      }
+      one.pts = simplifyPts(q);
+      const lo = Math.min(t, ...lv), hi = Math.max(t, ...lv);
+      j[A] = lo - 7; j[S] = hi - lo + 14;
+    }
   }
 }
 
@@ -1886,7 +1988,15 @@ async function chooseLayout(model, measure, ELK) {
     const A = model.nodes.get(e.a), B = model.nodes.get(e.b);
     return !A || !B || !pts.length || (near(pts[0], A) && near(pts[pts.length - 1], B));
   });
-  const valid = rm => linked(rm) && !(rm.frames.some(fr => rm.nodes.some(n => !owns(fr.f, n) && !n.tags.includes('bridge') && ov(fr, n))) ||
+  // a concentrator stands beyond what it gathers: after its members for a fan-in, before them for a fan-out
+  const flowH = model.direction === 'RIGHT';
+  const barsOk = rm => rm.nodes.every(j => {
+    if (j.kind !== 'junction' || j.x === undefined) return true;
+    const A = flowH ? 'x' : 'y', S = flowH ? 'w' : 'h';
+    const members = model.edges.filter(e => !e.trunk && (e.a === j.id || e.b === j.id)).map(e => rm.nodes.find(n => n.id === (e.a === j.id ? e.b : e.a))).filter(n => n && n.x !== undefined);
+    return j.junction === 'last' ? members.every(n => n[A] + n[S] <= j[A] + 1) : members.every(n => n[A] >= j[A] + j[S] - 1);
+  });
+  const valid = rm => linked(rm) && barsOk(rm) && !(rm.frames.some(fr => rm.nodes.some(n => !owns(fr.f, n) && !n.tags.includes('bridge') && ov(fr, n))) ||
     rm.frames.some(a => rm.frames.some(b => a.f.id < b.f.id && !within(a.f, b.f) && !within(b.f, a.f) &&
       Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 2 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 2)));
   const modes = { hier: [false, true], hierwrap: [false, true, true], flat: [true, false], compound: [false, false] };
@@ -2079,6 +2189,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   // inside a lane (per-frame layout only) the flow runs along the lane: a row left to right, a column downwards
   const fhOf = it => HIER && it.parent && it.parent.type === 'lane' ? it.parent.axis === 'h' : flowH;
   const sidesFor = fh => ({ IN: fh ? 'WEST' : 'NORTH', OUT: fh ? 'EAST' : 'SOUTH', PIN: fh ? 'NORTH' : 'WEST', POUT: fh ? 'SOUTH' : 'EAST' });
+  for (const n of model.nodes.values()) if (n.kind === 'junction') n.barV = model.direction === 'RIGHT';
   for (const n of model.nodes.values()) sizeNode(n, measure);
   for (const f of model.frames.values()) f.titleW = f.title ? measure(f.title, FONT_TITLE) : 0;
 
@@ -2302,6 +2413,12 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       sn.ports.push(p);
       return pid;
     }
+    if (!g && sn && sn.kind === 'junction') {
+      const { IN, OUT } = sidesFor(!!sn.barV);
+      const pid = `P${e.i}${end}`;
+      sn.ports.push({ id: pid, width: 0, height: 0, layoutOptions: { 'elk.port.side': end === 's' ? OUT : IN } });
+      return pid;
+    }
     if (!g) return elkId(id);
     const n = model.nodes.get(id), i = g.idx.get(id), last = g.items.length - 1;
     const fh = fhOf(g), { IN, OUT, PIN, POUT } = sidesFor(fh);
@@ -2356,6 +2473,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       if (it.type === 'node') {
         const en = { id: it.id, width: it.w, height: it.h };
         if (it.span || (it.cols && it.ports && it.ports.length)) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_POS' }; }
+        if (it.kind === 'junction' && it.ports.length) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_SIDE', 'elk.spacing.portPort': '14' }; }
         if (markIsland(it)) en.layoutOptions = { ...(en.layoutOptions || {}), 'elk.layered.layering.layerConstraint': 'LAST' };
         out.push(en);
       }
@@ -2642,9 +2760,10 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
         if (it.type === 'node') {
           const en = { id: it.id, width: it.w, height: it.h };
           const fixed = it.span || (it.cols && it.ports && it.ports.length);
-          en.layoutOptions = { ...part, ...(fixed ? { 'elk.portConstraints': 'FIXED_POS' } : {}), ...(markIsland(it) && !isLane ? { 'elk.layered.layering.layerConstraint': 'LAST' } : {}),
+          const bar = it.kind === 'junction' && it.ports.length;
+          en.layoutOptions = { ...part, ...(fixed ? { 'elk.portConstraints': 'FIXED_POS' } : {}), ...(bar ? { 'elk.portConstraints': 'FIXED_SIDE', 'elk.spacing.portPort': '14' } : {}), ...(markIsland(it) && !isLane ? { 'elk.layered.layering.layerConstraint': 'LAST' } : {}),
             ...(it.junction && !isLane ? { 'elk.layered.layering.layerConstraint': it.junction === 'last' ? 'LAST' : 'FIRST' } : {}) };
-          if (fixed) en.ports = it.ports;
+          if (fixed || bar) en.ports = it.ports;
           children.push(en);
         } else if (it.type === 'group') {
           if (it.items.length) children.push({ id: 'G:' + it.id, width: it.w, height: it.h, ports: it.ports, layoutOptions: { ...part, 'elk.portConstraints': 'FIXED_POS' } });
@@ -3658,7 +3777,7 @@ function nodeSVG(n) {
     out.push(`<circle class="dot" cx="${r1(n.x + 9)}" cy="${r1(n.y + 9)}" r="8"/>`);
     return out.join('');
   }
-  if (n.kind === 'junction') { out.push(`<circle class="dot" cx="${r1(n.x + n.w / 2)}" cy="${r1(n.y + n.h / 2)}" r="2.6"/>`); return out.join(''); }
+  if (n.kind === 'junction') { out.push(`<rect class="dot" x="${r1(n.x)}" y="${r1(n.y)}" width="${r1(n.w)}" height="${r1(n.h)}" rx="3"/>`); return out.join(''); }
   let x = n.x, y = n.y, w = n.w, h = n.h;
   if (n.kind === 'final') {
     out.push(`<rect class="${c}" x="${r1(x)}" y="${r1(y)}" width="${w}" height="${h}" rx="10"/>`);

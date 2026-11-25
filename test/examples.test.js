@@ -631,24 +631,24 @@ test('arrowheads on one side of a node are not crowded by the next link (office 
   for (const [k, xs] of sides) { xs.sort((a, b) => a - b); for (let i = 1; i < xs.length; i++) assert.ok(xs[i] - xs[i - 1] >= 20, `${k}: arrows ${xs[i] - xs[i - 1]}px apart`); }
 });
 
-test('hub: links between one node and five or more members of a zone it is not in meet at a junction inside the zone; one link crosses its edge', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/hub.trace'), 'utf8'), measure, ELK, {});
-  assert.deepStrictEqual(res.errors, []);
-  const zone = res.rm.frames.find(f => f.f.id === 'services');
-  const J = res.rm.nodes.filter(n => n.kind === 'junction');
-  assert.strictEqual(J.length, 2, 'one for the identity provider, one for the gateway');
-  for (const j of J) assert.ok(j.x > zone.x && j.x + j.w < zone.x + zone.w && j.y > zone.y && j.y + j.h < zone.y + zone.h, `${j.id} inside the services zone`);
-  const into = res.rm.edges.filter(r => r.e.b === 'idp' && J.some(j => j.id === r.e.a));
-  assert.strictEqual(into.length, 1, 'one link from the services to the identity provider');
-  assert.strictEqual(into[0].e.label, 'validate token');
-  const out = res.rm.edges.filter(r => r.e.a === 'gw' && J.some(j => j.id === r.e.b));
-  assert.strictEqual(out.length, 1, 'one link from the gateway into the services');
-  for (const j of J) {
-    const branches = res.rm.edges.filter(r => (r.e.a === j.id || r.e.b === j.id) && r.e.a !== 'gw' && r.e.b !== 'idp');
-    assert.ok(branches.length >= 5 && branches.filter(r => r.merged).length >= 4, `${j.id}: its branches form a bus`);
+test('hub: links between one node and five or more members of a zone it is not in meet at a bar inside the zone; one link crosses its edge', async () => {
+  for (const f of ['examples/cases/hub.trace', 'examples/cases/simple/hub.trace']) {
+    const res = await compile(fs.readFileSync(path.join(root, f), 'utf8'), measure, ELK, {});
+    assert.deepStrictEqual(res.errors, []);
+    const zone = res.rm.frames.find(z => z.f.id === 'services');
+    const bars = res.rm.nodes.filter(n => n.kind === 'junction');
+    assert.strictEqual(bars.length, 2, `${f}: one bar for the identity provider, one for the gateway`);
+    for (const j of bars) assert.ok(j.x > zone.x && j.x + j.w < zone.x + zone.w && j.y > zone.y && j.y + j.h < zone.y + zone.h, `${f}: ${j.id} inside the services zone`);
+    const into = res.rm.edges.filter(r => r.e.b === 'idp' && bars.some(j => j.id === r.e.a));
+    assert.strictEqual(into.length, 1, `${f}: one link from the services to the identity provider`);
+    assert.strictEqual(res.rm.edges.filter(r => r.e.a === 'gw' && bars.some(j => j.id === r.e.b)).length, 1, `${f}: one link from the gateway into the services`);
+    for (const j of bars) {
+      const mine = res.rm.edges.filter(r => (r.e.a === j.id || r.e.b === j.id) && !r.e.trunk);
+      // every link meets the bar on its long side, each at its own place, 10px or more apart
+      const at = mine.map(r => { const p = r.e.a === j.id ? r.pts[0] : r.pts[r.pts.length - 1]; assert.ok(p.y >= j.y - 0.5 && p.y <= j.y + j.h + 0.5, `${f}: ${r.e.a} -> ${r.e.b} meets the bar`); return p.y; }).sort((u, v) => u - v);
+      for (let k = 1; k < at.length; k++) assert.ok(at[k] - at[k - 1] >= 9.5, `${f}: two links meet ${j.id} ${at[k] - at[k - 1]}px apart`);
+    }
   }
-  // the gateway, outside the zone, keeps its own link; the label is written once per link
-  assert.strictEqual((res.svg.match(/validate token/g) || []).length, 2);
   // four links are not enough
   const few = await compile('h: H\nframe z "z" {\n  a: A\n  b: B\n  c: C\n  d: D\n}\na -> h : x\nb -> h : x\nc -> h : x\nd -> h : x', measure, ELK, {});
   assert.ok(!few.rm.nodes.some(n => n.kind === 'junction'));

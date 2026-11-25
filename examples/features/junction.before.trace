@@ -1,4 +1,4 @@
-title "bus inside a zone"
+title "a bar inside a zone"
 gw [arrow-right-left]: API gateway
 frame services "services" [blue] {
   orders [package]: Orders
