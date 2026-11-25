@@ -132,8 +132,24 @@ author, or tried automatically and compared with the same cost the engine uses. 
   in the main flow. Left: links to a zone (not a node) are refused while side zones exist; the bus along the gutter
   for many collectors; an `[agent]` dot on nodes.
 - Fan-in to one point (CI “all green?”): optional join/bracket for a column's outgoing links.
-- Done (first version): links that go to or leave one node with the same label and style, four or more, are merged
-  into a bus (`mergeHubs`; case `hub`). Branches that cannot run straight to the bus take a free lane of their own. Left: an escape hatch to
-  switch it off or force it on fewer links, and merging links with different labels.
+- Done: links that go to or leave one node with the same label and style, four or more, are merged into a bus
+  (`mergeHubs`); a bus never crosses another bus's line. Five or more between one node and members of one zone it
+  is not in meet at a bar inside that zone (`addJunctions`, `placeOnConcentrators`; cases `hub` and `home`). Left:
+  an escape hatch to switch merging off or force it on fewer links; merging links with different labels; members
+  in several columns of a zone reach the bar round each other (hub: Search in front of Catalog).
+- Done: `mark node "text"`: the links into a node drawn as its icon on each sender, with a legend line (case
+  `monorepo`). Left: marking only the links with a given label (`mark idp : validate token`).
+- Done: technology logos as icon names (`[database postgresql]`, `[go]`, `[kubernetes]` on a zone), from Simple
+  Icons, one colour, forty-five bundled. Left: a way to bring your own logo (Oracle has none); logos in the
+  showcase cases.
+- Done: the router (`rerouteBlocked`) for links through or along nodes, detours and overlaps; hops where links
+  cross; every link orthogonal (tested). Left: the OpenTelemetry held-out diagram stays busy (a node used by most
+  of the diagram, and no zones in the source).
+- Done: metrics over the examples and a held-out set of real C4 and Mermaid diagrams (`npm run metrics`,
+  `examples/holdout/`), a Mermaid converter (`tools/mermaid-to-trace.js`) and a page drawing each held-out
+  diagram with Trace and Mermaid (`dist/compare.html`). Left: layout speed on large diagrams (the full GitLab
+  component diagram, about 80 links, takes over four minutes in Node, so it is not in the held-out set).
+- Done: zones in a row share their top; a link into a zone member boxed in by its neighbours no longer makes the
+  per-frame layout give up.
 - A link style for “connection opened one way, traffic flows the other” (zero-trust connector).
 - Playground: share a diagram by link, syntax highlighting.

@@ -6,8 +6,18 @@ returns a width in px: canvas in the browser, `tools/measure.js` in Node.
 ## 1. Parse (`parse`)
 
 Line by line into a model: `nodes` (Map), `frames` (Map), `groups` (columns and rows), `edges`,
-`keys`, settings, and a container tree (`root` → frames → groups → nodes, each with `items` in
+`keys`, `marks`, settings, and a container tree (`root` → frames → groups → nodes, each with `items` in
 source order). Errors are collected with line numbers; parsing continues after an error.
+
+After the last line:
+- table columns named in links are resolved, `same-width`/`same-height` and `align` are checked;
+- each `mark` takes the links that arrive at its node out of `model.edges` (they never reach the layout) and
+  records the mark on the nodes they came from;
+- `desugarSides` wraps the main flow and the `[side]` frames into lanes (ids `_side…`) beside each other.
+
+Icons and logos are tags: an unknown word in a node's brackets is a Lucide icon (`iconKnown`) or, if not, a
+Simple Icons logo (`isLogoTag`; `logo/` forces it). A frame's brackets take a logo too. `compile` fetches the
+drawings a model needs and does not have (`loadIcons`) before it lays anything out.
 
 ## 2. Size and stack (`layout`, first half)
 
@@ -21,6 +31,15 @@ source order). Errors are collected with line numbers; parsing continues after a
   for middle members.
 - `[span]` nodes are stretched to the extent of the stack they link to and get FIXED_POS ports at
   each member's centre; links to another stack get ports in proportion.
+- A node with a logo and a role icon has the technology's name in front of its note (sized here); a node
+  marked by `mark` is widened for the mark's icon after its name.
+
+Before any of this, `addJunctions` (unless merging is off) finds five or more links with the same label and
+style between one node and members of a zone that node is not in, and routes them through a concentrator: a
+node of kind `junction` inside that zone (the members' links go to it, one trunk carries the label to the
+node outside). It is sized as a bar across the flow and gets FIXED_SIDE ports, one side for the members, the
+other for the trunk, so ELK orders the members along it. In the per-frame mode it is constrained to the first
+layer of its zone for a fan-out, the last for a fan-in.
 
 ## Sequence diagrams (a separate path)
 
@@ -48,14 +67,16 @@ simplex node placement. Spacing scales with `spacing`.
 
 `layout` tries three ways to place frames and keeps the valid one with the fewest link bends
 (ties go to the earlier one). A candidate is valid when no frame covers a node that is not its own
-and no two unrelated frames overlap more than 2px.
+and no two unrelated frames overlap more than 2px, every link starts and ends on its nodes, and every
+concentrator stands beyond what it gathers (after its members for a fan-in, before them for a fan-out).
 
 1. **Per frame** (`hierLayout`): bottom-up, each frame is laid out by its own ELK run; a finished
    frame is an opaque node with fixed ports in its parent's run. A link to a member inside a frame
    gets a port on the frame's border (in-side, else top/bottom) and a straight stub to the member,
    so the member must be reachable in a straight line. If every straight line is blocked (a link
    into the middle of a stack), the stub runs along the frame's inner margin and turns into the
-   member's side. If that is blocked too, this mode gives up. A `[bridge]` stays inside its frame's
+   member's side. If that is blocked too, the link still enters from the facing side and the router
+   takes it round the members afterwards (`rerouteBlocked`). A `[bridge]` stays inside its frame's
    run, and `fitFrames` later moves the frame border to its centre. Not supported: links that
    name a frame.
 2. **Flat**: frames are not ELK nodes; only members are laid out and `fitFrames` draws the frames
@@ -68,7 +89,9 @@ inside a group). Lanes only exist in the per-frame mode, where a lane is a borde
 its own ELK run: direction along the lane, children in source order (`elk.partitioning`), no
 straightening (`SIMPLE` placement) and no packing of unlinked children. The shared prep code asks
 `fhOf(item)` for the flow direction at that item, and `portFor` takes the direction of the graph that
-holds the frame it makes a port on. If the per-frame mode returns nothing, `layout` draws the
+holds the frame it makes a port on. A row of zones (not the rows side zones are built from) shares its top:
+`alignRowTops` moves every zone to the row's top after its ELK run and redraws the links between them, over
+the row when another zone stands between. If the per-frame mode returns nothing, `layout` draws the
 diagram without the lanes (flat and compound treat a lane as transparent) and adds a note, which
 `compile` returns as a warning. Bridge fitting only pairs frames that are level on the other axis.
 
@@ -133,6 +156,8 @@ fewer bends.
 
 ## 4. Post-processing (in this order)
 
+Steps 1 to 4 belong to each candidate layout; `finish` (below the list) runs on the one chosen.
+
 1. Read back absolute positions. Edge sections come relative to the edge's `container` (offset
    by that container's absolute position); stubs join group ports to the member boxes; ELK
    self-loops are replaced with roomier loops on the side ELK chose.
@@ -147,9 +172,30 @@ fewer bends.
    meet it; the pair is made into bands (same span across the flow), repeated until stable. Every
    growth step is refused if it would cover a node or frame that belongs elsewhere. Finally the
    canvas is shifted and grown so frames and labels fit.
-5. `render`: frames (outer first, title in the first corner free of nodes), links, nodes, link
-   labels, legend. Preview SVGs carry no style (the page styles `.dg`); `standalone` SVGs embed the
-   light palette plus a `prefers-color-scheme: dark` block.
+5. `sameSizeFrames` (frames named by `same-width`/`same-height`, never grown into another frame, 10px
+   clear), then `placeRails`.
+
+`finish`, on the chosen layout, in this order (each is a general rule recorded in `docs/drawing-rules.md`):
+- `placeOnConcentrators`: the bar reaches along its members; each link meets it at its member's level
+  (straight when nothing is in the way, else the layout's route to a free place 10px from the others); the
+  trunk meets it between two members' links.
+- `spanSides` (side zones that span), `clearFrames` (links off frame borders), `alignJogs`, `simplifySnakes`.
+- `mergeHubs`: four or more links with one label and style to or from one node become a bus (not for
+  concentrators); a bus never crosses another bus's line.
+- `rerouteBlocked`: a Dijkstra router on a grid round the nodes, for links that run through or brush a node,
+  hug it, run along a frame border, or make a detour; it pays for bends, crossings and running beside another
+  link, and a new route may not add crossings (one for a detour that halves the route).
+- `straightenSmallJogs`, `reorderEnds` (the order of ends on a side that crosses least), `spreadEnds` and
+  `separateParallels` (ends and parallel stretches kept apart), `resolveOverlaps` (any two links still on top
+  of each other: one is routed again), `placeLabels`.
+
+Then, for a strip wider than 3.5:1 and 1500px, `foldCandidate` tries rows of its top-level items and keeps
+them only when clearly better.
+
+6. `render`: frames (outer first, title in the first corner free of nodes, a logo before it), links (a hop
+   where a horizontal link crosses a vertical one), nodes (role icon, logo, marks after the name,
+   concentrator bars), link labels, legend (keys and marks). Preview SVGs carry no style (the page styles
+   `.dg`); `standalone` SVGs embed the light palette plus a `prefers-color-scheme: dark` block.
 
 ## ELK lessons (each cost a debugging session)
 
@@ -170,5 +216,12 @@ fewer bends.
 
 ## Testing
 
-`npm test` checks every example for parse errors, overlapping nodes and frames covering foreign
-nodes. It cannot judge looks: run `npm run snapshots` and look at the PNGs.
+`npm test` checks every example for parse errors, overlapping nodes, frames covering foreign nodes, links
+through nodes, links on top of each other and slanted stretches, plus targeted tests per feature. It cannot
+judge looks: run `npm run snapshots` and look at the PNGs.
+
+`npm run metrics` (`tools/metrics.js`) counts what makes a drawing worse (links through or brushing nodes,
+overlaps, crossings, bends, links along borders, crossed labels...) over the examples and over
+`examples/holdout/`, real C4 and Mermaid diagrams never tuned on, and compares with `metrics/baseline.json`.
+A layout change is kept only if the held-out set does not get worse. `dist/compare.html` draws each held-out
+diagram with Trace and with Mermaid side by side.
