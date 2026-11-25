@@ -108,8 +108,8 @@
     "id": "mlops",
     "title": "Machine learning pipeline",
     "context": "Events are cleaned, turned into features, split, trained and evaluated; a good model is registered and deployed, a bad one goes back to tuning, and drift sends the pipeline round again.",
-    "uses": "A decision, a loop back (retry), dashed feedback links, green and red outcomes, a dead end.",
-    "gap": "A chain this long is folded into rows, and the feedback links (drift detected, new data) run the width of the page. Loops that return to the start of a pipeline need a way to be drawn as a short return, not a long line."
+    "uses": "A decision, a loop back (retry), dashed feedback links, green and red outcomes, a dead end. Four rows in a column, one per stage: data, training and evaluation, the two outcomes that go back or stop, serving and monitoring. Each row is a level line, so the steps of a stage line up.",
+    "gap": "The rows are centred on each other, not lined up on their first step, and the feedback links (new data, drift detected) still run the width of the page."
   },
   {
     "id": "triage",

@@ -1,19 +1,29 @@
 title "Machine learning pipeline"
 
-store raw [database]: Raw events | warehouse
-clean [wand-sparkles]: Clean and join
-features [layers]: Feature pipeline
-store fstore [database]: Feature store
-split [split]: Train / validation split
-train [cpu]: Train model | GPU job
-eval [flask-conical]: Evaluate
-ask good: beats production?
-register [package]: Model registry
-deploy [rocket]: Canary deploy
-serve [server]: Online serving
-monitor [activity]: Monitor drift
-tune [settings]: Tune hyperparameters
-discard [bad trash-2]: Discard run
+column {
+  row {
+    store raw [database]: Raw events | warehouse
+    clean [wand-sparkles]: Clean and join
+    features [layers]: Feature pipeline
+    store fstore [database]: Feature store
+    split [split]: Train / validation split
+  }
+  row {
+    train [cpu]: Train model | GPU job
+    eval [flask-conical]: Evaluate
+    ask good: beats production?
+    register [package]: Model registry
+  }
+  row {
+    tune [settings]: Tune hyperparameters
+    discard [bad trash-2]: Discard run
+  }
+  row {
+    deploy [rocket]: Canary deploy
+    serve [server]: Online serving
+    monitor [activity]: Monitor drift
+  }
+}
 
 raw -> clean
 clean -> features

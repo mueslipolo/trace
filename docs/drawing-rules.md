@@ -49,6 +49,7 @@ When a review leads to a change, add the rule here in the same commit.
 | What watches or administers the diagram stands beside it, not after it. | DMZ (SIEM), data platform (orchestration), the platform study | feature: `[side]`, `[side span]` | a zone that only receives links from several tiers and is placed last |
 | A side zone is as tall as the zones it serves, so its links cross the gutter straight. | side-zone mockups | feature: `[side span]` | links into a side zone with steps |
 | A diagram is roughly page-shaped; a long chain folds into rows, but not at the price of a link crossing the page. | CI/CD, k8s | engine: chain wrap, `foldCandidate` with its guards | width over 3.5 times the height |
+| A long pipeline reads as one row per stage, each row a level line. | ML pipeline (nodes scattered by the automatic wrap) | usage: a `column` of `row`s, one per stage | nodes of one chain at many different heights |
 | Topics, consumers and similar stacks are ordered to minimise crossings. | Kafka | usage: declaration order (found by trying every order) | crossings between two stacks |
 
 ## Reading

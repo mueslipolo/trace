@@ -9,11 +9,11 @@ train: Train model | GPU job
 eval: Evaluate
 ask good: beats production?
 register: Model registry
+tune: Tune hyperparameters
+discard [bad]: Discard run
 deploy: Canary deploy
 serve: Online serving
 monitor: Monitor drift
-tune: Tune hyperparameters
-discard [bad]: Discard run
 
 raw -> clean
 clean -> features
