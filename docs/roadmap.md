@@ -102,6 +102,12 @@ Done since: cardinality marks (`[n-1]`, `[0n-01]` ...: crow's foot, bars, circle
 Left: tables inside a row or
 column of nodes keep table-level attachment only; a table generated from SQL or a schema file.
 
+## 7. Layout recommendations (later)
+
+Analyse a diagram and suggest the layout features that would improve it (rows or columns across the flow,
+align, side zones, span, bridge), from the rules in `docs/layout-guide.md`. Either applied one by one by the
+author, or tried automatically and compared with the same cost the engine uses. Wanted, not designed in detail.
+
 ## Smaller items
 
 - Split `src/trace.js` into modules (parse, measure, layout, postprocess, render) without breaking
