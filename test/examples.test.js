@@ -515,16 +515,19 @@ test('a label moves off a link that crosses it, and may wrap to two lines to fit
   assert.deepStrictEqual(wide.errors, []);
 });
 
-test('the showcase page has a collapsible section per case, with collapse and expand buttons', () => {
+test('the showcase page shows one case at a time, with a list of every case, a menu, and simple and full', () => {
   const { execFileSync } = require('child_process');
   execFileSync('node', [path.join(root, 'tools/build-showcase.js')], { stdio: 'pipe' });
   const html = fs.readFileSync(path.join(root, 'dist/showcase.html'), 'utf8');
   const cases = JSON.parse(fs.readFileSync(path.join(root, 'examples/cases/cases.json'), 'utf8'));
-  assert.strictEqual((html.match(/<details class="case" id="/g) || []).length, cases.length);
-  for (const c of cases) assert.match(html, new RegExp(`<details class="case" id="${c.id}" open>\\s*<summary class="case-head">`));
-  assert.match(html, /id="collapse-all"/);
-  assert.match(html, /id="expand-all"/);
-  assert.match(html, /function openFromHash/);
+  for (const c of cases) {
+    assert.match(html, new RegExp(`<li><a href="#${c.id}">`), `${c.id} in the list`);
+    assert.match(html, new RegExp(`<option value="${c.id}">`), `${c.id} in the menu`);
+  }
+  assert.match(html, /id="v-simple"[^>]*>Simple</);
+  assert.match(html, /id="v-trace"[^>]*>Full</);
+  assert.match(html, /function showFromHash/);
+  assert.match(html, /ArrowRight/);
 });
 
 test('rails: a dot marks each place a tap meets the bus, when there are several', async () => {
