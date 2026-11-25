@@ -879,6 +879,13 @@ test('mark: the links into the node are not drawn; each source carries its icon,
   assert.strictEqual(w('db'), 0, 'an unmarked node keeps its size');
 });
 
+test('mark: a marked node with no link left to draw stands at the end of the flow, not among the first nodes', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/monorepo.trace'), 'utf8'), measure, ELK, {});
+  const N = id => res.rm.nodes.find(n => n.id === id);
+  const last = Math.max(...res.rm.nodes.filter(n => !['utils', 'types'].includes(n.id)).map(n => n.x));
+  for (const id of ['utils', 'types']) assert.ok(N(id).x >= last - 1, `${id} at x ${N(id).x}, the last column is at ${last}`);
+});
+
 test('mark: errors say what to write', () => {
   const err = src => (parse(src).errors[0] || {}).msg || '';
   assert.match(err('a: A\nb: B\na -> b\nmark nope "x"'), /no node called "nope"/);

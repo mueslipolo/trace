@@ -505,6 +505,7 @@ function parse(src) {
     }
     mk.links = links;
     model.edges = model.edges.filter(e => !links.includes(e));
+    mk.rest = model.edges.filter(e => e.a === mk.id || e.b === mk.id).length;
     t.markTarget = mk;
   }
   if (!model.errors.length) desugarSides(model);
@@ -2281,6 +2282,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       if (it.type === 'node') {
         const en = { id: it.id, width: it.w, height: it.h };
         if (it.span || (it.cols && it.ports && it.ports.length)) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_POS' }; }
+        if (markIsland(it)) en.layoutOptions = { ...(en.layoutOptions || {}), 'elk.layered.layering.layerConstraint': 'LAST' };
         out.push(en);
       }
       else if ((it.type === 'frame' && FLAT) || it.type === 'lane') { out.push(...build(it)); }
@@ -2566,7 +2568,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
         if (it.type === 'node') {
           const en = { id: it.id, width: it.w, height: it.h };
           const fixed = it.span || (it.cols && it.ports && it.ports.length);
-          en.layoutOptions = { ...part, ...(fixed ? { 'elk.portConstraints': 'FIXED_POS' } : {}) };
+          en.layoutOptions = { ...part, ...(fixed ? { 'elk.portConstraints': 'FIXED_POS' } : {}), ...(markIsland(it) && !isLane ? { 'elk.layered.layering.layerConstraint': 'LAST' } : {}) };
           if (fixed) en.ports = it.ports;
           children.push(en);
         } else if (it.type === 'group') {
@@ -2726,6 +2728,9 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
 
 // Where a [bridge] node sits on a frame border, ELK has left room for two frame paddings
 // and the gap between frames. Squeeze that empty strip so the bridge sits close to what feeds it.
+// a marked node whose links are all drawn as marks has nothing left to place it: it goes at the end of the
+// flow (a shared library after what uses it), not among the first nodes
+function markIsland(n) { return !!(n.markTarget && n.markTarget.links && !n.markTarget.rest); }
 function frameOfItem(it) { let p = it.parent; while (p && p.type !== 'frame') p = p.parent; return p || null; }
 function bridgePartner(n, model, flowH) {
   const A = flowH ? 'x' : 'y';

@@ -39,3 +39,6 @@ http -> logger
 http -> config
 logger -> config
 logger -> utils
+
+mark utils "depends on utils"
+mark types "depends on types"

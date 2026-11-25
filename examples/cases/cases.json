@@ -136,7 +136,7 @@
     "id": "monorepo",
     "title": "Build graph of a monorepo",
     "context": "Three apps, three feature packages and seven libraries, with who depends on whom.",
-    "uses": "A dense graph with no layout help; the links into utils are merged into one bus.",
-    "gap": "Readable, but busy: the middle of the diagram has twenty links in five columns, and arrowheads stack up on types and ui-kit."
+    "uses": "Two marks: utils and types, which almost every package depends on, are shown as an icon after each name that uses them instead of seven links, and stand at the end of the flow with config. The simple form draws those links, and the links into utils merge into one bus.",
+    "gap": "The apps on the left still fan out to five packages through one busy column of links; with the marks it has 6 crossings instead of 12 and 31 bends instead of 55."
   }
 ]

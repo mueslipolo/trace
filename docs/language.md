@@ -331,6 +331,8 @@ text. The links stay in the source and stay out of the layout; delete the `mark`
 - The icon takes the colour of the zone the marked node stands in (muted grey outside any zone).
 - Only links whose arrow ends at the marked node become marks; links leaving it are drawn as usual.
 - One `mark` line per node. A frame cannot be marked, and a mark needs at least one link arriving.
+- A marked node with no link left to draw stands at the end of the flow (a shared library after what uses it).
+- `npm run simplify` leaves marks out of the simple forms: they draw the links.
 
 ## Errors
 
