@@ -120,6 +120,10 @@ column of nodes keep table-level attachment only; a table generated from SQL or 
   hybrid case: 1038 px), so most strips with frames stay strips. The real fix is a snake: alternate rows flowing
   right to left, so the end of one row sits above the start of the next (ELK has `direction LEFT`; the fixed
   ports and the frames' insides need to be mirrored with it). Not built.
+- Document furniture, all optional: a visible title (today `title` only names the SVG and the download), a general note
+  or caption (not `note`, which is a sequence statement), and a cartouche, the title block of an engineering
+  drawing: a small table at the bottom right with free `key: value` fields (author, date, version, status). Open:
+  whether `title` becomes visible by default (it would change every example) or takes a tag like `[visible]`.
 - Fan-in to one point (CI “all green?”): optional join/bracket for a column's outgoing links.
 - Done (first version): links that go to or leave one node with the same label and style, four or more, are merged
   into a bus (`mergeHubs`; case `hub`). Branches that cannot run straight to the bus take a free lane of their own. Left: an escape hatch to
