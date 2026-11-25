@@ -1,0 +1,26 @@
+# Adapted from C4-PlantUML, samples/C4_Container Diagram Sample - message bus.puml (MIT)
+direction down
+title "Containers: customer information"
+
+pill customer [user]: Customer
+
+frame c1 "Customer Information" [blue] {
+  app [browser]: Customer Application | JavaScript, Angular
+  svc: Customer Service | Java, Spring Boot
+  bus [queue]: Message Bus | RabbitMQ
+  reporting: Reporting Service | Ruby
+  audit: Audit Service | C#/.NET
+  store customerdb [database]: Customer Database | Oracle 12c
+  store reportingdb [database]: Reporting Database | MySQL
+  store auditstore [database]: Audit Store | Event Store
+}
+
+customer -> app : uses, HTTPS
+app -> svc : updates customer information, async JSON/HTTPS
+svc -> app : sends events, WebSocket
+svc -> bus : sends customer update events
+svc -> customerdb : stores data, JDBC
+bus -> reporting : customer update events
+bus -> audit : customer update events
+reporting -> reportingdb : stores data
+audit -> auditstore : stores events

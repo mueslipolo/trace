@@ -1,0 +1,31 @@
+# Adapted from C4-PlantUML, samples/C4_Deployment Diagram Sample - bigbankplc.puml (MIT)
+direction down
+title "Deployment: Internet Banking System, live"
+
+frame plc "Big Bank plc data center" [grey] {
+  frame dn "bigbank-api x8, Ubuntu 16.04" [blue] {
+    api [api]: API Application | Java, Spring MVC, Tomcat 8
+  }
+  frame db01 "bigbank-db01, Oracle primary" [purple] {
+    store db [database]: Database | relational schema
+  }
+  frame db02 "bigbank-db02, Oracle secondary" [purple dashed] {
+    store db2 [muted database]: Database | relational schema
+  }
+  frame bb2 "bigbank-web x4, Ubuntu 16.04" [blue] {
+    web [server]: Web Application | Java, Spring MVC, Tomcat 8
+  }
+}
+frame mob "Customer's mobile device" [grey] {
+  mobile [mobile]: Mobile App | Xamarin
+}
+frame comp "Customer's computer, web browser" [grey] {
+  spa [browser]: Single Page Application | JavaScript, Angular
+}
+
+mobile -> api : API calls, json/HTTPS
+spa -> api : API calls, json/HTTPS
+web -> spa : delivers to the browser
+api -> db : reads and writes, JDBC
+api --> db2 [muted] : reads and writes, JDBC
+db -> db2 : replicates data to

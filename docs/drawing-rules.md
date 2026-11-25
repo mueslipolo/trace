@@ -10,7 +10,10 @@ How a rule is kept:
 - **feature**: the author writes something (a tag, a block, a statement) and the engine does the rest.
 - **usage**: no new code, a case was improved by using existing features better.
 
-When a review leads to a change, add the rule here in the same commit.
+When a review leads to a change, add the rule here in the same commit, and run `npm run metrics`: a rule is
+kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
+
+| Rerouting never adds crossings (unless a link ran through a node; two at most to separate links on top of each other); the router pays 40 px per crossing. | metrics: today's rerouting had raised crossings from 52 to 72 over the examples | engine: `rerouteBlocked` | crossings before and after a change |
 
 ## Links
 

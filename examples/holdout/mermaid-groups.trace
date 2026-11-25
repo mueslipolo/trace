@@ -1,0 +1,26 @@
+# Adapted from the Mermaid documentation, syntax/architecture.md, the sources, storage and output example (MIT)
+direction down
+title "Sources, storage and output"
+
+frame sources "Sources" [blue] {
+  srca [server]: Source A
+  srcb [server]: Source B
+  srcc [server]: Source C
+}
+frame storage "Storage" [purple] {
+  store dbone [database]: DB One
+  store dbtwo [database]: DB Two
+  store dbthree [database]: DB Three
+}
+frame output "Output" [green] {
+  brief: Brief
+  analyst [server]: Analyst
+  delivery [cloud]: Delivery
+}
+
+srca -> dbone
+srcb -> dbtwo
+srcc -> dbthree
+dbtwo -> brief
+brief -> analyst
+analyst -> delivery

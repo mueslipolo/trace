@@ -1,0 +1,32 @@
+# Adapted from C4-PlantUML, samples/C4_Container Diagram Sample - techtribesjs.puml (MIT)
+direction down
+title "Containers: techtribes.js"
+
+pill anon [user]: Anonymous User
+pill aggregated [user]: Aggregated User
+pill admin [user]: Administration User
+
+frame c1 "techtribes.js" [blue] {
+  web [server]: Web Application | Java, Spring MVC, Tomcat 7
+  store reldb [database]: Relational Database | MySQL 5.5
+  store fs: File System | search indexes
+  store nosql [database]: NoSQL Data Store | MongoDB 2.2
+  updater [clock]: Updater | Java 7 console app
+}
+
+engine twitter: Twitter
+engine github: GitHub
+engine blogs: Blogs
+
+anon -> web : uses, HTTPS
+aggregated -> web : uses, HTTPS
+admin -> web : uses, HTTPS
+web -> reldb : reads and writes, SQL/JDBC 3306
+web -> fs : reads from
+web -> nosql : reads from, MongoDB 27017
+updater -> reldb : reads and writes, SQL/JDBC 3306
+updater -> fs : writes to
+updater -> nosql : reads and writes, MongoDB 27017
+updater -> twitter : profiles and tweets, HTTPS
+updater -> github : public repositories, HTTPS
+updater -> blogs : RSS and Atom feeds, HTTP

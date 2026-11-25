@@ -1,0 +1,23 @@
+# Adapted from C4-PlantUML, samples/C4_Context Diagram Sample - enterprise.puml (MIT)
+direction down
+title "System landscape: Widgets Limited"
+
+pill customer [user]: Customer | of Widgets Limited
+
+frame c0 "Widgets Limited" [grey] {
+  pill csa [user]: Customer Service Agent | deals with enquiries
+  ecommerce: E-commerce System | widgets.com
+  fulfillment [package]: Fulfillment System | processing and shipping
+}
+
+engine taxamo: Taxamo | local tax, front-end for Braintree
+engine braintree [credit-card]: Braintree Payments | credit card payments
+engine post: Jersey Post | shipping costs
+
+customer -> csa : asks questions, telephone
+customer -> ecommerce : places orders using
+csa -> ecommerce : looks up order information
+ecommerce -> fulfillment : sends order information
+fulfillment -> post : gets shipping charges
+ecommerce -> taxamo : delegates card processing
+taxamo -> braintree : credit card processing

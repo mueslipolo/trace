@@ -14,7 +14,8 @@
     "build": "npm run build:playground && npm run build:showcase && npm run build:features",
     "test": "node --test",
     "build:icons": "node tools/build-icons.js",
-    "simplify": "node tools/simplify.js"
+    "simplify": "node tools/simplify.js",
+    "metrics": "node tools/metrics.js"
   },
   "dependencies": {
     "elkjs": "0.9.3"

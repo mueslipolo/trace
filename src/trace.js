@@ -1069,7 +1069,7 @@ function rerouteBlocked(rm, force) {
         if (!free(Q.x, Q.y) && !goals.has(key(ni, nj))) continue;
         if (all.some(bx => segHits(P, Q, bx, M - 2))) continue;
         // running on top of another link is never wanted: it costs as much as a long detour
-        const onLink = occupied.some(([u, w]) => overlapSeg(P, Q, u, w, 8)) ? 600 : 0;
+        const onLink = (occupied.some(([u, w]) => overlapSeg(P, Q, u, w, 8)) ? 600 : 0) + 40 * occupied.filter(([u, w]) => crossSeg(P, Q, u, w)).length;
         push(key(ni, nj), nd, c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND) + onLink);
         if (!prev.has(key(ni, nj) * 4 + nd) || dist.get(key(ni, nj) * 4 + nd) === c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND) + onLink) prev.set(key(ni, nj) * 4 + nd, id);
       }
@@ -1080,6 +1080,8 @@ function rerouteBlocked(rm, force) {
     for (let id = best.id; id !== undefined; id = prev.get(id)) { const k = Math.floor(id / 4); path.unshift({ x: X[Math.floor(k / Y.length)], y: Y[k % Y.length] }); if (startAt.has(k) && !prev.has(id)) { from = startAt.get(k); break; } if (startAt.has(k) && dist.get(id) === startAt.get(k).extra) { from = startAt.get(k); break; } }
     const pts = simplifyPts([from.p, ...path, best.o.p]);
     if (overlapsLinks(rm, pts, new Set([r])) && (force || !overlapsLinks(rm, r.pts, new Set([r])))) continue;
+    // a new route may not cross more links than the old one, unless the old one ran through a node
+    if (!blocked && crossingsWith(rm, pts, r) > crossingsWith(rm, r.pts, r) + (force ? 2 : 0)) continue;
     if (detour) { const c = pts.reduce((t, p, i) => i ? t + len(pts[i - 1], p) : 0, 0) + 60 * Math.max(0, pts.length - 2); if (c > curCost * 0.8) continue; }
     if (pts.some((p, i) => i && others.some(b => segHits(pts[i - 1], p, b, 0)))) continue;
     r.pts = pts;
@@ -3090,6 +3092,23 @@ function overlapSeg(a, b, c, d, near = 4) {
   if (h1 && h2) return Math.abs(a.y - c.y) < near && Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) > 6;
   if (v1 && v2) return Math.abs(a.x - c.x) < near && Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) - Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) > 6;
   return false;
+}
+// How many times a path crosses other links (proper crossings of orthogonal stretches).
+function crossSeg(a, b, c, d) {
+  const h1 = Math.abs(a.y - b.y) < 0.5, h2 = Math.abs(c.y - d.y) < 0.5;
+  if (h1 === h2) return false;
+  const [H0, H1, V0, V1] = h1 ? [a, b, c, d] : [c, d, a, b];
+  return Math.min(H0.x, H1.x) + 0.5 < V0.x && V0.x < Math.max(H0.x, H1.x) - 0.5 && Math.min(V0.y, V1.y) + 0.5 < H0.y && H0.y < Math.max(V0.y, V1.y) - 0.5;
+}
+function crossingsWith(rm, path, self) {
+  let n = 0;
+  for (const o of rm.edges) {
+    if (o === self || !o.pts || o.e.rail || o.e.lifeline || o.e.divider) continue;
+    const share = o.e.a === self.e.a || o.e.a === self.e.b || o.e.b === self.e.a || o.e.b === self.e.b;
+    if (share) continue;
+    for (let i = 1; i < path.length; i++) for (let j = 1; j < o.pts.length; j++) if (crossSeg(path[i - 1], path[i], o.pts[j - 1], o.pts[j])) n++;
+  }
+  return n;
 }
 function overlapsLinks(rm, path, skip) {
   for (const o of rm.edges) {
