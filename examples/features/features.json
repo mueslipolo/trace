@@ -269,16 +269,17 @@
     "id": "fold",
     "title": "Folding wide strips",
     "group": "Automatic",
-    "does": "A diagram wider than about 3.5 times its height is retried as two or three rows, and kept when that is clearly better.",
-    "effect": "Top-level items are split into rows in the order they lie, and the fold is only used when the result has less width and no more crossings, bends or crossed labels.",
-    "beforeLabel": "fold switched off",
-    "afterLabel": "fold on (automatic)",
+    "does": "A chain that would be a strip more than four times wider than tall is folded into rows by itself.",
+    "effect": "Without it the steps run in one line and the text gets small when the page is fitted to the screen. With it the chain wraps into rows. Each wrap adds one link that comes back to the start of the next row. For diagrams with frames the same idea is tried on the zones, and refused when it adds crossings or when that link would cross more than 30% of the page.",
+    "beforeLabel": "folding off",
+    "afterLabel": "folding on (automatic)",
     "beforeOff": [
+      "wrap",
       "fold"
     ],
     "afterOff": [],
     "syntax": "(nothing to write)",
-    "use": "Automatic: a strip much wider than tall is retried as rows. Write rows and columns yourself to decide.",
+    "use": "Automatic: a chain much wider than tall folds into rows. Write rows and columns yourself to decide where.",
     "wide": true
   },
   {
