@@ -2416,10 +2416,18 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   // ---- ports where links leave a group
   const { IN, OUT } = sidesFor(flowH);
   const portBuckets = new Map();
-  const colCount = new Map(), colSeen = new Map();
+  // links into one table row that look the same (style and the mark at that end) meet at one point with
+  // one mark, as an ER diagram draws them; links that look different keep their own places on the row
+  const looks = (e, end) => [e.dashed, (e.tags || []).filter(t => /^(ok|bad|muted)$/.test(t) || CARD_RE.test(t)).join(','), end === 's' ? e.start : e.end].join('|');
+  const colLooks = new Map();
   for (const e of model.edges) for (const end of ['s', 't']) {
     const col = end === 's' ? e.aCol : e.bCol;
-    if (col && !e.rail) { const key = `${end === 's' ? e.a : e.b}|${col}|${end}`; colCount.set(key, (colCount.get(key) || 0) + 1); }
+    if (col && !e.rail) {
+      const key = `${end === 's' ? e.a : e.b}|${col}|${end}`;
+      if (!colLooks.has(key)) colLooks.set(key, []);
+      const L = colLooks.get(key), l = looks(e, end);
+      if (!L.includes(l)) L.push(l);
+    }
   }
   function addPort(e, end) {
     const id = end === 's' ? e.a : e.b;
@@ -2431,9 +2439,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       const fh = fhOf(sn), { IN, OUT } = sidesFor(fh);
       const side = end === 's' ? OUT : IN;
       const i = sn.cols.findIndex(c => c.name === colName);
-      // links that meet the same row are spread within it, so their arrowheads do not pile up
-      const key = `${id}|${colName}|${end}`, cnt = colCount.get(key) || 1, k = colSeen.get(key) || 0;
-      colSeen.set(key, k + 1);
+      const key = `${id}|${colName}|${end}`, L = colLooks.get(key) || [], cnt = L.length || 1, k = L.indexOf(looks(e, end));
       const spread = cnt > 1 ? (k - (cnt - 1) / 2) * Math.min(6, 14 / (cnt - 1)) : 0;
       const along = fh ? sn.headH + i * sn.rowH + sn.rowH / 2 + spread : sn.w / 2 + spread;
       const pid = `P${e.i}${end}`;

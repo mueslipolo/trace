@@ -937,6 +937,16 @@ test('zones stacked in a column share their left edge (hybrid: the three subnets
   }
 });
 
+test('links into one table row that look the same meet at one point; links that look different keep their own places', async () => {
+  const shop = await compile(fs.readFileSync(path.join(root, 'examples/cases/shop-model.trace'), 'utf8'), measure, ELK, {});
+  const ends = shop.rm.edges.filter(r => r.e.b === 'customers' && r.e.bCol === 'id').map(r => r.pts[r.pts.length - 1]);
+  assert.ok(ends.length >= 3);
+  for (const p of ends) assert.ok(Math.abs(p.x - ends[0].x) < 0.5 && Math.abs(p.y - ends[0].y) < 0.5, 'one point on customers.id');
+  const dm = await compile(fs.readFileSync(path.join(root, 'examples/playground/data-model.trace'), 'utf8'), measure, ELK, {});
+  const ys = dm.rm.edges.filter(r => r.e.b === 'orders' && r.e.bCol === 'id').map(r => Math.round(r.pts[r.pts.length - 1].y));
+  assert.strictEqual(new Set(ys).size, ys.length, 'different marks and styles on orders.id keep their own places');
+});
+
 test('every link is orthogonal: each stretch is horizontal or vertical, in every example and held-out diagram', async () => {
   const holdout = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace')).map(f => 'examples/holdout/' + f);
   for (const file of [...files, ...holdout]) {

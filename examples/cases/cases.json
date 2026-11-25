@@ -88,7 +88,7 @@
     "title": "Shop data model",
     "context": "Eight tables of an online shop: customers and addresses, orders and their lines, products and categories, payments and reviews.",
     "uses": "Table nodes with typed columns, key markers and a nullable column; links attach at the column and carry crow's foot cardinality; a self reference (categories) loops back on the table.",
-    "gap": "Two links meet one side of Customers a few pixels apart and run side by side, and “part of” and “is a” enter Orders on the same row. Nothing tells the layout to keep tables that share many links together; a grid of tables with ordered rows would read better."
+    "gap": "Links into one key now meet at one point (Customers, Orders, Products). Nothing tells the layout to keep tables that share many links together; a grid of tables with ordered rows would read better."
   },
   {
     "id": "orgchart",
