@@ -610,9 +610,15 @@ test('hub: eight links with the same label into one node are merged into a bus, 
 
 test('links leaving one short side of a node share the room out; stretches of different links are not squeezed together (aws case)', async () => {
   const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/aws.trace'), 'utf8'), measure, ELK, {});
-  const ys = res.rm.edges.filter(r => r.e.a === 'app1' && Math.abs(r.pts[0].x - res.rm.nodes.find(n => n.id === 'app1').x) < 2).map(r => r.pts[0].y).sort((a, b) => a - b);
-  assert.ok(ys.length >= 3);
-  for (let i = 1; i < ys.length; i++) assert.ok(ys[i] - ys[i - 1] >= 9.5, `starts ${ys[i] - ys[i - 1]}px apart`);
+  // every side of App a: the links that leave it there are 9.5px apart or more
+  const n = res.rm.nodes.find(x => x.id === 'app1');
+  const sides = { left: [], right: [], top: [], bottom: [] };
+  for (const r of res.rm.edges.filter(r => r.e.a === 'app1')) {
+    const p = r.pts[0];
+    if (Math.abs(p.x - n.x) < 2) sides.left.push(p.y); else if (Math.abs(p.x - n.x - n.w) < 2) sides.right.push(p.y);
+    else if (Math.abs(p.y - n.y) < 2) sides.top.push(p.x); else sides.bottom.push(p.x);
+  }
+  for (const v of Object.values(sides)) { v.sort((a, b) => a - b); for (let i = 1; i < v.length; i++) assert.ok(v[i] - v[i - 1] >= 9.5, `starts ${v[i] - v[i - 1]}px apart`); }
 });
 
 test('a chain much wider than tall folds into rows; a zoned strip is only folded when the return link is short', async () => {

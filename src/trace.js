@@ -963,7 +963,11 @@ function rerouteBlocked(rm) {
       if (Math.abs(a.y - p.y) < 0.5) return Math.min(Math.max(a.x, p.x), f.x + f.w) - Math.max(Math.min(a.x, p.x), f.x) > 20 && (Math.abs(a.y - f.y) < 8 || Math.abs(a.y - f.y - f.h) < 8);
       return false;
     }));
-    if (!blocked && !hugs && !along) continue;
+    // a link with three or more bends is tried again too, and kept only if the new route is clearly shorter:
+    // it catches the detours (out one way, round, and back) that a layout leaves behind
+    const curCost = q0.reduce((t, p, i) => i ? t + len(q0[i - 1], p) : 0, 0) + 60 * Math.max(0, q0.length - 2);
+    const detour = !blocked && !hugs && !along && q0.length >= 5;
+    if (!blocked && !hugs && !along && !detour) continue;
     // first choice: one straight line, when the two nodes overlap across the gap between them
     if (!S.cols && !S.span && !T.cols && !T.span) {
       const ox0 = Math.max(S.x, T.x) + 10, ox1 = Math.min(S.x + S.w, T.x + T.w) - 10;
@@ -986,6 +990,14 @@ function rerouteBlocked(rm) {
       if (nearB(p0[along], !!dy0)) for (const k of [16, -16, 28, -28, 40, -40]) { const v = p0[along] + k; if (v >= lo && v <= hi && !nearB(v, !!dy0)) { p0 = { ...p0, [along]: v }; break; } }
     }
     const s1 = stubOut(p0, dx0, dy0);
+    // it may also leave from the middle of another side of its source (a little dearer than where it was)
+    const starts = [{ p: p0, s: s1, d: [dx0, dy0], extra: 0 }];
+    if (!S.cols && !S.span) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      if (dx === dx0 && dy === dy0) continue;
+      const p = { x: dx < 0 ? S.x : dx > 0 ? S.x + S.w : S.x + S.w / 2, y: dy < 0 ? S.y : dy > 0 ? S.y + S.h : S.y + S.h / 2 };
+      if (nearB(dx ? p.y : p.x, !dx)) continue;
+      starts.push({ p, s: stubOut(p, dx, dy), d: [dx, dy], extra: 40 });
+    }
     // where it may arrive: the middle of each side of the target, a short way out
     // where it may arrive: the middle of each side of the target, or level with where it leaves (a straight
     // link when the two overlap); a table or a span node keeps the attachment point it was given
@@ -1013,25 +1025,24 @@ function rerouteBlocked(rm) {
       // and not where the link would run along a frame border
       for (const p of cands) if (T.cols || T.span || !nearB(dx ? p.y : p.x, !dx)) ports.push({ p, q: stubOut(p, dx, dy), d: [dx, dy], extra: ends.length * 150 });
     }
-    const xs = new Set([s1.x, ...ports.map(o => o.q.x)]), ys = new Set([s1.y, ...ports.map(o => o.q.y)]);
+    const xs = new Set([...starts.map(o => o.s.x), ...ports.map(o => o.q.x)]), ys = new Set([...starts.map(o => o.s.y), ...ports.map(o => o.q.y)]);
     for (const b of others.concat([S, T])) { xs.add(b.x - M - 2); xs.add(b.x + b.w + M + 2); ys.add(b.y - M - 2); ys.add(b.y + b.h + M + 2); }
     // lines that stay clear of the frame borders: a route is not drawn along a border
     for (const f of rm.frames) { for (const v of [f.x - 14, f.x + 14, f.x + f.w - 14, f.x + f.w + 14]) xs.add(v); for (const v of [f.y - 14, f.y + 14, f.y + f.h - 14, f.y + f.h + 14]) ys.add(v); }
-    const keep = new Set([s1.x, s1.y, ...ports.flatMap(o => [o.q.x, o.q.y])]);
+    const keep = new Set([...starts.flatMap(o => [o.s.x, o.s.y]), ...ports.flatMap(o => [o.q.x, o.q.y])]);
     const nearX = v => rm.frames.some(f => Math.abs(v - f.x) < 8 || Math.abs(v - f.x - f.w) < 8), nearY = v => rm.frames.some(f => Math.abs(v - f.y) < 8 || Math.abs(v - f.y - f.h) < 8);
     const X = [...xs].filter(v => keep.has(v) || !nearX(v)).sort((a, b) => a - b), Y = [...ys].filter(v => keep.has(v) || !nearY(v)).sort((a, b) => a - b);
     const all = others.concat([S, T]);
     const free = (x, y) => !all.some(b => inside(b, x, y, M - 1));
     const key = (i, j) => i * Y.length + j;
     const ix = new Map(X.map((v, i) => [v, i])), iy = new Map(Y.map((v, j) => [v, j]));
-    const start = key(ix.get(s1.x), iy.get(s1.y));
+    const startAt = new Map(starts.map(o => [key(ix.get(o.s.x), iy.get(o.s.y)), o]));
     const goals = new Map(ports.map(o => [key(ix.get(o.q.x), iy.get(o.q.y)), o]));
     // Dijkstra over (grid point, direction): length plus a price per bend
     const BEND = 60, dist = new Map(), prev = new Map(), heap = [];
     const push = (k, d, c) => { const id = k * 4 + d; if (c < (dist.get(id) ?? Infinity)) { dist.set(id, c); heap.push([c, id]); } };
     const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-    const d0 = DIRS.findIndex(([a, b]) => a === dx0 && b === dy0);
-    push(start, d0 < 0 ? 0 : d0, 0);
+    for (const [k, o] of startAt) { const d0 = DIRS.findIndex(([a, b]) => a === o.d[0] && b === o.d[1]); push(k, d0 < 0 ? 0 : d0, o.extra); }
     let best = null;
     while (heap.length) {
       let m = 0; for (let k = 1; k < heap.length; k++) if (heap[k][0] < heap[m][0]) m = k;
@@ -1059,8 +1070,10 @@ function rerouteBlocked(rm) {
     }
     if (!best) continue;
     const path = [];
-    for (let id = best.id; id !== undefined; id = prev.get(id)) { const k = Math.floor(id / 4); path.unshift({ x: X[Math.floor(k / Y.length)], y: Y[k % Y.length] }); if (Math.floor(id / 4) === start) break; }
-    const pts = simplifyPts([p0, ...path, best.o.p]);
+    let from = starts[0];
+    for (let id = best.id; id !== undefined; id = prev.get(id)) { const k = Math.floor(id / 4); path.unshift({ x: X[Math.floor(k / Y.length)], y: Y[k % Y.length] }); if (startAt.has(k) && !prev.has(id)) { from = startAt.get(k); break; } if (startAt.has(k) && dist.get(id) === startAt.get(k).extra) { from = startAt.get(k); break; } }
+    const pts = simplifyPts([from.p, ...path, best.o.p]);
+    if (detour) { const c = pts.reduce((t, p, i) => i ? t + len(pts[i - 1], p) : 0, 0) + 60 * Math.max(0, pts.length - 2); if (c > curCost * 0.8) continue; }
     if (pts.some((p, i) => i && others.some(b => segHits(pts[i - 1], p, b, 0)))) continue;
     r.pts = pts;
   }
