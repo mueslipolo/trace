@@ -116,7 +116,7 @@
     "title": "Support ticket triage",
     "context": "A ticket passes five questions on its way to being closed, answered from the knowledge base, paged or handled by an agent or engineering.",
     "uses": "`direction down`, a start and final state, decisions as pills, outcome colours.",
-    "gap": "The lower half tangles: two links leave “needs engineering?” into the same box and a long link returns from the support agent. Decisions with two outcomes would be clearer if the layout put yes and no on opposite sides."
+    "gap": "Each decision now parts yes and no at the box. The lower half still tangles: “needs engineering?” is placed above the two boxes that feed it, so their links climb back up to it."
   },
   {
     "id": "home",

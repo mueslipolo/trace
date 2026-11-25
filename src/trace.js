@@ -1863,7 +1863,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { placeOnConcentrators(rm); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); return rm; };
+  const finish = rm => { placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -2024,6 +2024,40 @@ function placeOnConcentrators(rm) {
       one.pts = simplifyPts(q);
       const lo = Math.min(t, ...lv), hi = Math.max(t, ...lv);
       j[A] = lo - 7; j[S] = hi - lo + 14;
+    }
+  }
+}
+
+// A decision whose two outcomes leave from the same side (both down, in a flow down) sends the one whose target
+// lies further across the flow out of the side facing it, as an L to the target: yes and no then part at the
+// box, as a flowchart draws them. Only when that L touches no other node.
+function splitDecisions(rm, flowH) {
+  const A = flowH ? 'y' : 'x', B = flowH ? 'x' : 'y', S = flowH ? 'h' : 'w', Bs = flowH ? 'w' : 'h';
+  const P = (a, b) => flowH ? { x: b, y: a } : { x: a, y: b };
+  for (const n of rm.nodes) {
+    if (n.kind !== 'ask' || n.x === undefined) continue;
+    const out = rm.edges.filter(r => r.pts && r.pts.length > 1 && r.e.a === n.id && r.e.b !== n.id && !r.e.start);
+    if (out.length !== 2) continue;
+    const exit = n[B] + n[Bs];                                     // the side the flow leaves by
+    const leaves = r => Math.abs(r.pts[0][B] - exit) < 2;
+    if (!out.every(leaves)) continue;
+    const c = n[A] + n[S] / 2;
+    const tgt = r => rm.nodes.find(m => m.id === r.e.b);
+    const off = r => { const t = tgt(r); return t ? t[A] + t[S] / 2 - c : 0; };
+    const side = out.reduce((a, b) => Math.abs(off(b)) > Math.abs(off(a)) ? b : a);
+    const t = tgt(side), d = off(side);
+    if (!t || Math.abs(d) < n[S] / 2 + 8) continue;               // its target is not off to one side
+    if (t[B] < exit + 12) continue;                               // nor further along the flow
+    const lvl = n[B] + n[Bs] / 2, ta = t[A] + t[S] / 2;
+    const pts = [P(d > 0 ? n[A] + n[S] : n[A], lvl), P(ta, lvl), P(ta, t[B])];
+    const hit = pts.some((p, i) => i && rm.nodes.some(m => m.x !== undefined && m !== n && m !== t &&
+      Math.min(pts[i - 1].x, p.x) < m.x + m.w + 6 && m.x - 6 < Math.max(pts[i - 1].x, p.x) && Math.min(pts[i - 1].y, p.y) < m.y + m.h + 6 && m.y - 6 < Math.max(pts[i - 1].y, p.y)));
+    if (hit || overlapsLinks(rm, pts, new Set([side])) || crossingsWith(rm, pts, side) > crossingsWith(rm, side.pts, side)) continue;
+    side.pts = pts;
+    // its label on the stretch leaving the box (placeLabels moves it if anything is in the way)
+    if (side.e.lab) {
+      const m = P(n[A] + (d > 0 ? n[S] : 0) + (d > 0 ? 1 : -1) * Math.min(Math.abs(ta - c) - n[S] / 2, 60) / 2, lvl);
+      side.lab = flowH ? { x: m.x + 6, y: m.y - side.e.lab.h / 2, anchor: 'start' } : { x: m.x, y: m.y - 4 - side.e.lab.h, anchor: 'middle' };
     }
   }
 }

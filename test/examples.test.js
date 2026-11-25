@@ -947,6 +947,17 @@ test('links into one table row that look the same meet at one point; links that 
   assert.strictEqual(new Set(ys).size, ys.length, 'different marks and styles on orders.id keep their own places');
 });
 
+test('a decision sends its two outcomes out of different sides, each with its label', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/triage.trace'), 'utf8'), measure, ELK, {});
+  const side = (r, n) => { const p = r.pts[0]; return Math.abs(p.y - n.y - n.h) < 2 ? 'bottom' : Math.abs(p.y - n.y) < 2 ? 'top' : Math.abs(p.x - n.x) < 2 ? 'left' : 'right'; };
+  for (const id of ['spam', 'known', 'urgent']) {
+    const n = res.rm.nodes.find(m => m.id === id);
+    const out = res.rm.edges.filter(r => r.e.a === id);
+    assert.strictEqual(new Set(out.map(r => side(r, n))).size, 2, `${id}: yes and no leave from different sides`);
+    assert.ok(out.every(r => r.lab), `${id}: both keep their label`);
+  }
+});
+
 test('every link is orthogonal: each stretch is horizontal or vertical, in every example and held-out diagram', async () => {
   const holdout = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace')).map(f => 'examples/holdout/' + f);
   for (const file of [...files, ...holdout]) {

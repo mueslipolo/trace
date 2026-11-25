@@ -48,6 +48,7 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | Rule | From | Kept by | How to check it |
 |---|---|---|---|
 | Siblings sit across the flow, not along it. | DMZ | usage: rows in a flow down, columns in a flow right (`docs/layout-guide.md`) | a link that leaves sideways and comes back |
+| A decision’s two outcomes part at the box: one straight on, the other out of the side facing its target, when that L is clear and crosses no more links. | triage (yes and no both leaving the bottom and tangling) | engine: `splitDecisions` | two links leaving one side of a decision |
 | The rows and columns the author wrote are kept: a link into a frame whose member is boxed in by its neighbours enters from the facing side and is routed round them, instead of the whole layout giving up. | OpenTelemetry services with edge and web side by side (the blocks were dropped) | engine: last-resort port in `portFor`, then `rerouteBlocked` | a diagram drawn with the note “could not be placed in the rows and columns you wrote” |
 | A pair linked across two stacks is level, so the link is straight. | CI/CD, k8s (cart pods and Redis) | feature: `align a b` | a link between stacks with a step |
 | Two stacks with different heights get the same pitch, so all their pairs line up. | k8s (catalog pods and Postgres, 5 px off) | feature: `same-height` on the nodes of both stacks | a constant offset between rows of two stacks |
