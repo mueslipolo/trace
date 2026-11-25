@@ -1,0 +1,79 @@
+direction down
+title "Microservices platform: runtime, observability and admin"
+
+pill users [user]: Users
+gw [arrow-right-left]: API gateway | routing, rate limits
+
+frame cluster "Kubernetes cluster, prod" [blue] {
+  row "services" {
+    orders [package]: Orders
+    catalog [list]: Catalog
+    payments [credit-card]: Payments
+    accounts [user]: Accounts
+    notify [bell]: Notifications
+  }
+}
+frame data "data" [purple] {
+  store pg [database]: Postgres
+  store redis [cache]: Redis
+  store kafka [queue]: Kafka
+}
+frame obs "observability" [green] {
+  loki [file-text]: Loki | logs
+  prom [activity]: Prometheus | metrics
+  tempo [route]: Tempo | traces
+  grafana [chart-bar]: Grafana | dashboards
+  alert [bell-ring]: Alertmanager
+}
+vault [lock]: Vault | secrets
+frame admin "admin access" [orange] {
+  vpn [vpn]: VPN
+  bastion [terminal]: Bastion host | SSO + MFA
+}
+eng [user]: Engineers
+pd [phone]: PagerDuty
+
+users -> gw : 443
+gw -> orders
+gw -> catalog
+gw -> payments
+gw -> accounts
+orders -> pg
+orders -> kafka
+catalog -> redis
+payments -> pg
+accounts -> pg
+notify -> kafka
+
+orders -> loki : logs
+catalog -> loki : logs
+payments -> loki : logs
+accounts -> loki : logs
+notify -> loki : logs
+gw -> loki : logs
+orders -> tempo : OTLP 4317
+catalog -> tempo : OTLP 4317
+payments -> tempo : OTLP 4317
+accounts -> tempo : OTLP 4317
+notify -> tempo : OTLP 4317
+gw -> tempo : OTLP 4317
+prom -> orders : scrape /metrics
+prom -> catalog : scrape /metrics
+prom -> payments : scrape /metrics
+prom -> accounts : scrape /metrics
+prom -> notify : scrape /metrics
+prom -> gw : scrape /metrics
+vault -> orders : secrets
+vault -> payments : secrets
+vault -> accounts : secrets
+vault -> notify : secrets
+
+prom -> grafana
+loki -> grafana
+tempo -> grafana
+prom -> alert
+alert -> pd : page
+eng -> vpn -> bastion
+bastion -> grafana [dashed] : 443 SSO
+bastion -> orders [dashed] : kubectl 6443
+bastion -> pg [dashed] : 5432 admin
