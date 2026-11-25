@@ -2,11 +2,13 @@ title "Hybrid cloud: datacenter to AWS"
 
 frame dc "on-prem datacenter" [grey] {
   column {
-    ad [users]: Active Directory
-    erp [database]: ERP | Oracle
+    row {
+      ad [users]: Active Directory
+      erp [database]: ERP | Oracle
+    }
+    core [switch]: Core switch
+    dcfw [firewall]: Datacenter firewall | IPsec peer
   }
-  core [switch]: Core switch
-  dcfw [firewall]: Datacenter firewall | IPsec peer
 }
 
 column {

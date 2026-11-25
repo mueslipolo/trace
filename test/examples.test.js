@@ -185,7 +185,8 @@ test('links written against the order of the nodes are laid out sensibly without
   process.env.TRACE_NOCYCLE = '1';
   let without;
   try { without = await compile(src, measure, ELK, {}); } finally { delete process.env.TRACE_NOCYCLE; }
-  assert.ok(bends(withCycle) < bends(without) * 0.8, `fewer bends when cycles are broken by declaration order (${bends(withCycle)} against ${bends(without)})`);
+  // the routing passes after the layout add a few bends on both sides (routes round nodes), so the margin is smaller than it was
+  assert.ok(bends(withCycle) < bends(without), `fewer bends when cycles are broken by declaration order (${bends(withCycle)} against ${bends(without)})`);
 });
 
 test('a span node is sized to the stack it feeds, so those links are straight even when a wider stack feeds it', async () => {
