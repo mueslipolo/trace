@@ -12,16 +12,18 @@ frame vpc "VPC 10.0.0.0/16" [grey] {
       app1 [container]: App a | ECS tasks
       store db1 [database]: Postgres primary
     }
+    column {
+      store cache [cache]: Redis cluster | sessions
+      nat [arrow-right-left]: NAT gateway
+    }
     frame az2 "zone b" [blue] {
       web2 [server]: Web b | autoscaling group
       app2 [container]: App b | ECS tasks
       store db2 [database]: Postgres standby
     }
   }
-  store cache [cache]: Redis cluster | sessions
 }
 store s3 [package]: S3 | uploads, backups
-nat [arrow-right-left]: NAT gateway
 ext [cloud]: Payment API
 
 users -> cdn : 443

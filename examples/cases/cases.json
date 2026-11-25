@@ -101,8 +101,8 @@
     "id": "aws",
     "title": "Web stack in one VPC across two zones",
     "context": "A CDN and a load balancer in front of two availability zones, each with web, app and database, plus a shared cache, object storage and a NAT gateway to a payment API.",
-    "uses": "`direction down`, two zones side by side in a row inside a VPC frame, a dashed replication link.",
-    "gap": "Links from both app tiers to the cache, storage and NAT still run around the outside of the VPC (they now keep 12px apart where they used to touch). Shared services on the side (a column next to the zones) and merging of links that go to the same target with different labels would help."
+    "uses": "The two availability zones side by side in a `row`, with the shared services between them in a `column` (Redis and the NAT gateway, which live in the VPC), so each app reaches them with a short straight link; S3 and the payment API outside, below.",
+    "gap": "App b’s link to Redis has a small step, and the NAT gateway’s link to the payment API hops over the replication line."
   },
   {
     "id": "mlops",
