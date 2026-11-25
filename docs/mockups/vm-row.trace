@@ -1,0 +1,36 @@
+direction down
+title "VMs, zone collectors"
+row {
+  column {
+    frame dmz "DMZ" [orange] {
+      lb [loadbalancer]: Load balancer
+      rp [arrow-right-left]: Reverse proxy
+      col1 [server]: Collector | zone aggregator
+    }
+    frame app "app zone" [blue] {
+      web1 [server]: web-01
+      web2 [server]: web-02
+      api1 [api]: api-01
+      col2 [server]: Collector | zone aggregator
+    }
+    frame data "data zone" [purple] {
+      store pg [database]: Postgres
+      store redis [cache]: Redis
+      col3 [server]: Collector | zone aggregator
+    }
+  }
+  frame obs "observability" [green] {
+    gw [server]: OTel gateway
+    loki [file-text]: Loki
+    tempo [route]: Tempo
+  }
+}
+lb -> web1
+rp -> api1
+web1 -> pg
+api1 -> redis
+col1 -> gw : 4317
+col2 -> gw : 4317
+col3 -> gw : 4317
+gw -> loki
+gw -> tempo
