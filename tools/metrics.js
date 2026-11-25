@@ -55,7 +55,8 @@ function measureOne(res) {
     }
     if (through) m.through++; else if (near) m.near++;
     const q = r.pts, L = q.length;
-    if (L > 2 && (Math.abs(q[0].x - q[1].x) + Math.abs(q[0].y - q[1].y) < 10 || Math.abs(q[L - 1].x - q[L - 2].x) + Math.abs(q[L - 1].y - q[L - 2].y) < 10)) m.hug++;
+    // (a bus branch starts on its bus line, at the hub: that first stretch is the line, not a turn against a box)
+    if (L > 2 && !r.merged && (Math.abs(q[0].x - q[1].x) + Math.abs(q[0].y - q[1].y) < 10 || Math.abs(q[L - 1].x - q[L - 2].x) + Math.abs(q[L - 1].y - q[L - 2].y) < 10)) m.hug++;
   }
   const X = (a, b, c, d) => {
     const h1 = eq(a.y, b.y), h2 = eq(c.y, d.y);

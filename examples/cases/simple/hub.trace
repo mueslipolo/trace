@@ -1,4 +1,3 @@
-spacing 1.3
 title "Microservices sharing one identity provider"
 
 web: Web app

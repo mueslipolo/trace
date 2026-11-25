@@ -631,19 +631,27 @@ test('arrowheads on one side of a node are not crowded by the next link (office 
   for (const [k, xs] of sides) { xs.sort((a, b) => a - b); for (let i = 1; i < xs.length; i++) assert.ok(xs[i] - xs[i - 1] >= 20, `${k}: arrows ${xs[i] - xs[i - 1]}px apart`); }
 });
 
-test('hub: eight links with the same label into one node are merged into a bus, with the label once', async () => {
+test('hub: links between one node and five or more members of a zone it is not in meet at a junction inside the zone; one link crosses its edge', async () => {
   const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/hub.trace'), 'utf8'), measure, ELK, {});
   assert.deepStrictEqual(res.errors, []);
-  const merged = res.rm.edges.filter(r => r.merged && r.e.b === 'idp');
-  assert.strictEqual(merged.length, 8);
-  const ends = merged.map(r => r.pts[r.pts.length - 1]);
-  for (const p of ends) assert.ok(Math.abs(p.x - ends[0].x) < 0.5 && Math.abs(p.y - ends[0].y) < 0.5, 'all end at one point');
-  assert.strictEqual(merged.filter(r => r.lab).length, 1, 'the label once');
-  assert.ok(res.rm.joins.length >= 3, 'dots where branches join');
-  assert.strictEqual((res.svg.match(/validate token/g) || []).length, 1);
-  // fewer than four links stay as they are
-  const few = await compile('a: A\nb: B\nc: C\nh: H\na -> h : x\nb -> h : x\nc -> h : x', measure, ELK, {});
-  assert.strictEqual(few.rm.edges.filter(r => r.merged).length, 0);
+  const zone = res.rm.frames.find(f => f.f.id === 'services');
+  const J = res.rm.nodes.filter(n => n.kind === 'junction');
+  assert.strictEqual(J.length, 2, 'one for the identity provider, one for the gateway');
+  for (const j of J) assert.ok(j.x > zone.x && j.x + j.w < zone.x + zone.w && j.y > zone.y && j.y + j.h < zone.y + zone.h, `${j.id} inside the services zone`);
+  const into = res.rm.edges.filter(r => r.e.b === 'idp' && J.some(j => j.id === r.e.a));
+  assert.strictEqual(into.length, 1, 'one link from the services to the identity provider');
+  assert.strictEqual(into[0].e.label, 'validate token');
+  const out = res.rm.edges.filter(r => r.e.a === 'gw' && J.some(j => j.id === r.e.b));
+  assert.strictEqual(out.length, 1, 'one link from the gateway into the services');
+  for (const j of J) {
+    const branches = res.rm.edges.filter(r => (r.e.a === j.id || r.e.b === j.id) && r.e.a !== 'gw' && r.e.b !== 'idp');
+    assert.ok(branches.length >= 5 && branches.filter(r => r.merged).length >= 4, `${j.id}: its branches form a bus`);
+  }
+  // the gateway, outside the zone, keeps its own link; the label is written once per link
+  assert.strictEqual((res.svg.match(/validate token/g) || []).length, 2);
+  // four links are not enough
+  const few = await compile('h: H\nframe z "z" {\n  a: A\n  b: B\n  c: C\n  d: D\n}\na -> h : x\nb -> h : x\nc -> h : x\nd -> h : x', measure, ELK, {});
+  assert.ok(!few.rm.nodes.some(n => n.kind === 'junction'));
 });
 
 test('links leaving one short side of a node share the room out; stretches of different links are not squeezed together (aws case)', async () => {

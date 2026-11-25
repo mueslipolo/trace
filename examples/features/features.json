@@ -339,7 +339,7 @@
     "id": "bus",
     "title": "Merged links",
     "group": "Automatic",
-    "does": "Four or more links to (or from) one node with the same label and style are drawn as one bus with the label once.",
+    "does": "Four or more links to (or from) one node with the same label and style are drawn as one bus with the label once. When five or more of them come from one zone, the bus is built inside the zone (see the next entry).",
     "effect": "A trunk at the node, a line running past the sources, a short branch from each, and a dot where a branch joins. Links with different labels stay separate.",
     "beforeLabel": "different labels",
     "afterLabel": "same label",
@@ -348,6 +348,22 @@
     "syntax": "(nothing to write)",
     "use": "Automatic: four or more links to or from one node with the same label and style are merged. Give links different labels to keep them apart.",
     "wide": false
+  },
+  {
+    "id": "junction",
+    "title": "Merged links in a zone",
+    "group": "Automatic",
+    "does": "When more than four links with the same meaning join one node to members of a zone it is not in, they meet at a junction inside that zone, as close to its members as the layout allows, and one link crosses the zone’s edge.",
+    "effect": "A fan-out (the gateway into its services) spreads just inside the zone; a fan-in (every service to the identity provider) gathers just inside it. The members line up beside the junction, so the branches are short and straight.",
+    "beforeLabel": "merging off",
+    "afterLabel": "merging on (automatic)",
+    "beforeOff": [
+      "merge"
+    ],
+    "afterOff": [],
+    "syntax": "(nothing to write)",
+    "use": "Automatic for five or more links with the same label and style between one node and members of one zone. Links from outside that zone stay separate.",
+    "wide": true
   },
   {
     "id": "fold",

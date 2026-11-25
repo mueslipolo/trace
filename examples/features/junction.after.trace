@@ -1,0 +1,20 @@
+title "bus inside a zone"
+gw [arrow-right-left]: API gateway
+frame services "services" [blue] {
+  orders [package]: Orders
+  billing [credit-card]: Billing
+  shipping [truck]: Shipping
+  catalog [list]: Catalog
+  search [search]: Search
+}
+idp [key]: Identity provider
+gw -> orders
+gw -> billing
+gw -> shipping
+gw -> catalog
+gw -> search
+orders -> idp : validate token
+billing -> idp : validate token
+shipping -> idp : validate token
+catalog -> idp : validate token
+search -> idp : validate token

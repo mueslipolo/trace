@@ -629,6 +629,7 @@ function sizeTable(n, measure) {
 function sizeNode(n, measure) {
   if (n.kind === 'table') return sizeTable(n, measure);
   if (n.kind === 'start') { n.w = 18; n.h = 18; n.nameLines = []; n.noteLines = []; return; }
+  if (n.kind === 'junction') { n.w = 8; n.h = 8; n.nameLines = []; n.noteLines = []; n.textH = 0; return; }
   n.nameLines = n.name ? wrap(n.name, FONT_NAME, 210, measure) : [];
   n.noteLines = n.note ? wrap(n.note, FONT_NOTE, 230, measure) : [];
   const tw = Math.max(0, ...n.nameLines.map(l => measure(l, FONT_NAME)), ...n.noteLines.map(l => measure(l, FONT_NOTE)));
@@ -1080,8 +1081,9 @@ function rerouteBlocked(rm, force) {
     const push = (k, d, c) => { const id = k * 4 + d; if (c < (dist.get(id) ?? Infinity)) { dist.set(id, c); heap.push([c, id]); } };
     const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     // a start whose first stub already lies on another link (the trunk of a bus) is as dear as running on one
-    for (const o of starts) if (occupied.some(([u, w]) => overlapSeg(o.p, o.s, u, w))) o.extra += 600;
-    for (const o of ports) if (occupied.some(([u, w]) => overlapSeg(o.q, o.p, u, w))) o.extra = (o.extra || 0) + 600;
+    // (closer than 8px counts, as everywhere: two lines that near read as one)
+    for (const o of starts) if (occupied.some(([u, w]) => overlapSeg(o.p, o.s, u, w, 8))) o.extra += 600;
+    for (const o of ports) if (occupied.some(([u, w]) => overlapSeg(o.q, o.p, u, w, 8))) o.extra = (o.extra || 0) + 600;
     for (const [k, o] of startAt) { const d0 = DIRS.findIndex(([a, b]) => a === o.d[0] && b === o.d[1]); push(k, d0 < 0 ? 0 : d0, o.extra); }
     let best = null;
     while (heap.length) {
@@ -1320,7 +1322,9 @@ function mergeHubs(rm, MIN = 4) {
     const M = p => vert ? p.y : p.x, C = p => vert ? p.x : p.y;
     const mk = (m, c) => vert ? { x: c, y: m } : { x: m, y: c };
     const last = items.find(it => sideOf(it.P[it.P.length - 1]) === side).P;
-    const endM = M(last[last.length - 1]);
+    // a junction is a point on its own bus: the bus line runs through it
+    const J = hub.kind === 'junction';
+    const endM = J ? M({ x: hub.x + hub.w / 2, y: hub.y + hub.h / 2 }) : M(last[last.length - 1]);
     const trunkC = vert ? hub.x + hub.w / 2 : hub.y + hub.h / 2;
     // a bus and its branches keep 6px clear of every node they do not serve, like any link
     const hits = (a, b, skip) => rm.nodes.some(n => n.x !== undefined && !skip.has(n.id) && Math.min(a.x, b.x) < n.x + n.w + 6 && n.x - 6 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h + 6 && n.y - 6 < Math.max(a.y, b.y));
@@ -1404,17 +1408,26 @@ function mergeHubs(rm, MIN = 4) {
     // the side of the bus that carries the arrowheads needs room for them (30px); the other side 16px
     const e0 = ok[0].r.e, arrowAtHub = role === 'b' ? !!e0.end : !!e0.start;
     const TR = arrowAtHub ? 30 : 16, BR = arrowAtHub ? 16 : 30;
-    if (endM * dir - startMax < TR + BR) continue;
-    const near = startMax + Math.min(BR + 10, endM * dir - startMax - TR);
-    const far = endM * dir - Math.min(TR + 6, endM * dir - startMax - BR);
-    let plan = [], busM = near * dir;
-    for (let m = near; m <= far + 0.1; m += 6) {
-      const bm = m * dir;
-      if (frameNear(bm)) continue;
-      const pl = build(bm);
-      if (pl.length > plan.length) { plan = pl; busM = bm; }
+    let plan = [], busM;
+    if (J) {
+      // the members' side needs room for arrowheads only when the branches have them there
+      const arrowAtOthers = role === 'b' ? !!e0.start : !!e0.end;
+      if (endM * dir - startMax < (arrowAtOthers ? 30 : 12)) continue;
+      busM = endM;
+      plan = build(busM);
+    } else {
+      if (endM * dir - startMax < TR + BR) continue;
+      const near = startMax + Math.min(BR + 10, endM * dir - startMax - TR);
+      const far = endM * dir - Math.min(TR + 6, endM * dir - startMax - BR);
+      busM = near * dir;
+      for (let m = near; m <= far + 0.1; m += 6) {
+        const bm = m * dir;
+        if (frameNear(bm)) continue;
+        const pl = build(bm);
+        if (pl.length > plan.length) { plan = pl; busM = bm; }
+      }
+      if (!plan.length && !frameNear(busM)) plan = build(busM);
     }
-    if (!plan.length && !frameNear(busM)) plan = build(busM);
     if (plan.length < MIN) continue;
     // a bus never crosses the line of another bus: a branch cutting across it reads as joining it, so such a
     // branch stays an ordinary link (crossing another bus's branch is an ordinary crossing, with a hop)
@@ -1570,8 +1583,10 @@ function spreadEnds(rm, gap0 = 22) {
   const T = 8;
   const ends = [];
   for (const r of rm.edges) {
-    if (r.e.rail || r.e.lifeline || !r.pts || r.pts.length < 2 || r.e.a === r.e.b || (r.merged && !r.mergeRep)) continue;
-    const q = simplifyPts(r.pts);
+    if (r.e.rail || r.e.lifeline || !r.pts || r.pts.length < 2 || r.e.a === r.e.b) continue;
+    // a bus branch counts where it leaves its own node (it stays put, the others keep clear of it); at the hub
+    // the branches share one point, which counts once
+    const q = r.merged ? r.pts : simplifyPts(r.pts);
     r.pts = q;
     for (const end of [0, 1]) {
       const i = end ? q.length - 1 : 0, p = q[i];
@@ -1581,6 +1596,7 @@ function spreadEnds(rm, gap0 = 22) {
           ['left', Math.abs(p.x - n.x), p.y >= n.y && p.y <= n.y + n.h, p.y], ['right', Math.abs(p.x - n.x - n.w), p.y >= n.y && p.y <= n.y + n.h, p.y]]
           .filter(x => x[1] <= T && x[2]).sort((a, b) => a[1] - b[1]);
         if (!c.length) continue;
+        if (r.merged && n.id === r.mergeHub && !r.mergeRep) break;
         const side = c[0][0], pos = c[0][3];
         // the stretch leaving the node must run across the side, and a stretch before it must exist
         const nx = q[end ? i - 1 : i + 1], nn = q[end ? i - 2 : i + 2];
@@ -1781,6 +1797,7 @@ async function layout(model, measure, ELK, opts) {
   const env = (typeof process !== 'undefined' && process.env) || {};
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
+  if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
   const finish = rm => { spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
@@ -1793,6 +1810,63 @@ async function layout(model, measure, ELK, opts) {
     rm = await run();      // the model holds the last try: draw the strip again
   }
   return rm;
+}
+
+// A bus belongs to the group it gathers. Five or more links with the same meaning between one node and
+// several nodes that all stand in one zone (the node itself outside it) meet at a junction inside that zone,
+// as close to them as the layout can put it, and only one link crosses the zone's edge: into the zone for a
+// fan-out (an API gateway to its services), out of it for a fan-in (every service to the identity provider).
+// The junction is a point the layout places like a node, so the members line up beside it; the branches
+// between it and the members are then merged into a bus like any other.
+function addJunctions(model) {
+  const MIN = 5;                       // more than four links: below that, separate links read well enough
+  const frames = n => { const a = []; for (let p = n.parent; p; p = p.parent) if (p.type === 'frame') a.unshift(p); return a; };
+  const groups = new Map();
+  for (const e of model.edges) {
+    if (e.rail || e.a === e.b || e.aCol || e.bCol || (e.start && e.end)) continue;
+    const A = model.nodes.get(e.a), B = model.nodes.get(e.b);
+    if (!A || !B || A.kind === 'table' || B.kind === 'table') continue;
+    for (const role of ['b', 'a']) {
+      const k = [e[role], role, e.label || '', (e.tags || []).join(','), !!e.dashed, !!e.start, !!e.end].join('|');
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(e);
+    }
+  }
+  const used = new Set();
+  let n = 0;
+  for (const [k, list0] of [...groups.entries()].sort((x, y) => y[1].length - x[1].length)) {
+    const list = list0.filter(e => !used.has(e));
+    if (list.length < MIN) continue;
+    const role = k.split('|')[1], other = role === 'b' ? 'a' : 'b';
+    const hub = model.nodes.get(list[0][role]);
+    const hubFrames = frames(hub);
+    // the zone that holds most of the others (at least five), the innermost such zone, the hub standing
+    // outside it; the links from outside that zone stay ordinary links
+    const count = new Map();
+    for (const e of list) { const x = model.nodes.get(e[other]); if (!x || x.span) continue; for (const f of frames(x)) count.set(f, (count.get(f) || 0) + 1); }
+    let F = null;
+    for (const [f, c] of count) if (c >= MIN && !hubFrames.includes(f) && (!F || c > count.get(F) || (c === count.get(F) && frames(f.items[0] || f).length > frames(F.items[0] || F).length))) F = f;
+    if (!F) continue;
+    const inF = x => { for (let p = x.parent; p; p = p.parent) if (p === F) return true; return false; };
+    list.splice(0, list.length, ...list.filter(e => { const x = model.nodes.get(e[other]); return x && !x.span && inF(x); }));
+    // a fan-in gathers where the zone is left, a fan-out spreads where it is entered
+    const j = { type: 'node', id: '_junction' + (++n), kind: 'junction', name: '', note: '', tags: [], parent: F, line: list[0].line, junction: role === 'b' ? 'last' : 'first' };
+    F.items.push(j);
+    model.nodes.set(j.id, j);
+    const e0 = list[0];
+    // the trunk keeps the words, the style and the arrowhead at the hub; the branches keep the arrowhead at each member
+    const trunk = role === 'b'
+      ? { a: j.id, b: hub.id, op: e0.op, label: e0.label, tags: e0.tags.slice(), dashed: e0.dashed, start: false, end: e0.end, line: e0.line, trunk: true }
+      : { a: hub.id, b: j.id, op: e0.op, label: e0.label, tags: e0.tags.slice(), dashed: e0.dashed, start: e0.start, end: false, line: e0.line, trunk: true };
+    for (const e of list) {
+      e[role] = j.id;
+      e.label = '';
+      if (role === 'b') e.end = false; else e.start = false;
+      e.branch = true;
+      used.add(e);
+    }
+    model.edges.push(trunk);
+  }
 }
 
 async function chooseLayout(model, measure, ELK) {
@@ -2568,7 +2642,8 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
         if (it.type === 'node') {
           const en = { id: it.id, width: it.w, height: it.h };
           const fixed = it.span || (it.cols && it.ports && it.ports.length);
-          en.layoutOptions = { ...part, ...(fixed ? { 'elk.portConstraints': 'FIXED_POS' } : {}), ...(markIsland(it) && !isLane ? { 'elk.layered.layering.layerConstraint': 'LAST' } : {}) };
+          en.layoutOptions = { ...part, ...(fixed ? { 'elk.portConstraints': 'FIXED_POS' } : {}), ...(markIsland(it) && !isLane ? { 'elk.layered.layering.layerConstraint': 'LAST' } : {}),
+            ...(it.junction && !isLane ? { 'elk.layered.layering.layerConstraint': it.junction === 'last' ? 'LAST' : 'FIRST' } : {}) };
           if (fixed) en.ports = it.ports;
           children.push(en);
         } else if (it.type === 'group') {
@@ -3583,6 +3658,7 @@ function nodeSVG(n) {
     out.push(`<circle class="dot" cx="${r1(n.x + 9)}" cy="${r1(n.y + 9)}" r="8"/>`);
     return out.join('');
   }
+  if (n.kind === 'junction') { out.push(`<circle class="dot" cx="${r1(n.x + n.w / 2)}" cy="${r1(n.y + n.h / 2)}" r="2.6"/>`); return out.join(''); }
   let x = n.x, y = n.y, w = n.w, h = n.h;
   if (n.kind === 'final') {
     out.push(`<rect class="${c}" x="${r1(x)}" y="${r1(y)}" width="${w}" height="${h}" rx="10"/>`);
