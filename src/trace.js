@@ -2470,7 +2470,11 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
           return rq;
         }
       }
-      return null;
+      // last resort: the side facing the link, even though a member is in the way; the router takes the link
+      // round it afterwards, as it does any blocked link, instead of giving up on the rows and columns
+      const rq = { T, e, end, m, side: sides[0], mp };
+      reqs.push(rq);
+      return rq;
     }
     async function layoutFrame(Fr) {
       const items = Fr ? Fr.items : model.root.items;

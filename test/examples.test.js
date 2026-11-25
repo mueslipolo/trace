@@ -836,6 +836,19 @@ test('no link runs through a node that is not one of its ends, in any example', 
   }
 });
 
+test('layout blocks hold even when every straight way into a frame member is blocked; the router takes the link round', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'test/fixtures/blocked-port.trace'), 'utf8'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  assert.ok(!(res.rm.notes || []).some(n => /could not be placed/.test(n)), 'the rows and columns are kept');
+  for (const r of res.rm.edges) for (const n of res.rm.nodes) {
+    if (!r.pts || n.x === undefined || n.id === r.e.a || n.id === r.e.b) continue;
+    for (let i = 1; i < r.pts.length; i++) {
+      const a = r.pts[i - 1], b = r.pts[i];
+      assert.ok(!(Math.min(a.x, b.x) < n.x + n.w - 1 && n.x + 1 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h - 1 && n.y + 1 < Math.max(a.y, b.y)), `${r.e.a} -> ${r.e.b} runs through ${n.id}`);
+    }
+  }
+});
+
 test('every link is orthogonal: each stretch is horizontal or vertical, in every example and held-out diagram', async () => {
   const holdout = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace')).map(f => 'examples/holdout/' + f);
   for (const file of [...files, ...holdout]) {
