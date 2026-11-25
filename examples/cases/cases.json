@@ -24,8 +24,8 @@
     "id": "hybrid",
     "title": "Hybrid cloud: datacenter to AWS",
     "context": "An on-prem datacenter reaches an AWS VPC through a transit gateway, over Direct Connect with an IPsec VPN as backup. Public, private and database subnets; apps still authenticate against on-prem Active Directory.",
-    "uses": "Four levels of nesting (region, VPC, subnet tiers) and a transit gateway as a [bridge] on the AWS border, where the datacenter link lands. tgw <- app1 sends the LDAP call back to the datacenter without turning the whole layout around. A column holds the three subnet tiers as bands inside the VPC, the way AWS reference diagrams draw them, and same-width makes the bands one width.",
-    "gap": "The tiers are bands now, but the links between them (load balancer to the two app nodes, app nodes to the database) still leave and re-enter by the left side of each band."
+    "uses": "Four levels of nesting (region, VPC, subnet tiers) and a transit gateway as a [bridge] on the AWS border, where the datacenter link lands. tgw <- app1 sends the LDAP call back to the datacenter without turning the whole layout around. A column holds the three subnet tiers as bands inside the VPC, the way AWS reference diagrams draw them, and same-width makes the bands one width. The two app nodes and the two databases are rows (siblings across the flow inside the VPC's downward column), so the load balancer's and the apps' links drop straight; Internet users sit in a column above AWS and enter the internet gateway from the top; `same-height dc aws` gives the datacenter and AWS the same top and bottom.",
+    "gap": "The three subnets are as wide as each other but not lined up: inside the VPC's column each is centred on its own links, and same-width cannot move a zone sideways. The datacenter, as tall as AWS, has a lot of empty room."
   },
   {
     "id": "office",

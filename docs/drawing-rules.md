@@ -36,6 +36,8 @@ When a review leads to a change, add the rule here in the same commit.
 | Siblings sit across the flow, not along it. | DMZ | usage: rows in a flow down, columns in a flow right (`docs/layout-guide.md`) | a link that leaves sideways and comes back |
 | A pair linked across two stacks is level, so the link is straight. | CI/CD, k8s (cart pods and Redis) | feature: `align a b` | a link between stacks with a step |
 | Two stacks with different heights get the same pitch, so all their pairs line up. | k8s (catalog pods and Postgres, 5 px off) | feature: `same-height` on the nodes of both stacks | a constant offset between rows of two stacks |
+| Zones side by side share their top and bottom. | hybrid (datacenter and AWS) | feature: `same-height dc aws`; a node outside both that sits in the band they would share (Internet users) has to move out of it, here into a column above AWS | side-by-side zones with different heights |
+| Siblings inside a downward stack of zones go in a row. | hybrid (app nodes, databases inside the VPC column) | usage: `row` instead of `column` | links that leave sideways inside a column of zones |
 | Tiers have straight sides. | DMZ, hybrid | feature: `same-width` / `same-height` on frames | frames in one stack with different widths |
 | Sources feeding one node do not bunch up at its edge. | DMZ (users and partners into DDoS) | feature: `[span]` | links converging on a node narrower than its sources |
 | A firewall belongs on the border it guards. | DMZ | feature: `[bridge]` | a node linked into two adjacent zones |

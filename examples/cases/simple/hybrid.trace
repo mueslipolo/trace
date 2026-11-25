@@ -8,7 +8,6 @@ frame dc "on-prem datacenter" [grey] {
 }
 
 pill users: Internet users
-
 frame aws "AWS eu-west-1" [orange] {
   tgw: Transit gateway
   frame vpc "VPC 10.20.0.0/16" [blue] {
