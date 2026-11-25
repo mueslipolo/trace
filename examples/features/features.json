@@ -8,7 +8,10 @@
     "beforeLabel": "direction right (default)",
     "afterLabel": "direction down",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "direction down",
+    "use": "Tiers or layers that traffic crosses in order (a network behind firewalls): down. Pipelines and lifecycles: right, the default.",
+    "wide": true
   },
   {
     "id": "kinds",
@@ -19,7 +22,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "store db: Orders DB\nask ok: In stock?\npill u: Customer",
+    "use": "To say what a node is: a person or outside actor, a data store, a decision, a state.",
+    "wide": false
   },
   {
     "id": "icons",
@@ -30,7 +36,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "fw [firewall]: Edge firewall\nlb [loadbalancer top]: Load balancer",
+    "use": "For recognisable things (database, firewall, user, cloud). Not on decisions or states. Any Lucide icon name works.",
+    "wide": false
   },
   {
     "id": "links",
@@ -41,7 +50,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "a -> b : 443/tcp\na --> b          # dashed\na <-> b          # both ways\na -> b [bad]     # red",
+    "use": "On every network link: ports and protocols cost nothing and make the diagram worth reading.",
+    "wide": false
   },
   {
     "id": "frames",
@@ -52,7 +64,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "frame dmz \"DMZ, 10.0.1.0/24\" [orange] {\n  lb: Load balancer\n}",
+    "use": "For zones, networks, teams, anything that belongs together. Put the address range or owner in the title.",
+    "wide": false
   },
   {
     "id": "nesting",
@@ -63,7 +78,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "frame region \"eu-west-1\" {\n  frame vpc \"VPC\" {\n    ...\n  }\n}",
+    "use": "For a zone inside a zone: a cluster in a region, a subnet in a VPC.",
+    "wide": false
   },
   {
     "id": "column",
@@ -74,7 +92,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "column \"web servers\" {\n  w1: web-01\n  w2: web-02\n}",
+    "use": "For peers that one node feeds or that feed one node. They share a width and link in straight lines.",
+    "wide": false
   },
   {
     "id": "across",
@@ -85,7 +106,10 @@
     "beforeLabel": "column along the flow",
     "afterLabel": "row across the flow",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "direction down\nrow {\n  lb: Load balancer\n  rp: Reverse proxy\n}",
+    "use": "Whenever several nodes sit next to a zone's entry point: across the flow (a row when the diagram goes down, a column when it goes right).",
+    "wide": false
   },
   {
     "id": "lanes",
@@ -96,7 +120,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "column {\n  row {\n    frame a \"edge\" { ... }\n    frame b \"DMZ\" { ... }\n  }\n  row {\n    frame c \"app\" { ... }\n  }\n}",
+    "use": "When you want two zones next to each other, or a particular order. Do not wrap zones that the flow already stacks: it adds nothing.",
+    "wide": true
   },
   {
     "id": "span",
@@ -107,7 +134,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "ddos [span shield]: DDoS scrubbing",
+    "use": "When two or more sources feed one node and their links bunch up at its edge.",
+    "wide": false
   },
   {
     "id": "bridge",
@@ -118,7 +148,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "fw [bridge span firewall]: Internal firewall",
+    "use": "For a firewall or gateway that sits on the border of two zones.",
+    "wide": false
   },
   {
     "id": "samewidth",
@@ -129,7 +162,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "same-width edge core access",
+    "use": "When the tiers of a diagram have ragged sides. Also `same-height`.",
+    "wide": false
   },
   {
     "id": "align",
@@ -140,7 +176,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "align registry deploy e2e approve",
+    "use": "To keep one pair (or chain) level across stacks of different lengths. It does not remove crossings.",
+    "wide": true
   },
   {
     "id": "rail",
@@ -151,7 +190,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "rail logs \"management\" [right] {\n  siem: SIEM\n}\nfw1 -> logs",
+    "use": "For links that touch many nodes and are not part of the story: logs, metrics, schedulers.",
+    "wide": false
   },
   {
     "id": "reverse",
@@ -162,7 +204,10 @@
     "beforeLabel": "pg -> worker (the arrow points at the worker)",
     "afterLabel": "pg <- worker (the arrow points into pg)",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "pg <- worker : claim a job",
+    "use": "When the arrow should point one way and the story reads the other.",
+    "wide": false
   },
   {
     "id": "legend",
@@ -173,7 +218,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "key box [dashed] : retired\nkey -> [bad] : failure path",
+    "use": "When colours, dashes or shapes carry meaning the reader has to learn.",
+    "wide": false
   },
   {
     "id": "tables",
@@ -184,7 +232,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "table orders \"Orders\" {\n  id uuid pk\n  customer_id uuid fk\n}\norders.customer_id -> customers.id [n-1]",
+    "use": "Data models. Links name the column; `[n-1]`, `[0n-1]`, `[1-1]` give the crow's foot.",
+    "wide": false
   },
   {
     "id": "sequence",
@@ -195,7 +246,10 @@
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "sequence\nclient -> api : POST /jobs\napi --> client : 202",
+    "use": "For who says what to whom, in order. Notes and loop, alt, opt, par blocks are supported.",
+    "wide": false
   },
   {
     "id": "bus",
@@ -206,7 +260,10 @@
     "beforeLabel": "different labels",
     "afterLabel": "same label",
     "beforeOff": [],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "(nothing to write)",
+    "use": "Automatic: four or more links to or from one node with the same label and style are merged. Give links different labels to keep them apart.",
+    "wide": false
   },
   {
     "id": "fold",
@@ -219,7 +276,10 @@
     "beforeOff": [
       "fold"
     ],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "(nothing to write)",
+    "use": "Automatic: a strip much wider than tall is retried as rows. Write rows and columns yourself to decide.",
+    "wide": true
   },
   {
     "id": "spread",
@@ -232,6 +292,9 @@
     "beforeOff": [
       "tidy"
     ],
-    "afterOff": []
+    "afterOff": [],
+    "syntax": "(nothing to write)",
+    "use": "Automatic: links are kept apart where they meet a node and where they would run side by side.",
+    "wide": true
   }
 ]
