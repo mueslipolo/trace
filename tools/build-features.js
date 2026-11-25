@@ -52,7 +52,7 @@ let page = fs.readFileSync(path.join(root, 'playground/features-template.html'),
 page = page
   .replace('@@NAV@@', () => nav)
   .replace('@@CARDS@@', () => cards)
-  .replace('/*CORE*/', () => ['lucide-core', 'lucide-names', 'trace'].map(n => fs.readFileSync(path.join(root, 'src', n + '.js'), 'utf8')).join('\n'))
+  .replace('/*CORE*/', () => ['lucide-core', 'lucide-names', 'logo-core', 'logo-names', 'trace'].map(n => fs.readFileSync(path.join(root, 'src', n + '.js'), 'utf8')).join('\n'))
   .replace('/*FEATURES*/', () => 'const FEATURES = ' + JSON.stringify(features).replace(/</g, '\\u003c') + ';');
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist/features.html'), page);

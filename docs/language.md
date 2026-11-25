@@ -77,6 +77,27 @@ lb [loadbalancer top]: Load balancer pair | VRRP
   printer, camera, cache, function, clock, document, bell, chart, settings, mail, key.
   `examples/playground/icons.trace` draws them all with the Lucide name each one comes from.
 
+Technology logos are written the same way, by the technology's name:
+
+```
+store pg [database postgresql]: Orders DB
+api [go]: Orders API
+frame k8s "Kubernetes cluster" [blue kubernetes] { ... }
+```
+
+- With a role icon, the logo stands small, in the note's grey, before the technology's name in the note; a node
+  with no note gets the technology's name as its note (`Orders DB` above reads "PostgreSQL" under its name).
+- Without a role icon, the logo takes the icon's place.
+- On a frame, the logo stands before its title.
+- Logos are drawn in one colour (the ink, or the note's grey when small), never in brand colours.
+- The names are Simple Icons' (simpleicons.org; CC0, the logos remain their owners' trademarks), with short
+  names for common ones: `kafka`, `postgres`, `k8s`, `node`, `vue`, `mongo`, `elastic`, `gcp`, `otel`, `golang`,
+  `ts`, `js`, `traefik`, `argocd`, `hashicorp-vault`. A name that is also a Lucide icon or a Trace tag keeps
+  that meaning (`vault`, `box`, `orange`...); write `logo/vault` for the logo.
+- About forty common logos ship with the engine; any other is fetched from jsDelivr the first time a diagram
+  uses it (Node reads it from the `simple-icons` package). AWS, Azure, Java and OpenAI are not available:
+  their owners had them removed.
+
 Tags (in brackets, before the colon or at the end of the label):
 
 | tag | effect |

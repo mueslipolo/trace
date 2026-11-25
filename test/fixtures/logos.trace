@@ -1,0 +1,16 @@
+title "Logos: every combination"
+direction down
+row {
+  store pg [database postgresql]: Orders DB
+  store cache [zap redis]: Cache | sessions, 1 h
+  api [go]: Orders API
+  worker [python top]: Worker
+}
+frame k8s "Kubernetes cluster" [blue kubernetes] {
+  row {
+    web [app-window react]: Web app
+    events [list-end kafka]: Order events
+    pill users [user keycloak]: Customers signing in
+    longname [server nodedotjs]: A service with a rather long name that wraps
+  }
+}

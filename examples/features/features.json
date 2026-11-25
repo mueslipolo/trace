@@ -56,6 +56,20 @@
     "wide": false
   },
   {
+    "id": "logos",
+    "title": "Technology logos",
+    "group": "Nodes",
+    "does": "A technology’s name in the brackets draws its logo: small, before the technology’s name under the node’s own name when the node has a role icon; in the icon’s place when it has none; before the title of a zone.",
+    "effect": "You see what each part does (the role icon) and what it is built with (the logo and its name). Logos are in one colour; a node with no note gets the technology’s name as its note.",
+    "beforeLabel": "technology written in the note",
+    "afterLabel": "with logos",
+    "beforeOff": [],
+    "afterOff": [],
+    "syntax": "store pg [database postgresql]: Orders DB\napi [go]: Orders API\nframe k8s \"Kubernetes cluster\" [kubernetes] { ... }",
+    "use": "Use it when the technologies matter to the reader (an architecture review, a migration). Any Simple Icons name; short names for common ones (kafka, postgres, k8s, node).",
+    "wide": false
+  },
+  {
     "id": "links",
     "title": "Link styles",
     "group": "Links",

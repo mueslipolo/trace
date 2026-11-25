@@ -27,6 +27,7 @@
   "devDependencies": {
     "@expo-google-fonts/inter": "0.4.2",
     "lucide-static": "1.79.0",
-    "opentype.js": "2.0.0"
+    "opentype.js": "2.0.0",
+    "simple-icons": "16.37.0"
   }
 }

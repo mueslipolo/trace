@@ -1,0 +1,15 @@
+title "technologies"
+direction down
+frame k8s "Kubernetes cluster" [blue kubernetes] {
+  row {
+    web [app-window react]: Web app
+    api [server go]: Orders API
+  }
+}
+row {
+  store pg [database postgresql]: Orders DB
+  events [list-end kafka]: Order events
+}
+web -> api
+api -> pg
+api -> events

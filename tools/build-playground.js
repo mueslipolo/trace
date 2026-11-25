@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
-const core = ['lucide-core', 'lucide-names', 'trace'].map(n => fs.readFileSync(path.join(root, 'src', n + '.js'), 'utf8')).join('\n');
+const core = ['lucide-core', 'lucide-names', 'logo-core', 'logo-names', 'trace'].map(n => fs.readFileSync(path.join(root, 'src', n + '.js'), 'utf8')).join('\n');
 const order = ['components-and-data-flow', 'job-states', 'routing-and-fallback', 'engines-behind-one-contract',
   'network-boundaries', 'the-vocabulary', 'who-may-delete-audit-rows', 'job-sequence', 'idempotency', 'data-model'];
 const dir = path.join(root, 'examples/playground');
