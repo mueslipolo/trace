@@ -122,8 +122,8 @@
     "id": "home",
     "title": "Home network",
     "context": "An ISP, a router, a switch and an access point with a dozen devices, a DNS filter and two backup links.",
-    "uses": "`direction down` and nothing else; the fan-outs from the switch and the access point are merged into buses.",
-    "gap": "Good. The backup links to the NAS cross the switch's bus, and the desktop is pushed to a second row because its link to the NAS is drawn below the switch's other devices."
+    "uses": "`direction down`, one zone for the wired devices and a `row` in it. The switch’s five links go into that zone, so they meet a bar inside it, like a patch panel: one link from the switch, every wired device straight below. The access point’s four links are merged into a bus.",
+    "gap": "The laptop’s backup link to the NAS runs down beside the wired zone, its label next to the zone’s title."
   },
   {
     "id": "cqrs",

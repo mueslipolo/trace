@@ -5,11 +5,15 @@ pill isp [internet]: Fiber ISP | 1 Gb
 router [router]: Router | firewall, DHCP, DNS
 switch [network]: Switch | 8 ports
 ap [wifi]: Access point
-nas [hard-drive]: NAS
-printer [printer]: Printer
-tv [tv]: Living room TV
-console [gamepad-2]: Game console
-pc [monitor]: Desktop PC
+frame wired "wired" [grey] {
+  row {
+    printer [printer]: Printer
+    tv [tv]: Living room TV
+    console [gamepad-2]: Game console
+    pc [monitor]: Desktop PC
+    nas [hard-drive]: NAS
+  }
+}
 laptop [laptop]: Laptop
 phone [smartphone]: Phones
 cam [camera]: Cameras

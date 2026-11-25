@@ -5,11 +5,13 @@ pill isp: Fiber ISP | 1 Gb
 router: Router | firewall, DHCP, DNS
 switch: Switch | 8 ports
 ap: Access point
-nas: NAS
-printer: Printer
-tv: Living room TV
-console: Game console
-pc: Desktop PC
+frame wired "wired" [grey] {
+  printer: Printer
+  tv: Living room TV
+  console: Game console
+  pc: Desktop PC
+  nas: NAS
+}
 laptop: Laptop
 phone: Phones
 cam: Cameras
