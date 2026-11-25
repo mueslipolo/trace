@@ -10,7 +10,7 @@
     "id": "k8s",
     "title": "Kubernetes ingress, service mesh and egress",
     "context": "A cloud load balancer feeds an ingress controller; services route to sidecar-injected pods across namespaces; outbound calls must leave through an egress gateway with an allow-list.",
-    "uses": "Nested frames for cluster and namespaces; two titled columns side by side, so each service lines up with its pods row by row; [span] lets the ingress controller feed all three services on straight lines.",
+    "uses": "Nested frames for cluster and namespaces; two titled columns side by side, so each service lines up with its pods row by row; [span] lets the ingress controller feed all three services on straight lines. `align podcart redis` keeps the cart pods level with Redis, and `same-height` on the pods and the stores gives both columns the same pitch, so the catalog pods line up with Postgres too: both data links are straight.",
     "gap": "The web pods call svc/cart, a link that runs backwards into the column before it. Trace draws it, but the detour is ugly, so it is left out here; a “call back” style that loops around the column edge would help."
   },
   {
