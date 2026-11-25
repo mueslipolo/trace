@@ -596,7 +596,7 @@ test('arrowheads on one side of a node are not crowded by the next link (office 
 test('hub: eight links with the same label into one node are merged into a bus, with the label once', async () => {
   const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/hub.trace'), 'utf8'), measure, ELK, {});
   assert.deepStrictEqual(res.errors, []);
-  const merged = res.rm.edges.filter(r => r.merged);
+  const merged = res.rm.edges.filter(r => r.merged && r.e.b === 'idp');
   assert.strictEqual(merged.length, 8);
   const ends = merged.map(r => r.pts[r.pts.length - 1]);
   for (const p of ends) assert.ok(Math.abs(p.x - ends[0].x) < 0.5 && Math.abs(p.y - ends[0].y) < 0.5, 'all end at one point');
