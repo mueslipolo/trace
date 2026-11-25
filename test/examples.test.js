@@ -836,6 +836,20 @@ test('no link runs through a node that is not one of its ends, in any example', 
   }
 });
 
+test('every link is orthogonal: each stretch is horizontal or vertical, in every example and held-out diagram', async () => {
+  const holdout = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace')).map(f => 'examples/holdout/' + f);
+  for (const file of [...files, ...holdout]) {
+    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
+    for (const r of res.rm.edges) {
+      if (!r.pts || r.e.rail) continue;
+      for (let i = 1; i < r.pts.length; i++) {
+        const a = r.pts[i - 1], b = r.pts[i];
+        assert.ok(Math.abs(a.x - b.x) < 0.5 || Math.abs(a.y - b.y) < 0.5, `${file}: ${r.e.a} -> ${r.e.b} has a slanted stretch from (${Math.round(a.x)}, ${Math.round(a.y)}) to (${Math.round(b.x)}, ${Math.round(b.y)})`);
+      }
+    }
+  }
+});
+
 test('no two links lie on top of each other, in any example (links merged into one bus excepted)', async () => {
   const ov = (a, b, c, d) => {
     if (Math.abs(a.y - b.y) < 0.5 && Math.abs(c.y - d.y) < 0.5) return Math.abs(a.y - c.y) < 7 && Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) > 8;

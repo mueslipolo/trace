@@ -1080,9 +1080,12 @@ function rerouteBlocked(rm, force) {
     for (let id = best.id; id !== undefined; id = prev.get(id)) { const k = Math.floor(id / 4); path.unshift({ x: X[Math.floor(k / Y.length)], y: Y[k % Y.length] }); if (startAt.has(k) && !prev.has(id)) { from = startAt.get(k); break; } if (startAt.has(k) && dist.get(id) === startAt.get(k).extra) { from = startAt.get(k); break; } }
     const pts = simplifyPts([from.p, ...path, best.o.p]);
     if (overlapsLinks(rm, pts, new Set([r])) && (force || !overlapsLinks(rm, r.pts, new Set([r])))) continue;
-    // a new route may not cross more links than the old one, unless the old one ran through a node
-    if (!blocked && crossingsWith(rm, pts, r) > crossingsWith(rm, r.pts, r) + (force ? 2 : 0)) continue;
-    if (detour) { const c = pts.reduce((t, p, i) => i ? t + len(pts[i - 1], p) : 0, 0) + 60 * Math.max(0, pts.length - 2); if (c > curCost * 0.8) continue; }
+    // a new route may not cross more links than the old one, unless the old one ran through a node; a detour
+    // may cross one more link when the new route is at most half as long (a hop reads better than going round)
+    const newCost = pts.reduce((t, p, i) => i ? t + len(pts[i - 1], p) : 0, 0) + 60 * Math.max(0, pts.length - 2);
+    const spare = force ? 2 : detour && newCost <= curCost * 0.5 ? 1 : 0;
+    if (!blocked && crossingsWith(rm, pts, r) > crossingsWith(rm, r.pts, r) + spare) continue;
+    if (detour && newCost > curCost * 0.8) continue;
     if (pts.some((p, i) => i && others.some(b => segHits(pts[i - 1], p, b, 0)))) continue;
     r.pts = pts;
   }
@@ -1108,7 +1111,11 @@ function reorderEnds(rm) {
   };
   const cross = (P, Q) => { let n = 0; for (let i = 1; i < P.length; i++) for (let j = 1; j < Q.length; j++) if (X(P[i - 1], P[i], Q[j - 1], Q[j]) || OV(P[i - 1], P[i], Q[j - 1], Q[j])) n++; return n; };
   const perms = a => a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(p => [x, ...p]));
-  const live = rm.edges.filter(r => r.pts && r.pts.length > 1 && !r.e.rail && !r.e.lifeline && !r.e.divider && !r.merged && r.e.a !== r.e.b);
+  // a merged link takes part at the far end of its branch, where its end is an ordinary arrow; its bus stays put
+  const live = rm.edges.filter(r => r.pts && r.pts.length > 1 && !r.e.rail && !r.e.lifeline && !r.e.divider && r.e.a !== r.e.b);
+  // points in a straight line are dropped first: moving an end moves the next point too, which must be a corner
+  for (const r of live) if (r.pts.length > 2) r.pts = simplifyPts(r.pts);
+  const orthogonal = q => q.every((p, i) => !i || eq(p.x, q[i - 1].x) || eq(p.y, q[i - 1].y));
   for (const n of rm.nodes) {
     if (n.x === undefined || n.cols || n.span) continue;
     for (const side of ['left', 'right', 'top', 'bottom']) {
@@ -1121,6 +1128,7 @@ function reorderEnds(rm) {
           const p = q[at], nx = q[at === 0 ? 1 : L - 2];
           const on = horiz ? Math.abs(p.x - sv) < 1.5 && p.y > n.y && p.y < n.y + n.h : Math.abs(p.y - sv) < 1.5 && p.x > n.x && p.x < n.x + n.w;
           if (!on || !(horiz ? eq(p.y, nx.y) : eq(p.x, nx.x))) continue;
+          if (r.merged && (r.mergeHub === n.id || L < 5)) continue;   // with fewer points the moved corner is on the bus
           ends.push({ r, at });
         }
       }
@@ -1165,6 +1173,7 @@ function reorderEnds(rm) {
       let best = null;
       for (const perm of perms(slots)) for (const near of [false, true]) {
         const sets = ends.map((e, k) => moved(e, perm[k], near));
+        if (sets.some(q => !orthogonal(q))) continue;
         if (sets.some((q, k) => q !== ends[k].r.pts && hitsNode(q, ends[k].r) && !hitsNode(ends[k].r.pts, ends[k].r))) continue;
         const c = score(sets), bends = sets.reduce((t, q) => t + q.length, 0);
         if (c < now && (!best || c < best.c || (c === best.c && bends < best.bends))) best = { c, bends, sets };
@@ -1249,7 +1258,7 @@ function mergeHubs(rm, MIN = 4) {
       groups.get(k).push(r);
     }
   }
-  const used = new Set();
+  const used = new Set(), busLines = [];       // the line and trunk of every bus built so far
   const sorted = [...groups.entries()].sort((x, y) => y[1].length - x[1].length);
   for (const [k, list0] of sorted) {
     const list = list0.filter(r => !used.has(r));
@@ -1371,13 +1380,23 @@ function mergeHubs(rm, MIN = 4) {
     }
     if (!plan.length && !frameNear(busM)) plan = build(busM);
     if (plan.length < MIN) continue;
+    // a bus never crosses the line of another bus: a branch cutting across it reads as joining it, so such a
+    // branch stays an ordinary link (crossing another bus's branch is an ordinary crossing, with a hop)
+    // and a bus that would leave out more than a quarter of its links is not built: it would not say they are alike
+    const whole = plan.length;
+    plan = plan.filter(x => !x.path.some((p, j) => j && busLines.some(([u, w]) => crossSeg(x.path[j - 1], p, u, w))));
+    if (plan.length < Math.max(MIN, Math.ceil(whole * 0.75))) continue;
     const cs = plan.map(x => x.c).concat(trunkC), lo = Math.min(...cs), hi = Math.max(...cs);
+    // nor is it built where branches of a bus already drawn would cut across its own line
+    const mine = [[mk(busM, lo), mk(busM, hi)], [mk(busM, trunkC), mk(endM, trunkC)]];
+    if (rm.edges.some(o => o.merged && o.e.a !== hub.id && o.e.b !== hub.id && o.pts.some((p, j) => j && mine.some(([u, w]) => crossSeg(o.pts[j - 1], p, u, w))))) continue;
+    busLines.push([mk(busM, lo), mk(busM, hi)], [mk(busM, trunkC), mk(endM, trunkC)]);
     plan.forEach((x, i) => {
       const r = x.it.r;
       let out = x.path.filter((p, j, a) => j === 0 || Math.hypot(p.x - a[j - 1].x, p.y - a[j - 1].y) > 0.5);
       out = simplifyPts(out);
       r.pts = rev ? out.reverse() : out;
-      r.merged = true; r.mergeRep = i === 0; used.add(r);
+      r.merged = true; r.mergeHub = hub.id; r.mergeRep = i === 0; used.add(r);
       if (x.c > lo + 0.5 && x.c < hi - 0.5 && !eq(x.c, trunkC)) rm.joins.push(mk(busM, x.c));
       if (i) r.lab = null;
     });

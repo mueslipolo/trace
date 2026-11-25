@@ -7,14 +7,14 @@
         "through": 0,
         "near": 0,
         "overlap": 8,
-        "crossings": 46,
-        "bends": 832,
+        "crossings": 48,
+        "bends": 818,
         "border": 1,
         "labels": 0,
         "nodeOverlap": 0,
         "frameCover": 1,
         "wide": 8,
-        "hug": 2
+        "hug": 1
       }
     },
     "holdout": {
@@ -23,9 +23,9 @@
         "crash": 0,
         "through": 0,
         "near": 0,
-        "overlap": 2,
-        "crossings": 23,
-        "bends": 231,
+        "overlap": 1,
+        "crossings": 24,
+        "bends": 221,
         "border": 0,
         "labels": 0,
         "nodeOverlap": 0,

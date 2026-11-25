@@ -17,6 +17,7 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 
 | Rule | From | Kept by | How to check it |
 |---|---|---|---|
+| Every link is orthogonal: each stretch is horizontal or vertical, never slanted. | held-out bigbank-container (e-mail to customer); the same bug had slanted links in AWS, simple zero-trust and simple Kafka | engine: `reorderEnds` drops points in a straight line before moving an end and refuses any candidate that is not orthogonal; test over every example and held-out diagram | a stretch with both x and y changing |
 | A link keeps 6 px clear of every node that is not one of its ends; routed round if it cannot pass between them. | office (web proxy to firewall brushing VLAN 40) | engine: `rerouteBlocked` treats it like a blocked link | a stretch within 6 px of a node |
 | A link never runs through a node that is not one of its ends. | zero-trust (VPN link behind the connector), office (firewall link behind the core switch), shop model | engine: `rerouteBlocked` routes it again on a grid around every node; test "no link runs through a node" over every example | any segment crossing a node box that is not an end |
 | A link does not turn right against a node: its first and last stretch are at least 10 px long. | office (NAC to VLAN 10 hugged the box) | engine: `rerouteBlocked` treats it like a blocked link | first or last stretch under 10 px |
@@ -35,7 +36,9 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | Links into the same node step at the same height. | DMZ | engine: `alignJogs` | single-step links into one node with different step heights |
 | When a fan-out has no room to become a bus, more space between the layers gives it room. | hub (the gateway's five links) | usage: `spacing 1.3` | four or more links from one node that do not merge |
 | Four or more links with the same meaning into one node are one bus with the label once, if there is room for the arrowheads. | hub, column and row (arrows squeezed against the bus) | engine: `mergeHubs`, needs a 46 px gap | four or more links, same target, same label |
-| Rerouting never adds crossings (unless a link ran through a node; two at most to separate links on top of each other); the router pays 40 px per crossing. | metrics: today's rerouting had raised crossings from 52 to 72 over the examples | engine: `rerouteBlocked` | crossings before and after a change |
+| A bus never crosses the line of another bus: a branch cutting across it reads as joining it. Such a branch stays an ordinary link; a bus that would lose more than a quarter of its links that way, or whose own line would be crossed by a bus already drawn, is not built. | held-out online-boutique (frontend's branches across checkout's bus line) | engine: `mergeHubs` | a branch crossing another bus's line |
+| Arrowheads arriving on one side are ordered to cross least, the far ends of bus branches included (the bus itself stays put). | held-out online-boutique (three arrows into Product catalog, two crossing just before it) | engine: `reorderEnds` | links into one side that cross each other |
+| Rerouting never adds crossings (unless a link ran through a node; two at most to separate links on top of each other), with one exception: a detour may cross one more link when the new route is at most half as long, since a hop reads better than going round the diagram. The router pays 40 px per crossing. | metrics: today's rerouting had raised crossings from 52 to 72 over the examples; held-out bigbank-deployment (web to SPA went round the whole diagram) | engine: `rerouteBlocked` | crossings before and after a change; a link much longer than its shortest route |
 
 ## Placement
 
