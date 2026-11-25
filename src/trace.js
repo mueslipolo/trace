@@ -1863,7 +1863,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); return rm; };
+  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -2081,6 +2081,43 @@ function isTree(model) {
   })();
   model.treeShape = ok;
   return ok;
+}
+
+// In a hierarchy each parent slides to the exact middle of its children (from the deepest level up), when the
+// slide touches no other node; then every link is drawn as an org chart draws it: a stem from the middle of the
+// parent, a bar across its children, a drop to the middle of each child. A parent's links share stem and bar,
+// so they are one bus.
+function centreParents(rm, flowH) {
+  const A = flowH ? 'y' : 'x', S = flowH ? 'h' : 'w', B = flowH ? 'x' : 'y', T = flowH ? 'w' : 'h';
+  const P = (a, b) => flowH ? { x: b, y: a } : { x: a, y: b };
+  const kids = new Map();
+  for (const r of rm.edges) { if (!r.pts) continue; if (!kids.has(r.e.a)) kids.set(r.e.a, []); kids.get(r.e.a).push(r); }
+  const depth = new Map(), N = id => rm.nodes.find(n => n.id === id);
+  const deep = id => { if (depth.has(id)) return depth.get(id); const d = 1 + Math.max(0, ...(kids.get(id) || []).map(r => deep(r.e.b))); depth.set(id, d); return d; };
+  for (const n of rm.nodes) deep(n.id);
+  const parents = rm.nodes.filter(n => kids.has(n.id) && n.x !== undefined).sort((a, b) => depth.get(a.id) - depth.get(b.id));
+  for (const p of parents) {
+    const cs = kids.get(p.id).map(r => N(r.e.b)).filter(c => c && c.x !== undefined);
+    if (!cs.length) continue;
+    const lo = Math.min(...cs.map(c => c[A] + c[S] / 2)), hi = Math.max(...cs.map(c => c[A] + c[S] / 2));
+    const d = (lo + hi) / 2 - (p[A] + p[S] / 2);
+    if (Math.abs(d) < 0.5) continue;
+    const moved = { ...p, [A]: p[A] + d };
+    if (rm.nodes.some(m => m !== p && m.x !== undefined && moved.x < m.x + m.w + 8 && m.x - 8 < moved.x + moved.w && moved.y < m.y + m.h + 8 && m.y - 8 < moved.y + moved.h)) continue;
+    p[A] += d;
+  }
+  for (const p of parents) {
+    const list = kids.get(p.id).filter(r => { const c = N(r.e.b); return c && c.x !== undefined && c[B] > p[B] + p[T]; });
+    if (!list.length) continue;
+    const pc = p[A] + p[S] / 2, out = p[B] + p[T];
+    const mid = out + (Math.min(...list.map(r => N(r.e.b)[B])) - out) / 2;
+    list.forEach((r, i) => {
+      const c = N(r.e.b), cc = c[A] + c[S] / 2;
+      r.pts = Math.abs(cc - pc) < 0.5 ? [P(pc, out), P(cc, c[B])] : [P(pc, out), P(pc, mid), P(cc, mid), P(cc, c[B])];
+      if (list.length > 1) { r.merged = true; r.mergeHub = p.id; r.mergeRep = i === 0; }
+      if (r.e.lab) r.lab = flowH ? { x: c[B] - 6, y: cc - r.e.lab.h - 2, anchor: 'end' } : { x: cc + 6, y: mid + 4, anchor: 'start' };
+    });
+  }
 }
 
 async function chooseLayout(model, measure, ELK) {

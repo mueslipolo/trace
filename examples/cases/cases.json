@@ -94,8 +94,8 @@
     "id": "orgchart",
     "title": "Engineering organisation",
     "context": "A CEO, three executives, eight departments and six teams, as an org chart.",
-    "uses": "Nothing but nodes, links and icons. The four links leaving the CTO are merged into one bus automatically.",
-    "gap": "Every parent is now centred on its children. A tree is drawn left to right, as the default direction says; most org charts are top-down, which `direction down` gives (about 1,500 px wide here)."
+    "uses": "`direction down`, nodes, links and icons. Being a tree with no decisions, it is drawn as an org chart: each parent in the middle of its children, one stem, one bar and a drop to each.",
+    "gap": "About 1,500 px wide: the widest level (the teams under each unit) sets the width; a level that long could wrap under its parent."
   },
   {
     "id": "aws",
