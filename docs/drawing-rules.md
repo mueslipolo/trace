@@ -30,6 +30,7 @@ When a review leads to a change, add the rule here in the same commit.
 | A link does not run along a frame border; it keeps 12 px off it, and a turn is not placed on a border. A link that leaves its node along a border is routed again, its start sliding along the side. | DMZ (SIEM links on the zone borders), office | engine: `clearFrames`, the router avoids lines within 9 px of a border, side-zone links leave bridge nodes below the border | a stretch within 8 px of a frame border |
 | A link with one unnecessary extra step (down, across, down, across, down) takes the shorter route. | CI/CD (the "yes, push" snake) | engine: `simplifySnakes` | a 6-point link that fits in 4 |
 | Links into the same node step at the same height. | DMZ | engine: `alignJogs` | single-step links into one node with different step heights |
+| When a fan-out has no room to become a bus, more space between the layers gives it room. | hub (the gateway's five links) | usage: `spacing 1.3` | four or more links from one node that do not merge |
 | Four or more links with the same meaning into one node are one bus with the label once, if there is room for the arrowheads. | hub, column and row (arrows squeezed against the bus) | engine: `mergeHubs`, needs a 46 px gap | four or more links, same target, same label |
 
 ## Placement
