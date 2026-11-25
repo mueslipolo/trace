@@ -2,37 +2,40 @@ title "Hybrid cloud: datacenter to AWS"
 
 frame dc "on-prem datacenter" [grey] {
   column {
-    ad [users]: Active Directory
-    erp [database]: ERP | Oracle
+    row {
+      ad [users]: Active Directory
+      erp [database]: ERP | Oracle
+    }
+    core [switch]: Core switch
+    dcfw [firewall]: Datacenter firewall | IPsec peer
   }
-  core [switch]: Core switch
-  dcfw [firewall]: Datacenter firewall | IPsec peer
 }
 
-pill users [user]: Internet users
-
-frame aws "AWS eu-west-1" [orange] {
-  tgw [bridge router]: Transit gateway
-  frame vpc "VPC 10.20.0.0/16" [blue] {
-   column {
-    frame pub "public subnets" [green] {
-      igw [internet]: Internet gateway
-      alb [loadbalancer]: Application load balancer
-    }
-    frame priv "private subnets" [green] {
-      column {
-        app1 [server]: app ASG | az-a
-        app2 [server]: app ASG | az-b
+column {
+  pill users [user]: Internet users
+  frame aws "AWS eu-west-1" [orange] {
+    tgw [bridge router]: Transit gateway
+    frame vpc "VPC 10.20.0.0/16" [blue] {
+     column {
+      frame pub "public subnets" [green] {
+        igw [internet]: Internet gateway
+        alb [loadbalancer]: Application load balancer
       }
-      nat [arrow-right-left]: NAT gateway
-    }
-    frame dbs "database subnets" [purple] {
-      column {
-        store rds [database]: RDS primary
-        store rdss [database]: RDS standby
+      frame priv "private subnets" [green] {
+        row {
+          app1 [server]: app ASG | az-a
+          app2 [server]: app ASG | az-b
+        }
+        nat [arrow-right-left]: NAT gateway
       }
+      frame dbs "database subnets" [purple] {
+        row {
+          store rds [database]: RDS primary
+          store rdss [database]: RDS standby
+        }
+      }
+     }
     }
-   }
   }
 }
 pill internet [internet]: Internet | egress
@@ -55,3 +58,4 @@ app2 -> nat : any/tcp
 nat -> internet : 443/tcp egress
 
 same-width pub priv dbs
+same-height dc aws

@@ -1,0 +1,13 @@
+# Converted with tools/mermaid-to-trace.js from the Mermaid documentation, syntax/architecture.md (MIT); original in mermaid-api-group.mmd
+title "API group"
+
+frame api "API" {
+  store db [database]: Database
+  store disk1 [hard-drive]: Storage
+  store disk2 [hard-drive]: Storage
+  server [server]: Server
+}
+
+db -- server
+disk1 -- server
+disk2 -- db

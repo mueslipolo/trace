@@ -6,7 +6,8 @@
 //   - same-width and same-height lines,
 //   - side and span on frames (side zones go back to being the next tier),
 //   - rails (the nodes in the rail become plain nodes; links to the rail go to its first node),
-//   - the reversed links <- and <-- (written the natural way round, source first).
+//   - the reversed links <- and <-- (written the natural way round, source first),
+//   - mark lines (the links they hid are drawn again).
 // Usage: node tools/simplify.js          writes examples/cases/simple/*.trace from examples/cases/*.trace
 const fs = require('fs');
 const path = require('path');
@@ -15,7 +16,7 @@ const { parse } = require('../src/trace.js');
 const KEEP = new Set(['ok', 'bad', 'dashed', 'muted']);
 
 function simplify(src) {
-  const stats = { icons: 0, span: 0, bridge: 0, top: 0, blocks: 0, rails: 0, reversed: 0, sizing: 0 };
+  const stats = { icons: 0, span: 0, bridge: 0, top: 0, blocks: 0, rails: 0, reversed: 0, sizing: 0, marks: 0 };
   const rails = new Map();   // rail id -> its first node
   let curRail = null;
   const out = [];
@@ -41,6 +42,7 @@ function simplify(src) {
       continue;
     }
     if (/^same-(width|height)\b/i.test(t)) { stats.sizing++; continue; }
+    if (/^mark\s+[A-Za-z0-9_][\w.-]*\s*(\[|"|:|$)/i.test(t)) { stats.marks++; continue; }
     // a node line: tags in the brackets before the colon
     const nm = raw.match(/^\s*((?:store |engine |state |pill |ask |final |box )?[A-Za-z0-9_][\w.-]*)(\s*\[([^\]]*)\])?(\s*:.*)$/);
     if (nm && !/(->|<-|--)/.test(raw.slice(0, raw.indexOf(':') < 0 ? raw.length : raw.indexOf(':'))) && !/^\s*(title|direction|spacing|key)\b/.test(raw)) {

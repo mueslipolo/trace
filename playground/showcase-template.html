@@ -9,87 +9,101 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap">
 <style>
 :root {
-  --bg: #f4f5f7; --panel: #ffffff; --fg: #1d2330; --muted: #5d6677; --line: #dfe2e8; --accent: #2f6fd6; --code-bg: #fbfbfc;
+  --bg: #f4f5f7; --panel: #ffffff; --fg: #1d2330; --muted: #5d6677; --line: #dfe2e8; --accent: #2f6fd6; --code-bg: #fbfbfc; --sel: #e8eefb;
   color-scheme: light; box-sizing: border-box;
-  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg: #111217; --panel: #181b21; --fg: #e3e6ec; --muted: #9aa3b2; --line: #2a2e37; --accent: #6ea6ff; --code-bg: #14161b; color-scheme: dark; }
+  :root:not([data-theme="light"]) { --bg: #111217; --panel: #181b21; --fg: #e3e6ec; --muted: #9aa3b2; --line: #2a2e37; --accent: #6ea6ff; --code-bg: #14161b; --sel: #1f2a3d; color-scheme: dark; }
 }
-:root[data-theme="dark"] { --bg: #111217; --panel: #181b21; --fg: #e3e6ec; --muted: #9aa3b2; --line: #2a2e37; --accent: #6ea6ff; --code-bg: #14161b; color-scheme: dark; }
+:root[data-theme="dark"] { --bg: #111217; --panel: #181b21; --fg: #e3e6ec; --muted: #9aa3b2; --line: #2a2e37; --accent: #6ea6ff; --code-bg: #14161b; --sel: #1f2a3d; color-scheme: dark; }
 *, *::before, *::after { box-sizing: inherit; }
-html { scroll-padding-top: env(safe-area-inset-top, 0px); }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
 a { color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-main { max-width: 1280px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-right, 0px)) 64px max(16px, env(safe-area-inset-left, 0px)); }
-h1 { font-size: 1.6rem; margin: 0 0 6px; letter-spacing: -0.01em; }
-.lede { color: var(--muted); max-width: 72ch; margin: 0; }
-.summary { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px; margin: 22px 0 10px; }
-.summary h2 { font-size: 1.05rem; margin: 0 0 8px; }
-.summary p { margin: 8px 0; max-width: 80ch; }
-.summary ol { margin: 8px 0 4px; padding-left: 1.3em; max-width: 80ch; }
-.summary li { margin: 4px 0; }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; margin: 22px 0 6px; }
-.toc { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: 0.875rem; counter-reset: c; }
-.toc li { counter-increment: c; }
-.toc li::before { content: counter(c, decimal-leading-zero) " "; color: var(--muted); font-variant-numeric: tabular-nums; }
-.toc a { text-decoration: none; }
+code { font: 0.85em "JetBrains Mono", ui-monospace, Menlo, monospace; }
+
+/* one case at a time: the list of cases on the left, the case on the right, no page scroll on a desktop */
+.app { display: grid; grid-template-columns: 280px minmax(0, 1fr); height: 100vh; }
+.side { border-right: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding: 18px 14px 24px; }
+.side h1 { font-size: 1.05rem; margin: 0 4px 4px; }
+.side .lede { font-size: 0.8125rem; color: var(--muted); margin: 0 4px 14px; }
+.toc { list-style: none; margin: 0; padding: 0; }
+.toc a { display: flex; gap: 8px; padding: 6px 8px; border-radius: 6px; text-decoration: none; color: var(--fg); font-size: 0.875rem; line-height: 1.3; }
+.toc a:hover { background: var(--bg); }
+.toc a[aria-current="true"] { background: var(--sel); color: var(--accent); font-weight: 600; }
+.toc .n { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; width: 1.6em; }
+.pick { display: none; }
+
+.view { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; height: 100vh; min-width: 0; padding: 14px 20px 12px; gap: 8px; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.bar .num { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bar h2 { margin: 0; font-size: 1.15rem; flex: 1 1 auto; min-width: 12ch; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); flex: none; }
 .seg button { border: 0; background: transparent; height: 32px; padding: 0 12px; font: inherit; font-size: 0.8125rem; color: var(--muted); cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--bg); color: var(--fg); font-weight: 600; }
-.case { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin-top: 22px; padding: 0 20px; }
-.case[open] { padding-bottom: 14px; }
-.case-head { display: flex; gap: 14px; align-items: baseline; cursor: pointer; list-style: none; padding: 16px 0 14px; }
-.case:not([open]) .case-head { padding-bottom: 16px; }
-.case-head::-webkit-details-marker { display: none; }
-.case-head::marker { content: ''; }
-.chev { margin-left: auto; align-self: center; width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .15s; flex: none; margin-right: 4px; }
-.case[open] .chev { transform: rotate(-135deg); }
-.case-head:hover h2 { color: var(--accent); }
-.case-body { padding-top: 2px; }
-@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
-.num { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; font-size: 0.9rem; flex: none; }
-.case h2 { margin: 0; font-size: 1.15rem; }
-.context { margin: 4px 0 0; color: var(--muted); max-width: 90ch; font-size: 0.925rem; }
-.pair { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }
-.panel { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
-.panel figcaption { font-size: 0.8125rem; font-weight: 400; color: var(--muted); padding: 7px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
-.canvas { overflow-x: auto; padding: 14px; }
-.canvas.tr { display: grid; place-items: start center; }
-.canvas.tr svg { display: block; }
-body.fit .canvas.tr svg { width: 100%; height: auto; }
-.wait { color: var(--muted); font-size: 0.875rem; padding: 24px 0; }
-.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 4px 28px; margin-top: 12px; }
-.notes p { margin: 4px 0; font-size: 0.9rem; max-width: 70ch; }
-.panel figcaption b { color: var(--fg); font-weight: 700; }
-.src { margin: 0; padding: 4px 12px 8px; }
-.src summary { cursor: pointer; color: var(--accent); font-size: 0.875rem; padding: 4px 0; }
-.src-grid { margin-top: 8px; }
-.src h3 { font-size: 0.8125rem; margin: 0 0 4px; color: var(--muted); }
-.src pre { margin: 0; padding: 10px 12px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; font: 12px/18px "JetBrains Mono", ui-monospace, Menlo, monospace; overflow-x: auto; max-height: 520px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.context { margin: 0; color: var(--muted); font-size: 0.9rem; max-width: 110ch; }
+.stage { position: relative; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.canvas { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 14px; }
+.canvas svg { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; }
+body.actual .canvas { overflow: auto; align-items: flex-start; justify-content: flex-start; }
+body.actual .canvas svg { max-width: none; max-height: none; }
+.wait { color: var(--muted); font-size: 0.875rem; }
+.foot { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 4px 24px; max-height: 26vh; overflow-y: auto; }
+.foot p { margin: 2px 0; font-size: 0.875rem; }
+.foot b { color: var(--fg); }
+.src summary { cursor: pointer; color: var(--accent); font-size: 0.875rem; }
+.src pre { margin: 6px 0 0; padding: 10px 12px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; font: 12px/18px "JetBrains Mono", ui-monospace, Menlo, monospace; overflow-x: auto; max-height: 40vh; }
 .dgw { background: var(--panel); }
+
+/* narrow screens: the list becomes a menu above the case, and the page scrolls */
+@media (max-width: 860px) {
+  .app { display: block; height: auto; }
+  .side { display: none; }
+  .pick { display: block; width: 100%; height: 36px; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); padding: 0 8px; }
+  .view { height: auto; min-height: 100vh; padding: 12px 16px; grid-template-rows: auto auto auto 70vh auto; }
+}
 </style>
 <style id="dgcss"></style>
 </head>
-<body class="fit">
-<main>
-  <h1>Trace showcase, real diagrams</h1>
-  <p class="lede">Diagrams of the kind that end up in real docs, five of them networks with proxies, firewalls and zones. Each is drawn twice from its Trace source. <b>Simple</b> is what you write when you only list nodes, links and frames and let the layout do everything. <b>Full</b> adds the commands for when you want to decide: icons, rows and columns that place the zones, span and bridge nodes, and links written the way the traffic flows. The source of both is under each drawing. To edit one, paste it into the playground (<code>dist/playground.html</code>).</p>
-
-  <div class="toolbar">
-    <ul class="toc">@@NAV@@</ul>
-    <span class="seg" role="group" aria-label="Trace drawing size">
-      <button data-size="fit" aria-pressed="true">Fit width</button>
-      <button data-size="actual" aria-pressed="false">Actual size</button>
-    </span>
-    <span class="seg" role="group" aria-label="Show or hide the cases">
-      <button id="collapse-all" type="button">Collapse all</button>
-      <button id="expand-all" type="button">Expand all</button>
-    </span>
-  </div>
-@@CARDS@@
-</main>
+<body>
+<div class="app">
+  <nav class="side" aria-label="Cases">
+    <h1>Trace showcase</h1>
+    <p class="lede">Real diagrams, each drawn twice from its Trace source: <b>Simple</b> lists nodes, links and frames and lets the layout decide; <b>Full</b> adds the commands for when you want to decide. Keys <kbd>←</kbd> <kbd>→</kbd> go to the previous and next case, <kbd>S</kbd> and <kbd>F</kbd> switch between simple and full.</p>
+    <ol class="toc" id="toc">@@NAV@@</ol>
+  </nav>
+  <main class="view">
+    <select class="pick" id="pick" aria-label="Case">@@OPTIONS@@</select>
+    <div class="bar">
+      <span class="num" id="num"></span>
+      <h2 id="title"></h2>
+      <span class="seg" role="group" aria-label="Variant">
+        <button id="v-simple" data-variant="simple" aria-pressed="false">Simple</button>
+        <button id="v-trace" data-variant="trace" aria-pressed="true">Full</button>
+      </span>
+      <span class="seg" role="group" aria-label="Drawing size">
+        <button data-size="fit" aria-pressed="true">Fit</button>
+        <button data-size="actual" aria-pressed="false">Actual size</button>
+      </span>
+      <span class="seg" role="group" aria-label="Previous and next case">
+        <button id="prev" aria-label="Previous case">←</button>
+        <button id="next" aria-label="Next case">→</button>
+      </span>
+    </div>
+    <p class="context" id="context"></p>
+    <div class="stage"><div class="canvas tr dgw" id="canvas"><div class="wait">Drawing…</div></div></div>
+    <div class="foot">
+      <div>
+        <p id="adds"></p>
+        <p id="uses"></p>
+        <p id="gap"></p>
+      </div>
+      <details class="src"><summary>Source</summary><pre id="source"></pre></details>
+    </div>
+  </main>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"></script>
 <script>
 /*CORE*/
@@ -103,50 +117,82 @@ body.fit .canvas.tr svg { width: 100%; height: auto; }
     `@media (prefers-color-scheme: dark){${diagramCSS(D, ':root:not([data-theme="light"]) .dg')}}` +
     diagramCSS(D, ':root[data-theme="dark"] .dg');
   const ctx = document.createElement('canvas').getContext('2d');
-  const cache = new Map();
+  const widths = new Map();
   function measure(text, font) {
     const k = font + '\u0000' + text;
-    let v = cache.get(k);
-    if (v === undefined) { ctx.font = font; v = ctx.measureText(text).width; cache.set(k, v); }
+    let v = widths.get(k);
+    if (v === undefined) { ctx.font = font; v = ctx.measureText(text).width; widths.set(k, v); }
     return v;
   }
-  // collapse or expand every case; a link to a case (the table of contents, or a URL ending in #id) opens it
-  const cases = () => [...document.querySelectorAll('details.case')];
-  document.getElementById('collapse-all').addEventListener('click', () => cases().forEach(d => { d.open = false; }));
-  document.getElementById('expand-all').addEventListener('click', () => cases().forEach(d => { d.open = true; }));
-  function openFromHash() {
-    const el = location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
-    if (el && el.tagName === 'DETAILS') { el.open = true; el.scrollIntoView(); }
-  }
-  window.addEventListener('hashchange', openFromHash);
-  openFromHash();
-  document.querySelectorAll('button[data-size]').forEach(b => b.addEventListener('click', () => {
-    document.body.classList.toggle('fit', b.dataset.size === 'fit');
-    document.querySelectorAll('button[data-size]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-  }));
-  async function drawAll() {
-    const slots = document.querySelectorAll('.canvas.tr');
-    if (typeof ELK === 'undefined') {
-      slots.forEach(s => { s.innerHTML = '<div class="wait">The layout engine didn’t load. Reload the page to try again.</div>'; });
-      return;
-    }
-    cache.clear();
-    for (const slot of slots) {
-      const c = CASES[+slot.dataset.case], variant = slot.dataset.variant || 'trace';
+  const $ = id => document.getElementById(id);
+  const drawn = new Map();          // case index + variant -> svg, drawn once
+  let cur = 0, variant = 'trace', token = 0;
+
+  async function draw() {
+    const c = CASES[cur], key = cur + variant, mine = ++token;
+    const slot = $('canvas');
+    if (typeof ELK === 'undefined') { slot.innerHTML = '<div class="wait">The layout engine didn’t load. Reload the page to try again.</div>'; return; }
+    if (!drawn.has(key)) {
+      slot.innerHTML = '<div class="wait">Drawing…</div>';
       try {
-        const r = await compile(c[variant], measure, ELK, { idPrefix: 'c' + slot.dataset.case + variant });
-        if (r.errors.length) { slot.innerHTML = '<div class="wait"></div>'; slot.firstChild.textContent = 'Line ' + r.errors[0].line + ': ' + r.errors[0].msg; continue; }
-        slot.innerHTML = r.svg;
+        const r = await compile(c[variant], measure, ELK, { idPrefix: 'c' + cur + variant });
+        drawn.set(key, r.errors.length ? `<div class="wait">Line ${r.errors[0].line}: ${r.errors[0].msg}</div>` : r.svg);
       } catch (e) {
-        slot.innerHTML = '<div class="wait"></div>';
-        slot.firstChild.textContent = 'The layout engine couldn’t place this one.';
+        drawn.set(key, '<div class="wait">The layout engine couldn’t place this one.</div>');
       }
     }
+    if (mine === token) slot.innerHTML = drawn.get(key);
   }
+  function show(i, push) {
+    cur = (i + CASES.length) % CASES.length;
+    const c = CASES[cur];
+    $('num').textContent = String(cur + 1).padStart(2, '0');
+    $('title').textContent = c.title;
+    $('context').textContent = c.context;
+    $('adds').innerHTML = '<b>Full adds:</b> ' + c.addsText;
+    $('uses').innerHTML = '<b>What the full version uses.</b> ' + c.usesHtml;
+    $('gap').innerHTML = '<b>Still missing.</b> ' + c.gapHtml;
+    $('source').textContent = c[variant];
+    $('pick').value = c.id;
+    document.querySelectorAll('#toc a').forEach((a, k) => a.setAttribute('aria-current', String(k === cur)));
+    const active = document.querySelector('#toc a[aria-current="true"]');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+    if (push) history.replaceState(null, '', '#' + c.id);
+    document.title = c.title + ' · Trace showcase';
+    draw();
+  }
+  function setVariant(v) {
+    variant = v;
+    document.querySelectorAll('button[data-variant]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.variant === v)));
+    $('source').textContent = CASES[cur][variant];
+    draw();
+  }
+  function showFromHash() {
+    const id = location.hash ? decodeURIComponent(location.hash.slice(1)) : '';
+    const i = CASES.findIndex(c => c.id === id);
+    show(i >= 0 ? i : 0, false);
+  }
+  document.querySelectorAll('#toc a').forEach((a, k) => a.addEventListener('click', ev => { ev.preventDefault(); show(k, true); }));
+  $('pick').addEventListener('change', e => show(CASES.findIndex(c => c.id === e.target.value), true));
+  $('prev').addEventListener('click', () => show(cur - 1, true));
+  $('next').addEventListener('click', () => show(cur + 1, true));
+  document.querySelectorAll('button[data-variant]').forEach(b => b.addEventListener('click', () => setVariant(b.dataset.variant)));
+  document.querySelectorAll('button[data-size]').forEach(b => b.addEventListener('click', () => {
+    document.body.classList.toggle('actual', b.dataset.size === 'actual');
+    document.querySelectorAll('button[data-size]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  document.addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('input, select, textarea')) return;
+    if (e.key === 'ArrowRight' || e.key === 'j') show(cur + 1, true);
+    else if (e.key === 'ArrowLeft' || e.key === 'k') show(cur - 1, true);
+    else if (e.key === 's' || e.key === 'S') setVariant('simple');
+    else if (e.key === 'f' || e.key === 'F') setVariant('trace');
+  });
+  window.addEventListener('hashchange', showFromHash);
   const ready = document.fonts
     ? Promise.all([document.fonts.load(FONT_NAME), document.fonts.load(FONT_NOTE), document.fonts.load('600 11.5px Inter')]).catch(() => {})
     : Promise.resolve();
-  Promise.race([ready, new Promise(r => setTimeout(r, 2500))]).then(drawAll);
+  Promise.race([ready, new Promise(r => setTimeout(r, 2500))]).then(showFromHash);
 })();
 </script>
 </body>

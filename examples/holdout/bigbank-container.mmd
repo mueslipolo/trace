@@ -1,0 +1,22 @@
+%% Written for comparison from the same nodes and links as bigbank-container.trace
+flowchart TD
+  customer(["Customer<br/>personal bank accounts"])
+  subgraph c1[Internet Banking]
+    web["Web Application<br/>Java, Spring MVC"]
+    spa["Single-Page App<br/>JavaScript, Angular"]
+    mobile["Mobile App<br/>C#, Xamarin"]
+    database[("Database<br/>SQL Database")]
+    api["API Application<br/>Java, Docker Container"]
+  end
+  email{{"E-Mail System<br/>Microsoft Exchange"}}
+  banking{{"Mainframe Banking System<br/>core banking information"}}
+  customer -->|uses, HTTPS| web
+  customer -->|uses, HTTPS| spa
+  customer -->|uses| mobile
+  web -->|delivers| spa
+  spa -->|async, JSON/HTTPS| api
+  mobile -->|async, JSON/HTTPS| api
+  api -->|reads and writes, JDBC| database
+  email -->|sends e-mails to| customer
+  api -->|sends e-mails, SMTP| email
+  api -->|sync/async, XML/HTTPS| banking

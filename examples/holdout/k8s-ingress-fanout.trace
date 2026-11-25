@@ -1,0 +1,21 @@
+# Converted with tools/mermaid-to-trace.js from kubernetes/website, content/en/docs/concepts/services-networking/ingress.md (CC BY 4.0); original in k8s-ingress-fanout.mmd
+title "Ingress: fan-out by path"
+
+pill client: client
+frame g0 "cluster" {
+  ingress: Ingress, 178.91.123.132
+  service1: Service service1:4200
+  pod1: Pod
+  pod2: Pod
+  service2: Service service2:8080
+  pod3: Pod
+  pod4: Pod
+}
+
+client --> ingress : Ingress-managed load balancer
+ingress -> service1 : /foo
+ingress -> service2 : /bar
+service1 -> pod1
+service1 -> pod2
+service2 -> pod3
+service2 -> pod4

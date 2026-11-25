@@ -32,6 +32,7 @@ const ICON_ALIASES = {
   camera: 'cctv', cache: 'zap', function: 'square-function', document: 'file-text', chart: 'chart-column', key: 'key-round',
 };
 const ICON_SIZE = 22;
+const MARK_SIZE = 12;                 // the icon a mark draws on a node, after its name
 const ICON_CDN = 'https://cdn.jsdelivr.net/npm/lucide-static@1.79.0/icons/';
 function lucideName(name) { return name.startsWith('lucide/') ? name.slice(7) : (ICON_ALIASES[name] || name); }
 function iconKnown(name) { return ICON_NAMES.has(lucideName(name)); }
@@ -59,7 +60,7 @@ function withIcon(line, name) {
   return m[1] + ` [${[...keep, name].join(' ')}]` + rest;
 }
 async function loadIcons(model, loader) {
-  const need = [...new Set([...model.nodes.values()].filter(n => n.icon && !iconSvg(n.icon)).map(n => lucideName(n.icon)))];
+  const need = [...new Set([...[...model.nodes.values()].map(n => n.icon), ...(model.marks || []).map(k => k.icon)].filter(i => i && !iconSvg(i)).map(lucideName))];
   const failed = [];
   await Promise.all(need.map(async name => {
     try { if (!(await loadIcon(name, loader))) throw new Error('no drawing'); } catch (e) { failed.push(name); }
@@ -150,7 +151,7 @@ function splitLabel(text) {
 
 function parse(src) {
   const model = {
-    direction: 'RIGHT', spacing: 1, title: '', caption: [], cartouche: [],
+    direction: 'RIGHT', spacing: 1, title: '', caption: [], cartouche: [], marks: [],
     nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], sameSize: [], events: [], mode: 'flow', errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
@@ -255,6 +256,20 @@ function parse(src) {
       if (ids.length < 2) throw new TraceError('align takes two or more nodes that are linked, one after the other: align topic consumer');
       for (const id of ids) if (!ID_RE.test(id)) throw new TraceError(`"${id}" is not a valid name`);
       for (let i = 1; i < ids.length; i++) model.aligns.push({ a: ids[i - 1], b: ids[i], line: ln });
+      return;
+    }
+    if ((m = line.match(/^mark\s+([A-Za-z0-9_][\w.-]*)\s*(.*)$/i)) && !/^\s*(->|-->|<-|<->|--|:)/.test(m[2])) {
+      // mark flagd [flag] "reads feature flags from Flagd": the links into flagd are not drawn; each node they
+      // come from carries the icon instead, and the legend says what it means
+      if (model.mode === 'sequence') throw new TraceError('A mark belongs to a flow diagram, not a sequence diagram');
+      const mm = m[2].match(/^(?:\[([^\]]*)\])?\s*(?:"([^"]*)"|:\s*(.*))?\s*$/);
+      if (!mm) throw new TraceError('A mark reads: mark flagd [flag] "reads feature flags from Flagd"');
+      const icon = (mm[1] || '').trim() || null;
+      if (icon && !iconKnown(icon)) throw new TraceError(`There is no icon called "${icon}"${iconHint(icon)}`);
+      const text = (mm[2] !== undefined ? mm[2] : mm[3] || '').trim();
+      if (!text) throw new TraceError(`A mark needs the words for the legend: mark ${m[1]}${icon ? ` [${icon}]` : ''} "reads feature flags from ${m[1]}"`);
+      if (model.marks.some(k => k.id === m[1])) throw new TraceError(`"${m[1]}" is already marked: one mark line per node`);
+      model.marks.push({ id: m[1], icon, text, line: ln });
       return;
     }
     if ((m = line.match(/^key\s+(.*)$/i))) {
@@ -474,6 +489,25 @@ function parse(src) {
     const linked = model.edges.some(e => (e.a === al.a && e.b === al.b) || (e.a === al.b && e.b === al.a));
     if (!linked) model.errors.push({ line: al.line, msg: `align ${al.a} ${al.b} keeps the link between them straight, so they need one: write ${al.a} -> ${al.b}` });
   }
+  for (const mk of model.marks) {
+    const t = model.nodes.get(mk.id);
+    if (!t) { model.errors.push({ line: mk.line, msg: model.frames.has(mk.id) ? `mark takes a node, not a frame: mark a node inside "${mk.id}"` : `mark: there is no node called "${mk.id}"` }); continue; }
+    mk.icon = mk.icon || t.icon || null;
+    if (!mk.icon) { model.errors.push({ line: mk.line, msg: `mark ${mk.id} needs an icon, since "${mk.id}" has none: mark ${mk.id} [flag] "${mk.text}"` }); continue; }
+    // a link points into the marked node when its arrow ends there (b -> t, or t <- b)
+    const into = e => (e.b === mk.id && (e.end || !e.start)) || (e.a === mk.id && e.start && !e.end);
+    const links = model.edges.filter(e => into(e) && model.nodes.has(e.a === mk.id ? e.b : e.a) && (e.a === mk.id ? e.b : e.a) !== mk.id);
+    if (!links.length) { model.errors.push({ line: mk.line, msg: `mark ${mk.id} draws the links into "${mk.id}" as an icon on the nodes they come from, but no link arrives there: write  checkout -> ${mk.id}` }); continue; }
+    for (const e of links) {
+      const src = model.nodes.get(e.a === mk.id ? e.b : e.a);
+      src.marks = src.marks || [];
+      if (!src.marks.includes(mk)) src.marks.push(mk);
+    }
+    mk.links = links;
+    model.edges = model.edges.filter(e => !links.includes(e));
+    mk.rest = model.edges.filter(e => e.a === mk.id || e.b === mk.id).length;
+    t.markTarget = mk;
+  }
   if (!model.errors.length) desugarSides(model);
   return model;
 }
@@ -595,15 +629,22 @@ function sizeTable(n, measure) {
 function sizeNode(n, measure) {
   if (n.kind === 'table') return sizeTable(n, measure);
   if (n.kind === 'start') { n.w = 18; n.h = 18; n.nameLines = []; n.noteLines = []; return; }
+  if (n.kind === 'junction') {
+    // a bar as long as its links need, 14px apart; it runs across the flow (flowH: set by the layout)
+    const L = Math.max(28, (n.links - 1) * 14 + 14);
+    n.w = n.barV ? 6 : L; n.h = n.barV ? L : 6; n.nameLines = []; n.noteLines = []; n.textH = 0; n.ports = []; return;
+  }
   n.nameLines = n.name ? wrap(n.name, FONT_NAME, 210, measure) : [];
   n.noteLines = n.note ? wrap(n.note, FONT_NOTE, 230, measure) : [];
   const tw = Math.max(0, ...n.nameLines.map(l => measure(l, FONT_NAME)), ...n.noteLines.map(l => measure(l, FONT_NOTE)));
   n.textH = n.nameLines.length * 16 + n.noteLines.length * 14;
+  n._nameW = n.nameLines.length ? measure(n.nameLines[0], FONT_NAME) : 0;
   const padX = (n.kind === 'ask' || n.kind === 'pill') ? 24 : 15;
   n.padX = padX;
   n.iconMarkup = n.icon ? iconSvg(n.icon) : null;
   const slot = n.iconMarkup && !n.iconTop ? ICON_SIZE + 8 : 0;
-  n.w = even(Math.max(72, tw + 2 * padX + slot));
+  n.markW = n.marks && n.marks.length ? n.marks.length * (MARK_SIZE + 5) + 3 : 0;
+  n.w = even(Math.max(72, tw + 2 * padX + slot + n.markW));
   n.h = even(Math.max(36, n.textH + 16 + (n.iconMarkup && n.iconTop ? ICON_SIZE + 4 : 0)));
   if (n.kind === 'final') { n.w += 8; n.h += 8; }
 }
@@ -933,6 +974,312 @@ function clearFrames(rm) {
   }
 }
 
+// A link that runs through a node that is not one of its ends is routed again: an orthogonal route on the
+// grid of lines just outside every node, the shortest with the fewest bends, from where it leaves its source to
+// the side of its target that its route reaches first. Links that are clear are not touched.
+function rerouteBlocked(rm, force) {
+  const M = 8;                                             // the route keeps this far from every node
+  const boxes = rm.nodes.filter(n => n.x !== undefined && n.kind !== 'start');
+  const inside = (b, x, y, m) => x > b.x - m + 0.01 && x < b.x + b.w + m - 0.01 && y > b.y - m + 0.01 && y < b.y + b.h + m - 0.01;
+  const segHits = (a, p, b, m) => Math.min(a.x, p.x) < b.x + b.w + m - 0.5 && b.x - m + 0.5 < Math.max(a.x, p.x) && Math.min(a.y, p.y) < b.y + b.h + m - 0.5 && b.y - m + 0.5 < Math.max(a.y, p.y);
+  for (const r of force ? rm.edges.filter(x => force.has(x)) : rm.edges) {
+    const e = r.e;
+    if (e.rail || e.lifeline || e.divider || (r.merged && !force) || !r.pts || r.pts.length < 2 || e.a === e.b) continue;
+    let S = boxes.find(n => n.id === e.a), T = boxes.find(n => n.id === e.b);
+    if (!S || !T) continue;
+    // the points may run either way round (a link written with <-): S is the node at the first point
+    const dd = (n, p) => Math.hypot(Math.max(n.x - p.x, 0, p.x - n.x - n.w), Math.max(n.y - p.y, 0, p.y - n.y - n.h));
+    if (dd(T, r.pts[0]) < dd(S, r.pts[0])) [S, T] = [T, S];
+    const others = boxes.filter(n => n !== S && n !== T);
+    // through a node, or brushing past one closer than 6px: both read as touching it
+    const blocked = r.pts.some((p, i) => i && others.some(b => segHits(r.pts[i - 1], p, b, 6)));
+    // a link that turns right against its node (a first or last stretch under 10px) reads as touching it
+    const len = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    const q0 = simplifyPts(r.pts), n = q0.length;
+    const hugs = n > 2 && ((len(q0[n - 2], q0[n - 1]) < 10 && !T.cols && !T.span) || (len(q0[0], q0[1]) < 10 && !S.cols && !S.span));
+    // a stretch that runs along a frame border, closer than 8px, for more than 20px
+    const along = r.pts.some((p, i) => i && rm.frames.some(f => {
+      const a = r.pts[i - 1];
+      if (Math.abs(a.x - p.x) < 0.5) return Math.min(Math.max(a.y, p.y), f.y + f.h) - Math.max(Math.min(a.y, p.y), f.y) > 20 && (Math.abs(a.x - f.x) < 8 || Math.abs(a.x - f.x - f.w) < 8);
+      if (Math.abs(a.y - p.y) < 0.5) return Math.min(Math.max(a.x, p.x), f.x + f.w) - Math.max(Math.min(a.x, p.x), f.x) > 20 && (Math.abs(a.y - f.y) < 8 || Math.abs(a.y - f.y - f.h) < 8);
+      return false;
+    }));
+    // a link with three or more bends is tried again too, and kept only if the new route is clearly shorter:
+    // it catches the detours (out one way, round, and back) that a layout leaves behind
+    const curCost = q0.reduce((t, p, i) => i ? t + len(q0[i - 1], p) : 0, 0) + 60 * Math.max(0, q0.length - 2);
+    const detour = !force && !blocked && !hugs && !along && q0.length >= 5;
+    if (!force && !blocked && !hugs && !along && !detour) continue;
+    // first choice: one straight line, when the two nodes overlap across the gap between them
+    if (!S.cols && !S.span && !T.cols && !T.span) {
+      const ox0 = Math.max(S.x, T.x) + 10, ox1 = Math.min(S.x + S.w, T.x + T.w) - 10;
+      const oy0 = Math.max(S.y, T.y) + 10, oy1 = Math.min(S.y + S.h, T.y + T.h) - 10;
+      let st = null;
+      if (ox1 >= ox0) { const x = (ox0 + ox1) / 2; st = S.y + S.h <= T.y ? [{ x, y: S.y + S.h }, { x, y: T.y }] : T.y + T.h <= S.y ? [{ x, y: S.y }, { x, y: T.y + T.h }] : null; }
+      else if (oy1 >= oy0) { const y = (oy0 + oy1) / 2; st = S.x + S.w <= T.x ? [{ x: S.x + S.w, y }, { x: T.x, y }] : T.x + T.w <= S.x ? [{ x: S.x, y }, { x: T.x + T.w, y }] : null; }
+      if (st && !others.some(b => segHits(st[0], st[1], b, 4))) { r.pts = st; continue; }
+    }
+    // where it leaves: as it did, a short way straight out of its side
+    let p0 = r.pts[0];
+    const sideOf = (b, p) => Math.abs(p.x - b.x) < 2 ? [-1, 0] : Math.abs(p.x - b.x - b.w) < 2 ? [1, 0] : Math.abs(p.y - b.y) < 2 ? [0, -1] : [0, 1];
+    const [dx0, dy0] = sideOf(S, p0);
+    const nearB = (v, vert) => rm.frames.some(f => vert ? Math.abs(v - f.x) < 9 || Math.abs(v - f.x - f.w) < 9 : Math.abs(v - f.y) < 9 || Math.abs(v - f.y - f.h) < 9);
+    // a stub long enough that the turn after it is not on a frame border
+    const stubOut = (p, dx, dy) => { for (const L of [12, 20, 28, 36, 44]) { const q = { x: p.x + dx * L, y: p.y + dy * L }; if (!(dx ? nearB(q.x, true) : nearB(q.y, false))) return q; } return { x: p.x + dx * 12, y: p.y + dy * 12 }; };
+    // a start that would send the link up along a frame border slides along its side, away from it
+    if (!S.cols && !S.span && S.kind !== 'junction') {
+      const along = dy0 ? 'x' : 'y', lo = (dy0 ? S.x : S.y) + 8, hi = (dy0 ? S.x + S.w : S.y + S.h) - 8;
+      if (nearB(p0[along], !!dy0)) for (const k of [16, -16, 28, -28, 40, -40]) { const v = p0[along] + k; if (v >= lo && v <= hi && !nearB(v, !!dy0)) { p0 = { ...p0, [along]: v }; break; } }
+    }
+    const s1 = stubOut(p0, dx0, dy0);
+    // it may also leave from the middle of another side of its source (a little dearer than where it was)
+    const starts = [{ p: p0, s: s1, d: [dx0, dy0], extra: 0 }];
+    if (!S.cols && !S.span && S.kind !== 'junction') for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      if (dx === dx0 && dy === dy0) continue;
+      const p = { x: dx < 0 ? S.x : dx > 0 ? S.x + S.w : S.x + S.w / 2, y: dy < 0 ? S.y : dy > 0 ? S.y + S.h : S.y + S.h / 2 };
+      if (nearB(dx ? p.y : p.x, !dx)) continue;
+      starts.push({ p, s: stubOut(p, dx, dy), d: [dx, dy], extra: 40 });
+    }
+    // where it may arrive: the middle of each side of the target, a short way out
+    // where it may arrive: the middle of each side of the target, or level with where it leaves (a straight
+    // link when the two overlap); a table or a span node keeps the attachment point it was given
+    const pend = r.pts[r.pts.length - 1];
+    // a table, a span node or a concentrator keeps the place the link was given on it
+    const sides = T.cols || T.span || T.kind === 'junction' ? [sideOf(T, pend)] : [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    const ports = [];
+    for (const [dx, dy] of sides) {
+      const cands = [];
+      if (T.cols || T.span || T.kind === 'junction') cands.push({ ...pend });
+      else {
+        cands.push({ x: dx < 0 ? T.x : dx > 0 ? T.x + T.w : T.x + T.w / 2, y: dy < 0 ? T.y : dy > 0 ? T.y + T.h : T.y + T.h / 2 });
+        if (dy && p0.x > T.x + 10 && p0.x < T.x + T.w - 10) cands.push({ x: p0.x, y: dy < 0 ? T.y : T.y + T.h });
+        if (dx && p0.y > T.y + 10 && p0.y < T.y + T.h - 10) cands.push({ x: dx < 0 ? T.x : T.x + T.w, y: p0.y });
+      }
+      // a side where other links already arrive costs more: arrowheads side by side read as one
+      const ends = rm.edges.filter(o => o !== r && o.pts && o.pts.length > 1).flatMap(o => [o.pts[0], o.pts[o.pts.length - 1]]).filter(q => dx ? Math.abs(q.x - (dx < 0 ? T.x : T.x + T.w)) < 2 && q.y > T.y - 1 && q.y < T.y + T.h + 1 : Math.abs(q.y - (dy < 0 ? T.y : T.y + T.h)) < 2 && q.x > T.x - 1 && q.x < T.x + T.w + 1);
+      // and where one already arrives, the new one takes a quarter of the side away from it
+      if (ends.length && !T.cols && !T.span && T.kind !== 'junction') {
+        cands.length = 0;
+        for (const k of [0.25, 0.75]) {
+          const p = dx ? { x: dx < 0 ? T.x : T.x + T.w, y: T.y + T.h * k } : { x: T.x + T.w * k, y: dy < 0 ? T.y : T.y + T.h };
+          if (!ends.some(q => Math.abs(dx ? q.y - p.y : q.x - p.x) < 10)) cands.push(p);
+        }
+      }
+      // and not where the link would run along a frame border
+      for (const p of cands) if (T.cols || T.span || T.kind === 'junction' || !nearB(dx ? p.y : p.x, !dx)) ports.push({ p, q: stubOut(p, dx, dy), d: [dx, dy], extra: ends.length * 150 });
+    }
+    const xs = new Set([...starts.map(o => o.s.x), ...ports.map(o => o.q.x)]), ys = new Set([...starts.map(o => o.s.y), ...ports.map(o => o.q.y)]);
+    for (const b of others.concat([S, T])) { xs.add(b.x - M - 2); xs.add(b.x + b.w + M + 2); ys.add(b.y - M - 2); ys.add(b.y + b.h + M + 2); }
+    // lines that stay clear of the frame borders: a route is not drawn along a border
+    for (const f of rm.frames) { for (const v of [f.x - 14, f.x + 14, f.x + f.w - 14, f.x + f.w + 14]) xs.add(v); for (const v of [f.y - 14, f.y + 14, f.y + f.h - 14, f.y + f.h + 14]) ys.add(v); }
+    const keep = new Set([...starts.flatMap(o => [o.s.x, o.s.y]), ...ports.flatMap(o => [o.q.x, o.q.y])]);
+    const nearX = v => rm.frames.some(f => Math.abs(v - f.x) < 8 || Math.abs(v - f.x - f.w) < 8), nearY = v => rm.frames.some(f => Math.abs(v - f.y) < 8 || Math.abs(v - f.y - f.h) < 8);
+    const X = [...xs].filter(v => keep.has(v) || !nearX(v)).sort((a, b) => a - b), Y = [...ys].filter(v => keep.has(v) || !nearY(v)).sort((a, b) => a - b);
+    const all = others.concat([S, T]);
+    const free = (x, y) => !all.some(b => inside(b, x, y, M - 1));
+    const key = (i, j) => i * Y.length + j;
+    const ix = new Map(X.map((v, i) => [v, i])), iy = new Map(Y.map((v, j) => [v, j]));
+    const startAt = new Map(starts.map(o => [key(ix.get(o.s.x), iy.get(o.s.y)), o]));
+    const goals = new Map(ports.map(o => [key(ix.get(o.q.x), iy.get(o.q.y)), o]));
+    // Dijkstra over (grid point, direction): length plus a price per bend
+    const BEND = 60, dist = new Map(), prev = new Map(), heap = [];
+    const occupied = rm.edges.filter(o => o !== r && o.pts && !o.e.rail && !o.e.lifeline).flatMap(o => o.pts.slice(1).map((p, i) => [o.pts[i], p]));
+    const push = (k, d, c) => { const id = k * 4 + d; if (c < (dist.get(id) ?? Infinity)) { dist.set(id, c); heap.push([c, id]); } };
+    const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    // a start whose first stub already lies on another link (the trunk of a bus) is as dear as running on one
+    // (closer than 8px counts, as everywhere: two lines that near read as one)
+    for (const o of starts) if (occupied.some(([u, w]) => overlapSeg(o.p, o.s, u, w, 8))) o.extra += 600;
+    for (const o of ports) if (occupied.some(([u, w]) => overlapSeg(o.q, o.p, u, w, 8))) o.extra = (o.extra || 0) + 600;
+    for (const [k, o] of startAt) { const d0 = DIRS.findIndex(([a, b]) => a === o.d[0] && b === o.d[1]); push(k, d0 < 0 ? 0 : d0, o.extra); }
+    let best = null;
+    while (heap.length) {
+      let m = 0; for (let k = 1; k < heap.length; k++) if (heap[k][0] < heap[m][0]) m = k;
+      const [c, id] = heap.splice(m, 1)[0];
+      if (c > (dist.get(id) ?? Infinity)) continue;
+      const k = Math.floor(id / 4), d = id % 4, i = Math.floor(k / Y.length), j = k % Y.length;
+      if (goals.has(k)) {
+        const o = goals.get(k);
+        // arrive straight: the last stretch runs into the side, so the direction must point at the node
+        const need = DIRS.findIndex(([a, b]) => a === -o.d[0] && b === -o.d[1]);
+        const back = DIRS[d][0] === o.d[0] && DIRS[d][1] === o.d[1];      // arriving the wrong way round
+        const total = c + (d === need ? 0 : BEND) + (o.extra || 0);
+        if (!back && (!best || total < best.c)) best = { c: total, id, o };
+      }
+      for (let nd = 0; nd < 4; nd++) {
+        const [a, b] = DIRS[nd];
+        const ni = i + a, nj = j + b;
+        if (ni < 0 || nj < 0 || ni >= X.length || nj >= Y.length) continue;
+        const P = { x: X[i], y: Y[j] }, Q = { x: X[ni], y: Y[nj] };
+        if (!free(Q.x, Q.y) && !goals.has(key(ni, nj))) continue;
+        if (all.some(bx => segHits(P, Q, bx, M - 2))) continue;
+        // running on top of another link is never wanted: it costs as much as a long detour
+        const onLink = (occupied.some(([u, w]) => overlapSeg(P, Q, u, w, 8)) ? 600 : 0) + 40 * occupied.filter(([u, w]) => crossSeg(P, Q, u, w)).length;
+        push(key(ni, nj), nd, c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND) + onLink);
+        if (!prev.has(key(ni, nj) * 4 + nd) || dist.get(key(ni, nj) * 4 + nd) === c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND) + onLink) prev.set(key(ni, nj) * 4 + nd, id);
+      }
+    }
+    if (!best) continue;
+    const path = [];
+    let from = starts[0];
+    for (let id = best.id; id !== undefined; id = prev.get(id)) { const k = Math.floor(id / 4); path.unshift({ x: X[Math.floor(k / Y.length)], y: Y[k % Y.length] }); if (startAt.has(k) && !prev.has(id)) { from = startAt.get(k); break; } if (startAt.has(k) && dist.get(id) === startAt.get(k).extra) { from = startAt.get(k); break; } }
+    const pts = simplifyPts([from.p, ...path, best.o.p]);
+    if (overlapsLinks(rm, pts, new Set([r])) && (force || !overlapsLinks(rm, r.pts, new Set([r])))) continue;
+    // a new route may not cross more links than the old one, unless the old one ran through a node; a detour
+    // may cross one more link when the new route is at most half as long (a hop reads better than going round)
+    const newCost = pts.reduce((t, p, i) => i ? t + len(pts[i - 1], p) : 0, 0) + 60 * Math.max(0, pts.length - 2);
+    const spare = force ? 2 : detour && newCost <= curCost * 0.5 ? 1 : 0;
+    if (!blocked && crossingsWith(rm, pts, r) > crossingsWith(rm, r.pts, r) + spare) continue;
+    if (detour && newCost > curCost * 0.8) continue;
+    if (pts.some((p, i) => i && others.some(b => segHits(pts[i - 1], p, b, 0)))) continue;
+    r.pts = pts;
+  }
+}
+
+// Links that leave (or reach) one side of a node are put in the order that crosses least: the places where
+// they meet the side are shared out again among them, trying every order (up to five links), and the best one
+// is kept when it has fewer crossings. A straight link that has to move gets a short step near the node.
+function reorderEnds(rm) {
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  const X = (a, b, c, d) => {                     // proper crossing of two orthogonal segments
+    const h1 = eq(a.y, b.y), h2 = eq(c.y, d.y);
+    if (h1 === h2) return false;
+    const [H0, H1, V0, V1] = h1 ? [a, b, c, d] : [c, d, a, b];
+    const y = H0.y, x = V0.x;
+    return Math.min(H0.x, H1.x) + 0.5 < x && x < Math.max(H0.x, H1.x) - 0.5 && Math.min(V0.y, V1.y) + 0.5 < y && y < Math.max(V0.y, V1.y) - 0.5;
+  };
+  // two stretches on top of each other (closer than 4px, overlapping by more than 4px) count as a crossing
+  const OV = (a, b, c, d) => {
+    if (eq(a.y, b.y) && eq(c.y, d.y)) return Math.abs(a.y - c.y) < 4 && Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) > 4;
+    if (eq(a.x, b.x) && eq(c.x, d.x)) return Math.abs(a.x - c.x) < 4 && Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) - Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) > 4;
+    return false;
+  };
+  const cross = (P, Q) => { let n = 0; for (let i = 1; i < P.length; i++) for (let j = 1; j < Q.length; j++) if (X(P[i - 1], P[i], Q[j - 1], Q[j]) || OV(P[i - 1], P[i], Q[j - 1], Q[j])) n++; return n; };
+  const perms = a => a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(p => [x, ...p]));
+  // a merged link takes part at the far end of its branch, where its end is an ordinary arrow; its bus stays put
+  // links on a concentrator were put in order when they were placed on it
+  const onBar = r => rm.nodes.some(n => n.kind === 'junction' && (n.id === r.e.a || n.id === r.e.b));
+  const live = rm.edges.filter(r => r.pts && r.pts.length > 1 && !r.e.rail && !r.e.lifeline && !r.e.divider && r.e.a !== r.e.b && !onBar(r));
+  // points in a straight line are dropped first: moving an end moves the next point too, which must be a corner
+  for (const r of live) if (r.pts.length > 2) r.pts = simplifyPts(r.pts);
+  const orthogonal = q => q.every((p, i) => !i || eq(p.x, q[i - 1].x) || eq(p.y, q[i - 1].y));
+  for (const n of rm.nodes) {
+    if (n.x === undefined || n.cols || n.span) continue;
+    for (const side of ['left', 'right', 'top', 'bottom']) {
+      const horiz = side === 'left' || side === 'right';           // the stretch at the node is horizontal
+      const sv = side === 'left' ? n.x : side === 'right' ? n.x + n.w : side === 'top' ? n.y : n.y + n.h;
+      const ends = [];
+      for (const r of live) {
+        const q = r.pts, L = q.length;
+        for (const at of [0, L - 1]) {
+          const p = q[at], nx = q[at === 0 ? 1 : L - 2];
+          const on = horiz ? Math.abs(p.x - sv) < 1.5 && p.y > n.y && p.y < n.y + n.h : Math.abs(p.y - sv) < 1.5 && p.x > n.x && p.x < n.x + n.w;
+          if (!on || !(horiz ? eq(p.y, nx.y) : eq(p.x, nx.x))) continue;
+          if (r.merged && (r.mergeHub === n.id || L < 5)) continue;   // with fewer points the moved corner is on the bus
+          ends.push({ r, at });
+        }
+      }
+      if (ends.length < 2 || ends.length > 5) continue;
+      const A = horiz ? 'y' : 'x';
+      const slots = ends.map(e => e.r.pts[e.at][A]).sort((a, b) => a - b);
+      const out = side === 'right' || side === 'bottom' ? 1 : -1;
+      // the links as they would be with their end at `pos`
+      // the link as it would be with its end at `pos`; a straight link gets a step, near this node (near: true)
+      // or near its other end
+      const moved = (e, pos, near) => {
+        const q = e.r.pts.map(p => ({ ...p })), L = q.length, i = e.at, j = i === 0 ? 1 : L - 2;
+        if (eq(q[i][A], pos)) return q;
+        if (L === 2) {
+          const C = horiz ? 'x' : 'y';
+          const sx = near ? q[i][C] + out * 24 : q[j][C] - out * 24;
+          const s0 = { ...q[i], [A]: pos };
+          const a = { [C]: sx, [A]: pos }, b = { [C]: sx, [A]: q[j][A] };
+          return i === 0 ? [s0, a, b, q[1]] : [q[0], b, a, s0];
+        }
+        q[i] = { ...q[i], [A]: pos }; q[j] = { ...q[j], [A]: pos };
+        return q;
+      };
+      const others = live.filter(r => !ends.some(e => e.r === r));
+      const score = sets => {
+        let c = 0;
+        // links from the same side crossing each other read worst: a fan that twists on itself
+        for (let a = 0; a < sets.length; a++) { for (const o of others) c += cross(sets[a], o.pts); for (let b = a + 1; b < sets.length; b++) c += 3 * cross(sets[a], sets[b]); }
+        return c;
+      };
+      // a candidate may not pass within 6px of a node that is not one of its ends, nor run along a frame border
+      const hitsNode = (q, r) => q.some((p, i) => {
+        if (!i) return false;
+        const a = q[i - 1];
+        if (rm.nodes.some(m => m.x !== undefined && m.id !== r.e.a && m.id !== r.e.b &&
+          Math.min(a.x, p.x) < m.x + m.w + 6 && m.x - 6 < Math.max(a.x, p.x) && Math.min(a.y, p.y) < m.y + m.h + 6 && m.y - 6 < Math.max(a.y, p.y))) return true;
+        return rm.frames.some(f => eq(a.x, p.x) ? Math.min(Math.max(a.y, p.y), f.y + f.h) - Math.max(Math.min(a.y, p.y), f.y) > 6 && (Math.abs(a.x - f.x) < 8 || Math.abs(a.x - f.x - f.w) < 8)
+          : Math.min(Math.max(a.x, p.x), f.x + f.w) - Math.max(Math.min(a.x, p.x), f.x) > 6 && (Math.abs(a.y - f.y) < 8 || Math.abs(a.y - f.y - f.h) < 8));
+      });
+      const now = score(ends.map(e => e.r.pts));
+      if (!now) continue;
+      let best = null;
+      for (const perm of perms(slots)) for (const near of [false, true]) {
+        const sets = ends.map((e, k) => moved(e, perm[k], near));
+        if (sets.some(q => !orthogonal(q))) continue;
+        if (sets.some((q, k) => q !== ends[k].r.pts && hitsNode(q, ends[k].r) && !hitsNode(ends[k].r.pts, ends[k].r))) continue;
+        const c = score(sets), bends = sets.reduce((t, q) => t + q.length, 0);
+        if (c < now && (!best || c < best.c || (c === best.c && bends < best.bends))) best = { c, bends, sets };
+      }
+      if (best) ends.forEach((e, k) => { e.r.pts = best.sets[k]; });
+    }
+  }
+}
+
+// Last: two links that still lie on top of each other (not two links of one bus) are pulled apart by routing
+// one of them again: the one that is not part of a bus, with the more bends.
+function resolveOverlaps(rm) {
+  const E = rm.edges.filter(r => r.pts && r.pts.length > 1 && !r.e.rail && !r.e.lifeline && !r.e.divider && r.e.a !== r.e.b);
+  for (let round = 0; round < 3; round++) {
+    const victims = new Set();
+    for (let i = 0; i < E.length; i++) for (let j = i + 1; j < E.length; j++) {
+      const A = E[i], B = E[j];
+      if (A.merged && B.merged) continue;
+      let hit = false;
+      for (let a = 1; a < A.pts.length && !hit; a++) for (let b = 1; b < B.pts.length && !hit; b++) if (overlapSeg(A.pts[a - 1], A.pts[a], B.pts[b - 1], B.pts[b], 8)) hit = true;
+      if (!hit) continue;
+      const pick = A.merged ? B : B.merged ? A : (A.pts.length >= B.pts.length ? A : B);
+      if (!victims.has(A) && !victims.has(B)) victims.add(pick);
+    }
+    if (!victims.size) return;
+    rerouteBlocked(rm, victims);
+  }
+}
+
+// A link with one small step (12px or less) is made straight, by sliding its end along the side of its
+// target (or its start along its source), when that side has room and no other link ends there.
+function straightenSmallJogs(rm) {
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  for (const r of rm.edges) {
+    const e = r.e;
+    if (e.rail || e.lifeline || r.merged || !r.pts || e.a === e.b) continue;
+    const q = simplifyPts(r.pts);
+    if (q.length !== 4) continue;
+    const S = rm.nodes.find(n => n.id === e.a), T = rm.nodes.find(n => n.id === e.b);
+    if (!S || !T || S.cols || T.cols) continue;
+    const hv = eq(q[0].y, q[1].y) && eq(q[1].x, q[2].x) && eq(q[2].y, q[3].y);
+    const vh = eq(q[0].x, q[1].x) && eq(q[1].y, q[2].y) && eq(q[2].x, q[3].x);
+    if (!hv && !vh) continue;
+    const A = hv ? 'y' : 'x', L = hv ? 'h' : 'w';
+    const off = q[3][A] - q[0][A];
+    if (Math.abs(off) < 0.5 || Math.abs(off) > 12) continue;
+    const clear = (node, v, skip) => v >= node[A] + 6 && v <= node[A] + node[L] - 6 &&
+      !rm.edges.some(o => o !== r && o.pts && [o.pts[0], o.pts[o.pts.length - 1]].some(p => p !== skip && Math.abs(p[A] - v) < 8 && (hv ? Math.abs(p.x - (skip === 'end' ? q[3].x : q[0].x)) < 2 : Math.abs(p.y - (skip === 'end' ? q[3].y : q[0].y)) < 2)));
+    const hit = (a, b) => rm.nodes.some(n => n !== S && n !== T && n.x !== undefined && Math.min(a.x, b.x) < n.x + n.w && n.x < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h && n.y < Math.max(a.y, b.y));
+    // a span node keeps its attachment points: only the other end slides
+    if (!T.span && clear(T, q[0][A], 'end')) {
+      const end = { ...q[3], [A]: q[0][A] };
+      if (!hit(q[0], end)) { r.pts = [q[0], end]; continue; }
+    }
+    if (!S.span && clear(S, q[3][A], 'start')) {
+      const st = { ...q[0], [A]: q[3][A] };
+      if (!hit(st, q[3])) r.pts = [st, q[3]];
+    }
+  }
+}
+
 // Links that go to (or come from) one node, say the same thing and look the same are merged into a bus: a
 // short trunk at the node, a line running along its side, and a branch from each of the others (a dot
 // where a branch meets the line in the middle of it). The text is written once. A hand would draw it so;
@@ -956,7 +1303,7 @@ function mergeHubs(rm, MIN = 4) {
       groups.get(k).push(r);
     }
   }
-  const used = new Set();
+  const used = new Set(), busLines = [];       // the line and trunk of every bus built so far
   const sorted = [...groups.entries()].sort((x, y) => y[1].length - x[1].length);
   for (const [k, list0] of sorted) {
     const list = list0.filter(r => !used.has(r));
@@ -982,9 +1329,13 @@ function mergeHubs(rm, MIN = 4) {
     const M = p => vert ? p.y : p.x, C = p => vert ? p.x : p.y;
     const mk = (m, c) => vert ? { x: c, y: m } : { x: m, y: c };
     const last = items.find(it => sideOf(it.P[it.P.length - 1]) === side).P;
-    const endM = M(last[last.length - 1]);
+    // a junction is a point on its own bus: the bus line runs through it
+    if (hub.kind === 'junction') continue;
+    const J = false;
+    const endM = J ? M({ x: hub.x + hub.w / 2, y: hub.y + hub.h / 2 }) : M(last[last.length - 1]);
     const trunkC = vert ? hub.x + hub.w / 2 : hub.y + hub.h / 2;
-    const hits = (a, b, skip) => rm.nodes.some(n => n.x !== undefined && !skip.has(n.id) && Math.min(a.x, b.x) < n.x + n.w - 0.5 && n.x + 0.5 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h - 0.5 && n.y + 0.5 < Math.max(a.y, b.y));
+    // a bus and its branches keep 6px clear of every node they do not serve, like any link
+    const hits = (a, b, skip) => rm.nodes.some(n => n.x !== undefined && !skip.has(n.id) && Math.min(a.x, b.x) < n.x + n.w + 6 && n.x - 6 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h + 6 && n.y - 6 < Math.max(a.y, b.y));
     const ok = items.filter(it => sideOf(it.P[it.P.length - 1]) === side);
     // the bus stands where the branches are short: just past the sources, as near to them as a free place allows
     const build = busM => {
@@ -996,6 +1347,8 @@ function mergeHubs(rm, MIN = 4) {
         const skip = new Set([hub.id, it.r.e.a, it.r.e.b]);
         const path = [...head, mk(busM, c), mk(busM, trunkC), mk(endM, trunkC)];
         for (let i = Math.max(1, head.length); i < path.length; i++) if (hits(path[i - 1], path[i], skip)) return null;
+        // nor on another link (the links of this group share the bus, that is the point)
+        if (overlapsLinks(rm, path, new Set(ok.map(x => x.r)))) return null;
         return { it, path, c };
       };
       const lane = (c, m1, m2) => !taken.some(t => Math.abs(t.c - c) < 14 && Math.min(t.m1, t.m2) < Math.max(m1, m2) && Math.min(m1, m2) < Math.max(t.m1, t.m2));
@@ -1063,25 +1416,44 @@ function mergeHubs(rm, MIN = 4) {
     // the side of the bus that carries the arrowheads needs room for them (30px); the other side 16px
     const e0 = ok[0].r.e, arrowAtHub = role === 'b' ? !!e0.end : !!e0.start;
     const TR = arrowAtHub ? 30 : 16, BR = arrowAtHub ? 16 : 30;
-    if (endM * dir - startMax < TR + BR) continue;
-    const near = startMax + Math.min(BR + 10, endM * dir - startMax - TR);
-    const far = endM * dir - Math.min(TR + 6, endM * dir - startMax - BR);
-    let plan = [], busM = near * dir;
-    for (let m = near; m <= far + 0.1; m += 6) {
-      const bm = m * dir;
-      if (frameNear(bm)) continue;
-      const pl = build(bm);
-      if (pl.length > plan.length) { plan = pl; busM = bm; }
+    let plan = [], busM;
+    if (J) {
+      // the members' side needs room for arrowheads only when the branches have them there
+      const arrowAtOthers = role === 'b' ? !!e0.start : !!e0.end;
+      if (endM * dir - startMax < (arrowAtOthers ? 30 : 12)) continue;
+      busM = endM;
+      plan = build(busM);
+    } else {
+      if (endM * dir - startMax < TR + BR) continue;
+      const near = startMax + Math.min(BR + 10, endM * dir - startMax - TR);
+      const far = endM * dir - Math.min(TR + 6, endM * dir - startMax - BR);
+      busM = near * dir;
+      for (let m = near; m <= far + 0.1; m += 6) {
+        const bm = m * dir;
+        if (frameNear(bm)) continue;
+        const pl = build(bm);
+        if (pl.length > plan.length) { plan = pl; busM = bm; }
+      }
+      if (!plan.length && !frameNear(busM)) plan = build(busM);
     }
-    if (!plan.length && !frameNear(busM)) plan = build(busM);
     if (plan.length < MIN) continue;
+    // a bus never crosses the line of another bus: a branch cutting across it reads as joining it, so such a
+    // branch stays an ordinary link (crossing another bus's branch is an ordinary crossing, with a hop)
+    // and a bus that would leave out more than a quarter of its links is not built: it would not say they are alike
+    const whole = plan.length;
+    plan = plan.filter(x => !x.path.some((p, j) => j && busLines.some(([u, w]) => crossSeg(x.path[j - 1], p, u, w))));
+    if (plan.length < Math.max(MIN, Math.ceil(whole * 0.75))) continue;
     const cs = plan.map(x => x.c).concat(trunkC), lo = Math.min(...cs), hi = Math.max(...cs);
+    // nor is it built where branches of a bus already drawn would cut across its own line
+    const mine = [[mk(busM, lo), mk(busM, hi)], [mk(busM, trunkC), mk(endM, trunkC)]];
+    if (rm.edges.some(o => o.merged && o.e.a !== hub.id && o.e.b !== hub.id && o.pts.some((p, j) => j && mine.some(([u, w]) => crossSeg(o.pts[j - 1], p, u, w))))) continue;
+    busLines.push([mk(busM, lo), mk(busM, hi)], [mk(busM, trunkC), mk(endM, trunkC)]);
     plan.forEach((x, i) => {
       const r = x.it.r;
       let out = x.path.filter((p, j, a) => j === 0 || Math.hypot(p.x - a[j - 1].x, p.y - a[j - 1].y) > 0.5);
       out = simplifyPts(out);
       r.pts = rev ? out.reverse() : out;
-      r.merged = true; r.mergeRep = i === 0; used.add(r);
+      r.merged = true; r.mergeHub = hub.id; r.mergeRep = i === 0; used.add(r);
       if (x.c > lo + 0.5 && x.c < hi - 0.5 && !eq(x.c, trunkC)) rm.joins.push(mk(busM, x.c));
       if (i) r.lab = null;
     });
@@ -1112,8 +1484,21 @@ function separateParallels(rm) {
         else if (eq(a.y, b.y) && !eq(a.x, b.x)) out.push({ r, i, v: false, c: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) });
       }
     }
+    // the first and last stretch too: they slide along the side of their node, when it has room
+    for (const r of rm.edges) {
+      if (r.merged || r.e.rail || r.e.lifeline || r.e.divider || !r.pts || r.pts.length < 3) continue;
+      const q = r.pts, n = q.length;
+      for (const [i, at] of [[0, q[0]], [n - 2, q[n - 1]]]) {
+        const node = nodeAt(at);
+        if (!node || node.cols || node.span) continue;
+        const a = q[i], b = q[i + 1];
+        if (eq(a.x, b.x) && !eq(a.y, b.y)) out.push({ r, i, v: true, c: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y), end: i === 0 ? 'start' : 'end', node });
+        else if (eq(a.y, b.y) && !eq(a.x, b.x)) out.push({ r, i, v: false, c: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x), end: i === 0 ? 'start' : 'end', node });
+      }
+    }
     return out;
   };
+  const nodeAt = p => rm.nodes.find(n => n.x !== undefined && p.x >= n.x - 1.5 && p.x <= n.x + n.w + 1.5 && p.y >= n.y - 1.5 && p.y <= n.y + n.h + 1.5);
   const allSegs = () => {   // every stretch of every link, to measure against
     const out = [];
     for (const r of rm.edges) {
@@ -1132,6 +1517,7 @@ function separateParallels(rm) {
     const mov = segsOf();
     for (const s of mov) {
       const q = s.r.pts;
+      if (s.end) { if (slideEnd(s)) moved = true; continue; }
       if (!q[s.i + 2] || !q[s.i - 1]) continue;
       const others = allSegs().filter(o => o.r !== s.r && o.v === s.v && Math.min(s.hi, o.hi) - Math.max(s.lo, o.lo) > 6 && Math.abs(o.c - s.c) < NEAR);
       if (!others.length) continue;
@@ -1165,6 +1551,35 @@ function separateParallels(rm) {
     if (!moved) break;
   }
   function hitsNodeBeyond() { return false; }
+  // a first or last stretch that lies on another link's: slide it, with the point where it meets its node,
+  // along that node's side
+  function slideEnd(s) {
+    const q = s.r.pts, n = q.length, node = s.node;
+    const others = allSegs().filter(o => o.r !== s.r && o.v === s.v && Math.min(s.hi, o.hi) - Math.max(s.lo, o.lo) > 6 && Math.abs(o.c - s.c) < NEAR);
+    if (!others.length) return false;
+    const o = others.sort((x, y) => Math.abs(x.c - s.c) - Math.abs(y.c - s.c))[0];
+    const lo = (s.v ? node.x : node.y) + 6, hi = (s.v ? node.x + node.w : node.y + node.h) - 6;
+    for (const d of o.c >= s.c ? [-1, 1] : [1, -1]) {
+      const want = o.c + d * GOAL;
+      if (want < lo || want > hi) continue;
+      const a = q[s.i], b = q[s.i + 1];
+      const na = s.v ? { x: want, y: a.y } : { x: a.x, y: want }, nb = s.v ? { x: want, y: b.y } : { x: b.x, y: want };
+      const nxt = s.end === 'start' ? q[s.i + 2] : q[s.i - 1];
+      if (!nxt) continue;
+      const moving = s.end === 'start' ? nb : na;
+      if ((s.v ? Math.abs(nxt.x - moving.x) : Math.abs(nxt.y - moving.y)) < MINSTUB) continue;
+      const own = new Set([s.r.e.a, s.r.e.b]);
+      const hit = (u, w) => rm.nodes.some(m => m.x !== undefined && !own.has(m.id) && Math.min(u.x, w.x) < m.x + m.w + 2 && m.x - 2 < Math.max(u.x, w.x) && Math.min(u.y, w.y) < m.y + m.h + 2 && m.y - 2 < Math.max(u.y, w.y));
+      if (hit(na, nb) || hit(moving, nxt)) continue;
+      if (allSegs().some(x => x.r !== s.r && x.v === s.v && Math.min(s.hi, x.hi) - Math.max(s.lo, x.lo) > 6 && Math.abs(x.c - want) < NEAR - 0.5)) continue;
+      // no other link may end on that side within 8px of the new place
+      const endsHere = rm.edges.some(x => x !== s.r && x.pts && [x.pts[0], x.pts[x.pts.length - 1]].some(p => nodeAt(p) === node && Math.abs((s.v ? p.x : p.y) - want) < 8));
+      if (endsHere) continue;
+      q[s.i] = na; q[s.i + 1] = nb;
+      return true;
+    }
+    return false;
+  }
 }
 
 // Links that meet the same side of a node are kept at least `gap` px apart, so an arrowhead never touches
@@ -1176,8 +1591,10 @@ function spreadEnds(rm, gap0 = 22) {
   const T = 8;
   const ends = [];
   for (const r of rm.edges) {
-    if (r.e.rail || r.e.lifeline || !r.pts || r.pts.length < 2 || r.e.a === r.e.b || (r.merged && !r.mergeRep)) continue;
-    const q = simplifyPts(r.pts);
+    if (r.e.rail || r.e.lifeline || !r.pts || r.pts.length < 2 || r.e.a === r.e.b) continue;
+    // a bus branch counts where it leaves its own node (it stays put, the others keep clear of it); at the hub
+    // the branches share one point, which counts once
+    const q = r.merged ? r.pts : simplifyPts(r.pts);
     r.pts = q;
     for (const end of [0, 1]) {
       const i = end ? q.length - 1 : 0, p = q[i];
@@ -1187,6 +1604,7 @@ function spreadEnds(rm, gap0 = 22) {
           ['left', Math.abs(p.x - n.x), p.y >= n.y && p.y <= n.y + n.h, p.y], ['right', Math.abs(p.x - n.x - n.w), p.y >= n.y && p.y <= n.y + n.h, p.y]]
           .filter(x => x[1] <= T && x[2]).sort((a, b) => a[1] - b[1]);
         if (!c.length) continue;
+        if (r.merged && n.id === r.mergeHub && !r.mergeRep) break;
         const side = c[0][0], pos = c[0][3];
         // the stretch leaving the node must run across the side, and a stretch before it must exist
         const nx = q[end ? i - 1 : i + 1], nn = q[end ? i - 2 : i + 2];
@@ -1316,10 +1734,22 @@ function spanSides(rm, model) {
     const { F, FB, mine, ext, inner, flat } = m, lo = m.lo, hi = m.hi;
     if (flat && inner.length) {
       const want = new Map();
+      // where each link will leave the main flow (off any zone border, as below), and the node level with the
+      // middle one of them: with the ends spread evenly round the node's middle, that link is straight
+      const tw = F.side === 'right' || F.side === 'bottom' ? 1 : -1;
+      const gutC = tw > 0 ? FB[C] - 16 : FB[C] + FB[CS] + 16;
+      const leaveAt = o => {
+        const o1 = tw > 0 ? o[C] + o[CS] : o[C];
+        const onB = v => rm.frames.some(f => f[C] < Math.max(o1, gutC) && Math.min(o1, gutC) < f[C] + f[CS] && (Math.abs(v - f[A]) < 8 || Math.abs(v - f[A] - f[S]) < 8));
+        let v = o[A] + o[S] / 2;
+        if (onB(v)) v = [0.75, 0.25].map(k => o[A] + o[S] * k).find(u => !onB(u)) ?? v;
+        return v;
+      };
       for (const nb of inner) {
-        const cs = ext.filter(x => x.mine === nb.id).map(x => x.other[A] + x.other[S] / 2);
+        const cs = ext.filter(x => x.mine === nb.id).map(x => leaveAt(x.other)).sort((a, b) => a - b);
         const rel = (nb[A] + nb[S] / 2 - FB[A]) / FB[S];
-        want.set(nb, cs.length ? cs.reduce((t, v) => t + v, 0) / cs.length : lo + rel * (hi - lo));
+        const mid = cs.length % 2 ? cs[(cs.length - 1) / 2] : (cs[cs.length / 2 - 1] + cs[cs.length / 2]) / 2;
+        want.set(nb, cs.length ? mid : lo + rel * (hi - lo));
       }
       const ord = [...inner].sort((p, q) => want.get(p) - want.get(q));
       let pos = lo + TITLE;
@@ -1375,7 +1805,8 @@ async function layout(model, measure, ELK, opts) {
   const env = (typeof process !== 'undefined' && process.env) || {};
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
-  const finish = rm => { spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); if (!off.has('tidy')) { separateParallels(rm); spreadEnds(rm); } placeLabels(rm, measure); return rm; };
+  if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
+  const finish = rm => { placeOnConcentrators(rm); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -1387,6 +1818,157 @@ async function layout(model, measure, ELK, opts) {
     rm = await run();      // the model holds the last try: draw the strip again
   }
   return rm;
+}
+
+// A bus belongs to the group it gathers. Five or more links with the same meaning between one node and
+// several nodes that all stand in one zone (the node itself outside it) meet at a junction inside that zone,
+// as close to them as the layout can put it, and only one link crosses the zone's edge: into the zone for a
+// fan-out (an API gateway to its services), out of it for a fan-in (every service to the identity provider).
+// The junction is a point the layout places like a node, so the members line up beside it; the branches
+// between it and the members are then merged into a bus like any other.
+function addJunctions(model) {
+  const MIN = 5;                       // more than four links: below that, separate links read well enough
+  const frames = n => { const a = []; for (let p = n.parent; p; p = p.parent) if (p.type === 'frame') a.unshift(p); return a; };
+  const groups = new Map();
+  for (const e of model.edges) {
+    if (e.rail || e.a === e.b || e.aCol || e.bCol || (e.start && e.end)) continue;
+    const A = model.nodes.get(e.a), B = model.nodes.get(e.b);
+    if (!A || !B || A.kind === 'table' || B.kind === 'table') continue;
+    for (const role of ['b', 'a']) {
+      const k = [e[role], role, e.label || '', (e.tags || []).join(','), !!e.dashed, !!e.start, !!e.end].join('|');
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(e);
+    }
+  }
+  const used = new Set();
+  let n = 0;
+  for (const [k, list0] of [...groups.entries()].sort((x, y) => y[1].length - x[1].length)) {
+    const list = list0.filter(e => !used.has(e));
+    if (list.length < MIN) continue;
+    const role = k.split('|')[1], other = role === 'b' ? 'a' : 'b';
+    const hub = model.nodes.get(list[0][role]);
+    const hubFrames = frames(hub);
+    // the zone that holds most of the others (at least five), the innermost such zone, the hub standing
+    // outside it; the links from outside that zone stay ordinary links
+    const count = new Map();
+    for (const e of list) { const x = model.nodes.get(e[other]); if (!x || x.span) continue; for (const f of frames(x)) count.set(f, (count.get(f) || 0) + 1); }
+    let F = null;
+    for (const [f, c] of count) if (c >= MIN && !hubFrames.includes(f) && (!F || c > count.get(F) || (c === count.get(F) && frames(f.items[0] || f).length > frames(F.items[0] || F).length))) F = f;
+    if (!F) continue;
+    const inF = x => { for (let p = x.parent; p; p = p.parent) if (p === F) return true; return false; };
+    list.splice(0, list.length, ...list.filter(e => { const x = model.nodes.get(e[other]); return x && !x.span && inF(x); }));
+    // a fan-in gathers where the zone is left, a fan-out spreads where it is entered
+    const j = { type: 'node', id: '_junction' + (++n), kind: 'junction', name: '', note: '', tags: [], parent: F, line: list[0].line, junction: role === 'b' ? 'last' : 'first' };
+    j.links = list.length;
+    F.items.push(j);
+    model.nodes.set(j.id, j);
+    const e0 = list[0];
+    // the trunk keeps the words, the style and the arrowhead at the hub; the branches keep the arrowhead at each member
+    const trunk = role === 'b'
+      ? { a: j.id, b: hub.id, op: e0.op, label: e0.label, tags: e0.tags.slice(), dashed: e0.dashed, start: false, end: e0.end, line: e0.line, trunk: true }
+      : { a: hub.id, b: j.id, op: e0.op, label: e0.label, tags: e0.tags.slice(), dashed: e0.dashed, start: e0.start, end: false, line: e0.line, trunk: true };
+    for (const e of list) {
+      e[role] = j.id;
+      e.label = '';
+      if (role === 'b') e.end = false; else e.start = false;
+      e.branch = true;
+      used.add(e);
+    }
+    model.edges.push(trunk);
+  }
+}
+
+// Links on a concentrator: in the order their other ends lie, 14px apart, centred on its one link, each
+// arriving straight; the step of each link stands beside the concentrator, staggered so that none cross.
+function placeOnConcentrators(rm) {
+  for (const j of rm.nodes.filter(n => n.kind === 'junction' && n.x !== undefined)) {
+    const vert = !!j.barV;                    // links arrive on the left or right side
+    const A = vert ? 'y' : 'x', B = vert ? 'x' : 'y', S = vert ? 'h' : 'w', Bs = vert ? 'w' : 'h';
+    const fanIn = j.junction === 'last';
+    const mine = rm.edges.filter(r => r.pts && (r.e.a === j.id || r.e.b === j.id));
+    const one = mine.find(r => r.e.trunk);
+    const many = mine.filter(r => r !== one);
+    const c = j[A] + j[S] / 2;
+    // the wide side faces the many links: left (or top) for a fan-in, right (or bottom) for a fan-out
+    const wide = fanIn ? j[B] : j[B] + j[Bs], narrow = fanIn ? j[B] + j[Bs] : j[B];
+    const dir = fanIn ? -1 : 1;                    // from the wide side toward the members
+    const other = r => rm.nodes.find(n => n.id === (r.e.a === j.id ? r.e.b : r.e.a));
+    const items = many.map(r => ({ r, n: other(r) })).filter(x => x.n && x.n.x !== undefined);
+    items.sort((a, b) => (a.n[A] + a.n[S] / 2) - (b.n[A] + b.n[S] / 2));
+    // each link arrives level with its member, so it runs straight; two members at nearly the same level
+    // share out the room 14px apart. The bar then reaches from the first link to the last (and its own link).
+    items.forEach((it, k) => { it.from = it.n[A] + it.n[S] / 2; it.at = Math.max(it.from, k ? items[k - 1].at + 14 : -Infinity); });
+    if (items.length) {
+      const lo = Math.min(items[0].at, c), hi = Math.max(items[items.length - 1].at, c);
+      j[A] = lo - 7; j[S] = hi - lo + 14;
+    }
+    // steps: links going toward the middle from above step nearer the concentrator the higher they arrive
+    const down = items.filter(it => it.from <= it.at), up = items.filter(it => it.from > it.at);
+    down.sort((a, b) => a.at - b.at); up.sort((a, b) => b.at - a.at);
+    const stepAt = new Map();
+    down.forEach((it, k) => stepAt.set(it, wide + dir * (12 + 8 * k)));
+    up.forEach((it, k) => stepAt.set(it, wide + dir * (12 + 8 * k)));
+    for (const it of items) {
+      const n = it.n, nearSide = fanIn ? n[B] + n[Bs] : n[B];
+      const P = (a, b) => vert ? { x: b, y: a } : { x: a, y: b };
+      const st = stepAt.get(it);
+      let pts = Math.abs(it.from - it.at) < 0.5 ? [P(it.at, nearSide), P(it.at, wide)] : [P(it.from, nearSide), P(it.from, st), P(it.at, st), P(it.at, wide)];
+      if (!fanIn) pts = pts.reverse();
+      // the plain route only when nothing stands in its way; otherwise the layout's route, its last stretch
+      // moved to the link's place on the concentrator
+      const blocks = q => q.some((b, i) => i && rm.nodes.some(m => m.x !== undefined && m !== n && m !== j &&
+        Math.min(q[i - 1].x, b.x) < m.x + m.w + 4 && m.x - 4 < Math.max(q[i - 1].x, b.x) && Math.min(q[i - 1].y, b.y) < m.y + m.h + 4 && m.y - 4 < Math.max(q[i - 1].y, b.y)));
+      if (blocks(pts)) {
+        // the layout's route, arriving at a free place on the bar: not level with the bar's own link (it would
+        // read as one line through the bar) nor with another link; tried at its own level, then 14px steps away
+        const q0 = it.r.pts.map(p => ({ ...p })), L = q0.length;
+        const e = fanIn ? L - 1 : 0, e1 = fanIn ? L - 2 : 1, e2 = fanIn ? L - 3 : 2;
+        const taken = v => Math.abs(v - c) < 10 || items.some(o => o !== it && o.placed !== undefined && Math.abs(o.placed - v) < 10);
+        pts = it.r.pts;
+        if (L >= 3 && Math.abs(q0[e][A] - q0[e1][A]) < 0.5 && Math.abs(q0[e1][B] - q0[e2][B]) < 0.5) {
+          for (const d of [0, 14, -14, 28, -28, 42, -42]) {
+            const v = q0[e][A] + d;
+            if (taken(v)) continue;
+            const q = q0.map(p => ({ ...p }));
+            q[e] = { ...q[e], [A]: v, [B]: wide }; q[e1] = { ...q[e1], [A]: v };
+            if (!blocks(q)) { pts = q; break; }
+          }
+        }
+      }
+      it.placed = (fanIn ? pts[pts.length - 1] : pts[0])[A];
+      it.r.pts = pts;
+    }
+    if (items.length) {
+      const lo = Math.min(c, ...items.map(it => it.placed)), hi = Math.max(c, ...items.map(it => it.placed));
+      j[A] = lo - 7; j[S] = hi - lo + 14;
+    }
+    if (one) {
+      // the bar's own link arrives at a free level: level with a member's link it would read as one line
+      // through the bar, so it takes the nearest gap between two of them (with a short step before the bar)
+      const P = (a, b) => vert ? { x: b, y: a } : { x: a, y: b };
+      const lv = items.map(it => it.placed).sort((u, v) => u - v);
+      let t = c;
+      if (lv.some(v => Math.abs(v - t) < 10)) {
+        const gaps = [];
+        for (let k = 1; k < lv.length; k++) if (lv[k] - lv[k - 1] >= 20) gaps.push((lv[k] + lv[k - 1]) / 2);
+        if (lv.length) gaps.push(lv[0] - 14, lv[lv.length - 1] + 14);
+        t = gaps.sort((u, v) => Math.abs(u - c) - Math.abs(v - c))[0];
+      }
+      const q = one.pts.map(p => ({ ...p })), L = q.length;
+      const step = narrow - dir * 12;            // just outside the narrow side, away from the members
+      if (fanIn) {
+        if (Math.abs(t - q[0][A]) < 0.5 && L > 1 && Math.abs(q[1][A] - q[0][A]) < 0.5) { q[0] = P(t, narrow); }
+        else if (L > 1 && Math.abs(q[1][A] - c) < 0.5) { q.splice(0, 1, P(t, narrow), P(t, step), P(q[1][A], step)); }
+        else q[0] = P(t, narrow);
+      } else {
+        if (L > 1 && Math.abs(q[L - 2][A] - c) < 0.5 && Math.abs(t - c) > 0.5) q.splice(L - 1, 1, P(q[L - 2][A], step), P(t, step), P(t, narrow));
+        else q[L - 1] = P(t, narrow);
+      }
+      one.pts = simplifyPts(q);
+      const lo = Math.min(t, ...lv), hi = Math.max(t, ...lv);
+      j[A] = lo - 7; j[S] = hi - lo + 14;
+    }
+  }
 }
 
 async function chooseLayout(model, measure, ELK) {
@@ -1406,7 +1988,15 @@ async function chooseLayout(model, measure, ELK) {
     const A = model.nodes.get(e.a), B = model.nodes.get(e.b);
     return !A || !B || !pts.length || (near(pts[0], A) && near(pts[pts.length - 1], B));
   });
-  const valid = rm => linked(rm) && !(rm.frames.some(fr => rm.nodes.some(n => !owns(fr.f, n) && !n.tags.includes('bridge') && ov(fr, n))) ||
+  // a concentrator stands beyond what it gathers: after its members for a fan-in, before them for a fan-out
+  const flowH = model.direction === 'RIGHT';
+  const barsOk = rm => rm.nodes.every(j => {
+    if (j.kind !== 'junction' || j.x === undefined) return true;
+    const A = flowH ? 'x' : 'y', S = flowH ? 'w' : 'h';
+    const members = model.edges.filter(e => !e.trunk && (e.a === j.id || e.b === j.id)).map(e => rm.nodes.find(n => n.id === (e.a === j.id ? e.b : e.a))).filter(n => n && n.x !== undefined);
+    return j.junction === 'last' ? members.every(n => n[A] + n[S] <= j[A] + 1) : members.every(n => n[A] >= j[A] + j[S] - 1);
+  });
+  const valid = rm => linked(rm) && barsOk(rm) && !(rm.frames.some(fr => rm.nodes.some(n => !owns(fr.f, n) && !n.tags.includes('bridge') && ov(fr, n))) ||
     rm.frames.some(a => rm.frames.some(b => a.f.id < b.f.id && !within(a.f, b.f) && !within(b.f, a.f) &&
       Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 2 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 2)));
   const modes = { hier: [false, true], hierwrap: [false, true, true], flat: [true, false], compound: [false, false] };
@@ -1599,6 +2189,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   // inside a lane (per-frame layout only) the flow runs along the lane: a row left to right, a column downwards
   const fhOf = it => HIER && it.parent && it.parent.type === 'lane' ? it.parent.axis === 'h' : flowH;
   const sidesFor = fh => ({ IN: fh ? 'WEST' : 'NORTH', OUT: fh ? 'EAST' : 'SOUTH', PIN: fh ? 'NORTH' : 'WEST', POUT: fh ? 'SOUTH' : 'EAST' });
+  for (const n of model.nodes.values()) if (n.kind === 'junction') n.barV = model.direction === 'RIGHT';
   for (const n of model.nodes.values()) sizeNode(n, measure);
   for (const f of model.frames.values()) f.titleW = f.title ? measure(f.title, FONT_TITLE) : 0;
 
@@ -1822,6 +2413,12 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       sn.ports.push(p);
       return pid;
     }
+    if (!g && sn && sn.kind === 'junction') {
+      const { IN, OUT } = sidesFor(!!sn.barV);
+      const pid = `P${e.i}${end}`;
+      sn.ports.push({ id: pid, width: 0, height: 0, layoutOptions: { 'elk.port.side': end === 's' ? OUT : IN } });
+      return pid;
+    }
     if (!g) return elkId(id);
     const n = model.nodes.get(id), i = g.idx.get(id), last = g.items.length - 1;
     const fh = fhOf(g), { IN, OUT, PIN, POUT } = sidesFor(fh);
@@ -1876,6 +2473,8 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       if (it.type === 'node') {
         const en = { id: it.id, width: it.w, height: it.h };
         if (it.span || (it.cols && it.ports && it.ports.length)) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_POS' }; }
+        if (it.kind === 'junction' && it.ports.length) { en.ports = it.ports; en.layoutOptions = { 'elk.portConstraints': 'FIXED_SIDE', 'elk.spacing.portPort': '14' }; }
+        if (markIsland(it)) en.layoutOptions = { ...(en.layoutOptions || {}), 'elk.layered.layering.layerConstraint': 'LAST' };
         out.push(en);
       }
       else if ((it.type === 'frame' && FLAT) || it.type === 'lane') { out.push(...build(it)); }
@@ -2100,7 +2699,11 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
           return rq;
         }
       }
-      return null;
+      // last resort: the side facing the link, even though a member is in the way; the router takes the link
+      // round it afterwards, as it does any blocked link, instead of giving up on the rows and columns
+      const rq = { T, e, end, m, side: sides[0], mp };
+      reqs.push(rq);
+      return rq;
     }
     async function layoutFrame(Fr) {
       const items = Fr ? Fr.items : model.root.items;
@@ -2157,8 +2760,10 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
         if (it.type === 'node') {
           const en = { id: it.id, width: it.w, height: it.h };
           const fixed = it.span || (it.cols && it.ports && it.ports.length);
-          en.layoutOptions = { ...part, ...(fixed ? { 'elk.portConstraints': 'FIXED_POS' } : {}) };
-          if (fixed) en.ports = it.ports;
+          const bar = it.kind === 'junction' && it.ports.length;
+          en.layoutOptions = { ...part, ...(fixed ? { 'elk.portConstraints': 'FIXED_POS' } : {}), ...(bar ? { 'elk.portConstraints': 'FIXED_SIDE', 'elk.spacing.portPort': '14' } : {}), ...(markIsland(it) && !isLane ? { 'elk.layered.layering.layerConstraint': 'LAST' } : {}),
+            ...(it.junction && !isLane ? { 'elk.layered.layering.layerConstraint': it.junction === 'last' ? 'LAST' : 'FIRST' } : {}) };
+          if (fixed || bar) en.ports = it.ports;
           children.push(en);
         } else if (it.type === 'group') {
           if (it.items.length) children.push({ id: 'G:' + it.id, width: it.w, height: it.h, ports: it.ports, layoutOptions: { ...part, 'elk.portConstraints': 'FIXED_POS' } });
@@ -2187,11 +2792,62 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
         opts['elk.separateConnectedComponents'] = 'false'; // unlinked children still follow the lane's order
       }
       const r = await elk.layout({ id: Fr ? prefix(Fr) + Fr.id : 'root', layoutOptions: opts, children, edges });
+      // (not the rows that side zones are built from: spanSides places those zones level with what they serve)
+      if (isLane && dirH && !String(Fr.id).startsWith('_side')) alignRowTops(r, children);
       const minW = Fr && !isLane ? Math.ceil(Fr.titleW + 36) : 0;
       const w = Math.max(r.width, minW), dx = (w - r.width) / 2;
       const pos = new Map(r.children.map(c => [c.id, { x: c.x + dx, y: c.y }]));
       lay.set(Fr || null, { res: r, w, h: r.height, dx, pos });
       return true;
+    }
+    // a row of zones shares its top: ELK's layered placement slides each one up or down to straighten links,
+    // which leaves zones side by side at different heights. Every zone goes to the top of the row, and the
+    // links between them are drawn again as plain orthogonal routes (the router later takes any blocked one round)
+    function alignRowTops(r, children) {
+      // zones only: a node in the row keeps the place ELK gave it, level with what it links to
+      const zones = r.children.filter(c => /^[FL]:/.test(c.id));
+      if (zones.length < 2) return;
+      const top = Math.min(...zones.map(c => c.y));
+      const dy = new Map(r.children.map(c => [c.id, zones.includes(c) ? top - c.y : 0]));
+      if ([...dy.values()].every(v => Math.abs(v) < 0.5)) return;
+      const owner = new Map(), side = new Map();
+      for (const c of children) { owner.set(c.id, c.id); for (const q of c.ports || []) { owner.set(q.id, c.id); side.set(q.id, (q.layoutOptions || {})['elk.port.side']); } }
+      for (const c of r.children) c.y += dy.get(c.id);
+      for (const ed of r.edges || []) {
+        const secs = ed.sections || [];
+        if (!secs.length) continue;
+        const ds = dy.get(owner.get(ed.sources[0])) || 0, dt = dy.get(owner.get(ed.targets[0])) || 0;
+        const a = { x: secs[0].startPoint.x, y: secs[0].startPoint.y + ds }, b = { x: secs[secs.length - 1].endPoint.x, y: secs[secs.length - 1].endPoint.y + dt };
+        const hs = !/NORTH|SOUTH/.test(side.get(ed.sources[0]) || ''), ht = !/NORTH|SOUTH/.test(side.get(ed.targets[0]) || '');
+        let mid;
+        if (Math.abs(a.y - b.y) < 0.5 || Math.abs(a.x - b.x) < 0.5) mid = [];
+        else if (hs && ht) {
+          // a zone in between: out into the gap beside the source, over the row, down the gap beside the target
+          const sc = r.children.find(c => c.id === owner.get(ed.sources[0])), tc = r.children.find(c => c.id === owner.get(ed.targets[0]));
+          const lo = Math.min(a.x, b.x), hi = Math.max(a.x, b.x);
+          const between = r.children.filter(c => c !== sc && c !== tc && c.x < hi && c.x + c.width > lo);
+          if (sc && tc && between.length) {
+            const gapBeside = (c, right) => {
+              const edge = right ? c.x + c.width : c.x;
+              const nb = r.children.filter(o => o !== c && (right ? o.x >= edge - 0.5 : o.x + o.width <= edge + 0.5));
+              const near = right ? Math.min(...nb.map(o => o.x)) : Math.max(...nb.map(o => o.x + o.width));
+              return (edge + near) / 2;
+            };
+            const fwd = b.x > a.x, gy = top - 14;
+            const g1 = gapBeside(sc, fwd), g2 = gapBeside(tc, !fwd);
+            mid = [{ x: g1, y: a.y }, { x: g1, y: gy }, { x: g2, y: gy }, { x: g2, y: b.y }];
+          } else { const mx = (a.x + b.x) / 2; mid = [{ x: mx, y: a.y }, { x: mx, y: b.y }]; }
+        }
+        else if (hs) mid = [{ x: b.x, y: a.y }];
+        else if (ht) mid = [{ x: a.x, y: b.y }];
+        else { const my = (a.y + b.y) / 2; mid = [{ x: a.x, y: my }, { x: b.x, y: my }]; }
+        ed.sections = [{ ...secs[0], startPoint: a, endPoint: b, bendPoints: mid }];
+        for (const l of ed.labels || []) l.y += (ds + dt) / 2;
+      }
+      // the row is as tall as what it holds now: its children and the routes between them
+      const ys = r.children.map(c => c.y + c.height);
+      for (const ed of r.edges || []) for (const sc of ed.sections || []) ys.push(sc.startPoint.y, sc.endPoint.y, ...(sc.bendPoints || []).map(q => q.y));
+      r.height = Math.max(...ys);
     }
     for (const Fr of frames) if (!(await layoutFrame(Fr))) return null;
     if (!(await layoutFrame(null))) return null;
@@ -2266,6 +2922,9 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
 
 // Where a [bridge] node sits on a frame border, ELK has left room for two frame paddings
 // and the gap between frames. Squeeze that empty strip so the bridge sits close to what feeds it.
+// a marked node whose links are all drawn as marks has nothing left to place it: it goes at the end of the
+// flow (a shared library after what uses it), not among the first nodes
+function markIsland(n) { return !!(n.markTarget && n.markTarget.links && !n.markTarget.rest); }
 function frameOfItem(it) { let p = it.parent; while (p && p.type !== 'frame') p = p.parent; return p || null; }
 function bridgePartner(n, model, flowH) {
   const A = flowH ? 'x' : 'y';
@@ -2473,7 +3132,7 @@ function alignRows(rm, model) {
 
 // same-width / same-height on frames: a frame takes its size from its contents, so the narrower ones are
 // grown to the size of the widest afterwards, around their centre when that is free, else to the side
-// that is. A frame that cannot grow without covering another frame or node stays as it is, and says so.
+// that is, keeping a gap of 10px from other frames. A frame that cannot grow without covering another frame or node stays as it is, and says so.
 function sameSizeFrames(rm, model) {
   for (const ss of model.sameSize) {
     if (ss.kind !== 'frame') continue;
@@ -2486,6 +3145,8 @@ function sameSizeFrames(rm, model) {
     const free0 = (b, pos) => {
       const c = { ...b, [A]: pos, [S]: target };
       const hit = (u, v) => u.x < v.x + v.w - 1 && v.x < u.x + u.w - 1 && u.y < v.y + v.h - 1 && v.y < u.y + u.h - 1;
+      const gap = 10, cg = { x: c.x - gap, y: c.y - gap, w: c.w + 2 * gap, h: c.h + 2 * gap };
+      if (rm.frames.some(o => o !== b && !boxes.includes(o) && !within(o.f, b.f) && !within(b.f, o.f) && hit(cg, o))) return false;
       if (rm.frames.some(o => o !== b && !boxes.includes(o) && !within(o.f, b.f) && !within(b.f, o.f) && hit(c, o))) return false;
       if (rm.nodes.some(n => n.x !== undefined && !owns(b.f, n) && !(n.tags && n.tags.includes('bridge')) && hit(c, n))) return false;
       return true;
@@ -2504,7 +3165,9 @@ function sameSizeFrames(rm, model) {
       const free = pos => {
         const c = { ...b, [A]: pos, [S]: target };
         const hit = (u, v) => u.x < v.x + v.w - 1 && v.x < u.x + u.w - 1 && u.y < v.y + v.h - 1 && v.y < u.y + u.h - 1;
-        if (rm.frames.some(o => o !== b && !within(o.f, b.f) && !within(b.f, o.f) && hit(c, o))) return false;
+        // and keeps a gap from every other frame: a border touching another one reads as one zone
+        const gap = 10, cg = { x: c.x - gap, y: c.y - gap, w: c.w + 2 * gap, h: c.h + 2 * gap };
+        if (rm.frames.some(o => o !== b && !within(o.f, b.f) && !within(b.f, o.f) && hit(cg, o))) return false;
         if (rm.nodes.some(n => n.x !== undefined && !owns(b.f, n) && !(n.tags && n.tags.includes('bridge')) && hit(c, n))) return false;
         return true;
       };
@@ -2735,6 +3398,38 @@ function straightenSpans(rm, model, flowH) {
 // channel assignment put it: right under one source, near the target for another. Put the steps of the
 // links that share a target (or a source) at one height, in the middle of the gap between them, so the
 // bends line up. Skipped for a group when that would touch a node or run along another link.
+// Do two orthogonal stretches lie on top of each other (closer than 4px, sharing more than 6px)?
+function overlapSeg(a, b, c, d, near = 4) {
+  const h1 = Math.abs(a.y - b.y) < 0.5, h2 = Math.abs(c.y - d.y) < 0.5, v1 = Math.abs(a.x - b.x) < 0.5, v2 = Math.abs(c.x - d.x) < 0.5;
+  if (h1 && h2) return Math.abs(a.y - c.y) < near && Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) > 6;
+  if (v1 && v2) return Math.abs(a.x - c.x) < near && Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) - Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) > 6;
+  return false;
+}
+// How many times a path crosses other links (proper crossings of orthogonal stretches).
+function crossSeg(a, b, c, d) {
+  const h1 = Math.abs(a.y - b.y) < 0.5, h2 = Math.abs(c.y - d.y) < 0.5;
+  if (h1 === h2) return false;
+  const [H0, H1, V0, V1] = h1 ? [a, b, c, d] : [c, d, a, b];
+  return Math.min(H0.x, H1.x) + 0.5 < V0.x && V0.x < Math.max(H0.x, H1.x) - 0.5 && Math.min(V0.y, V1.y) + 0.5 < H0.y && H0.y < Math.max(V0.y, V1.y) - 0.5;
+}
+function crossingsWith(rm, path, self) {
+  let n = 0;
+  for (const o of rm.edges) {
+    if (o === self || !o.pts || o.e.rail || o.e.lifeline || o.e.divider) continue;
+    const share = o.e.a === self.e.a || o.e.a === self.e.b || o.e.b === self.e.a || o.e.b === self.e.b;
+    if (share) continue;
+    for (let i = 1; i < path.length; i++) for (let j = 1; j < o.pts.length; j++) if (crossSeg(path[i - 1], path[i], o.pts[j - 1], o.pts[j])) n++;
+  }
+  return n;
+}
+function overlapsLinks(rm, path, skip) {
+  for (const o of rm.edges) {
+    if (skip.has(o) || !o.pts || o.e.rail || o.e.lifeline || o.e.divider) continue;
+    for (let i = 1; i < path.length; i++) for (let j = 1; j < o.pts.length; j++) if (overlapSeg(path[i - 1], path[i], o.pts[j - 1], o.pts[j])) return true;
+  }
+  return false;
+}
+
 function simplifyPts(pts) {
   const o = [{ ...pts[0] }];
   for (let i = 1; i < pts.length - 1; i++) {
@@ -2755,8 +3450,16 @@ function alignJogs(rm) {
     if (!r.pts || r.pts.length < 2 || r.e.a === r.e.b) continue;
     const q = simp(r.pts);
     if (q.length !== 4) continue;
-    if (eq(q[0].x, q[1].x) && eq(q[1].y, q[2].y) && eq(q[2].x, q[3].x) && q[0].y < q[3].y) zs.push({ r, q, kind: 'v', lo: q[0].y, hi: q[3].y });
-    else if (eq(q[0].y, q[1].y) && eq(q[1].x, q[2].x) && eq(q[2].y, q[3].y) && q[0].x < q[3].x) zs.push({ r, q, kind: 'h', lo: q[0].x, hi: q[3].x });
+    // the ends must face each other: a link that enters its target from the far side would cut through it
+    let sb = rm.nodes.find(n => n.id === r.e.a), tb = rm.nodes.find(n => n.id === r.e.b);
+    // the points may run either way round (a link written with <-): take the node nearer the first point as its start
+    const dd = (n, p) => n && n.x !== undefined ? Math.hypot(Math.max(n.x - p.x, 0, p.x - n.x - n.w), Math.max(n.y - p.y, 0, p.y - n.y - n.h)) : Infinity;
+    if (dd(tb, q[0]) < dd(sb, q[0])) [sb, tb] = [tb, sb];
+    const facing = (kind) => !sb || !tb || sb.x === undefined || tb.x === undefined || (kind === 'v'
+      ? Math.abs(q[0].y - (sb.y + sb.h)) < 2 && Math.abs(q[3].y - tb.y) < 2
+      : Math.abs(q[0].x - (sb.x + sb.w)) < 2 && Math.abs(q[3].x - tb.x) < 2);
+    if (eq(q[0].x, q[1].x) && eq(q[1].y, q[2].y) && eq(q[2].x, q[3].x) && q[0].y < q[3].y && facing('v')) zs.push({ r, q, kind: 'v', lo: q[0].y, hi: q[3].y });
+    else if (eq(q[0].y, q[1].y) && eq(q[1].x, q[2].x) && eq(q[2].y, q[3].y) && q[0].x < q[3].x && facing('h')) zs.push({ r, q, kind: 'h', lo: q[0].x, hi: q[3].x });
   }
   const groups = new Map();
   const used = new Set();
@@ -2957,18 +3660,18 @@ const PALETTE = {
   light: {
     fg: '#1d2330', muted: '#5d6677', panel: '#ffffff', box: '#ffffff', line: '#1d2330', engine: '#f2f3f5',
     storeFill: '#fff8db', storeLine: '#9a6700', ok: '#1a7f37', bad: '#c62a2f', soft: '#9aa1ad',
-    zones: { green: ['#eef7f1', '#7fb38f'], blue: ['#eef2f8', '#8aa0c2'], orange: ['#fbf1e6', '#d0a06a'], purple: ['#f3effb', '#a78fd6'], grey: ['#f4f5f7', '#b5bac4'] },
+    zones: { green: ['#eef7f1', '#7fb38f', '#3f7a52'], blue: ['#eef2f8', '#8aa0c2', '#4a6491'], orange: ['#fbf1e6', '#d0a06a', '#9a6427'], purple: ['#f3effb', '#a78fd6', '#7d62b8'], grey: ['#f4f5f7', '#b5bac4', '#6b7280'] },
   },
   dark: {
     fg: '#e3e6ec', muted: '#9aa3b2', panel: '#181b21', box: '#1b1e25', line: '#c9ced8', engine: '#23262d',
     storeFill: '#33290f', storeLine: '#e5b94e', ok: '#5cc97a', bad: '#ff7b7b', soft: '#6b7385',
-    zones: { green: ['#15241b', '#4f8a62'], blue: ['#18202d', '#4f6a94'], orange: ['#2a1f14', '#a3743d'], purple: ['#211a33', '#7d62b8'], grey: ['#1d2027', '#4a505c'] },
+    zones: { green: ['#15241b', '#4f8a62', '#7fc497'], blue: ['#18202d', '#4f6a94', '#8fb0e0'], orange: ['#2a1f14', '#a3743d', '#e0a868'], purple: ['#211a33', '#7d62b8', '#b39ce8'], grey: ['#1d2027', '#4a505c', '#a3aab6'] },
   },
 };
 
 function diagramCSS(p, scope) {
   const s = scope ? scope + ' ' : '';
-  const z = Object.entries(p.zones).map(([k, [f, st]]) => `${s}.zone-${k}{fill:${f};stroke:${st}}`).join('');
+  const z = Object.entries(p.zones).map(([k, [f, st, ink]]) => `${s}.zone-${k}{fill:${f};stroke:${st}}${s}.mki.ink-${k}{stroke:${ink}}`).join('');
   return `${s}text{font:12px Inter,system-ui,-apple-system,"Segoe UI",sans-serif}` +
     `${s}.fg{fill:${p.fg}}${s}.muted{fill:${p.muted}}` +
     `${s}.dtitle{font-size:16px;font-weight:700}${s}.cap{font-size:12px}${s}.ck{font-size:10.5px}${s}.cv{font-size:11px;font-weight:600}${s}.name{font-size:13px;font-weight:600}${s}.note{font-size:11px;font-weight:400}${s}.ztitle{font-size:11.5px;font-weight:600}` +
@@ -2983,6 +3686,7 @@ function diagramCSS(p, scope) {
     `${s}.tframe.ok{stroke:${p.ok};stroke-width:1.6}${s}.tframe.bad{stroke:${p.bad};stroke-width:1.6}${s}.tframe.muted{stroke:${p.soft}}` +
     `${s}.mk{font-size:9px;font-weight:700;letter-spacing:.03em}${s}.cn{font-size:12px;font-weight:400}${s}.cn.pk{font-weight:700}${s}.ct{font-size:11px}` +
     `${s}.ico{fill:none;stroke:${p.line};stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}` +
+    `${s}.mki{fill:none;stroke:${p.muted};stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}` +
     `${s}.zone{stroke-width:1}${z}` +
     `${s}.arrow{fill:none;stroke:${p.line};stroke-width:1.2}${s}.arrow.ok{stroke:${p.ok}}${s}.arrow.bad{stroke:${p.bad}}${s}.arrow.muted{stroke:${p.soft}}` +
     `${s}.head{fill:${p.line}}${s}.head-ok{fill:${p.ok}}${s}.head-bad{fill:${p.bad}}${s}.head-muted{fill:${p.soft}}`;
@@ -2997,13 +3701,23 @@ function standaloneCSS(theme) {
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const r1 = v => Math.round(v * 10) / 10;
 
-function roundPath(pts, r = 7) {
-  const p = [];
-  for (const q of pts) {
+// hops: for each stretch of the original points, the x positions where it hops over another link (in the order
+// it meets them); only horizontal stretches have any
+function roundPath(pts, r = 7, hops = null) {
+  const p = [], seg = [];
+  pts.forEach((q, k) => {
     const l = p[p.length - 1];
-    if (!l || Math.abs(l.x - q.x) > 0.1 || Math.abs(l.y - q.y) > 0.1) p.push({ x: q.x, y: q.y });
-  }
+    if (!l || Math.abs(l.x - q.x) > 0.1 || Math.abs(l.y - q.y) > 0.1) { p.push({ x: q.x, y: q.y }); if (p.length > 1) seg.push(hops ? hops[k - 1] || [] : []); }
+  });
   if (p.length < 2) return '';
+  const H = 5;
+  // the straight run of stretch i, up to (x, y), with its hops: a half circle above the line
+  const run = (i, x, y) => {
+    let t = '';
+    const a = p[i], b = p[i + 1], dir = Math.sign(b.x - a.x);
+    for (const hx of seg[i] || []) t += ` L${r1(hx - dir * H)} ${r1(a.y)} A${H} ${H} 0 0 ${dir > 0 ? 1 : 0} ${r1(hx + dir * H)} ${r1(a.y)}`;
+    return t + ` L${r1(x)} ${r1(y)}`;
+  };
   let d = `M${r1(p[0].x)} ${r1(p[0].y)}`;
   for (let i = 1; i < p.length - 1; i++) {
     const a = p[i - 1], b = p[i], c = p[i + 1];
@@ -3011,10 +3725,10 @@ function roundPath(pts, r = 7) {
     const rr = Math.min(r, l1 / 2, l2 / 2);
     const p1 = { x: b.x - (b.x - a.x) / l1 * rr, y: b.y - (b.y - a.y) / l1 * rr };
     const p2 = { x: b.x + (c.x - b.x) / l2 * rr, y: b.y + (c.y - b.y) / l2 * rr };
-    d += ` L${r1(p1.x)} ${r1(p1.y)} Q${r1(b.x)} ${r1(b.y)} ${r1(p2.x)} ${r1(p2.y)}`;
+    d += run(i - 1, p1.x, p1.y) + ` Q${r1(b.x)} ${r1(b.y)} ${r1(p2.x)} ${r1(p2.y)}`;
   }
   const z = p[p.length - 1];
-  return d + ` L${r1(z.x)} ${r1(z.y)}`;
+  return d + run(p.length - 2, z.x, z.y);
 }
 
 function shorten(pts, atStart, atEnd, by = 1.5) {
@@ -3063,6 +3777,7 @@ function nodeSVG(n) {
     out.push(`<circle class="dot" cx="${r1(n.x + 9)}" cy="${r1(n.y + 9)}" r="8"/>`);
     return out.join('');
   }
+  if (n.kind === 'junction') { out.push(`<rect class="dot" x="${r1(n.x)}" y="${r1(n.y)}" width="${r1(n.w)}" height="${r1(n.h)}" rx="3"/>`); return out.join(''); }
   let x = n.x, y = n.y, w = n.w, h = n.h;
   if (n.kind === 'final') {
     out.push(`<rect class="${c}" x="${r1(x)}" y="${r1(y)}" width="${w}" height="${h}" rx="10"/>`);
@@ -3079,6 +3794,17 @@ function nodeSVG(n) {
     if (n.iconTop) { iy = y + (h - n.textH - ICON_SIZE - 4) / 2; ix = x + w / 2 - ICON_SIZE / 2; top = iy + ICON_SIZE + 4; }
     else { ix = x + n.padX; iy = y + (h - ICON_SIZE) / 2; cx = r1(x + n.padX + ICON_SIZE + 8 + (w - 2 * n.padX - ICON_SIZE - 8) / 2); }
     out.push(`<g class="ico" transform="translate(${r1(ix)} ${r1(iy)}) scale(${r1(ICON_SIZE / 24 * 1000) / 1000})">${n.iconMarkup}</g>`);
+  }
+  // marks: their icons stand after the name, at the right of the box; the text centres in what is left
+  if (n.markW) {
+    cx = r1(cx - n.markW / 2);
+    const nameW = n._nameW || 0;
+    let mx = Math.min(x + w - n.padX - n.markW + 3, cx + nameW / 2 + 6);
+    const my = top + (n.nameLines.length ? 2 : (n.textH - MARK_SIZE) / 2);
+    for (const mk of n.marks) {
+      out.push(`<g class="mki ink-${mk.ink || 'none'}" transform="translate(${r1(mx)} ${r1(my)}) scale(${r1(MARK_SIZE / 24 * 1000) / 1000})">${mk.iconMarkup || ''}</g>`);
+      mx += MARK_SIZE + 5;
+    }
   }
   for (const l of n.nameLines) { out.push(`<text class="name fg" x="${cx}" y="${r1(top + 12.5)}" text-anchor="middle">${esc(l)}</text>`); top += 16; }
   for (const l of n.noteLines) { out.push(`<text class="note muted" x="${cx}" y="${r1(top + 10.5)}" text-anchor="middle">${esc(l)}</text>`); top += 14; }
@@ -3200,7 +3926,30 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     body.push(`<text class="note muted" x="${r1(spot.x)}" y="${r1(spot.y)}" text-anchor="middle">${esc(g.title)}</text>`);
   }
   const labels = [];
-  for (const { e, pts, lab } of rm.edges) {
+  // where two links cross, the horizontal one hops over the vertical one with a small arc, so a crossing never
+  // reads as a junction. Sequence lifelines, rails and the links of one bus are left out.
+  const verticals = [];
+  for (const r of rm.edges) {
+    if (!r.pts || r.e.lifeline || r.e.divider || r.e.rail) continue;
+    for (let i = 1; i < r.pts.length; i++) { const a = r.pts[i - 1], b = r.pts[i]; if (Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) > 0.5) verticals.push({ r, x: a.x, y0: Math.min(a.y, b.y), y1: Math.max(a.y, b.y) }); }
+  }
+  const hopsFor = r => {
+    if (!r.pts || r.e.lifeline || r.e.divider || r.e.rail) return null;
+    const out = [];
+    for (let i = 1; i < r.pts.length; i++) {
+      const a = r.pts[i - 1], b = r.pts[i], xs = [];
+      if (Math.abs(a.y - b.y) < 0.5 && Math.abs(a.x - b.x) > 0.5) {
+        for (const v of verticals) {
+          if (v.r === r || (r.merged && v.r.merged)) continue;
+          if (v.x > Math.min(a.x, b.x) + 9 && v.x < Math.max(a.x, b.x) - 9 && a.y > v.y0 + 2 && a.y < v.y1 - 2) xs.push(v.x);
+        }
+      }
+      out.push(xs.sort((u, w) => (b.x - a.x) * (u - w)).filter((x, k, arr) => !k || Math.abs(x - arr[k - 1]) > 12));
+    }
+    return out.some(h => h.length) ? out : null;
+  };
+  for (const r of rm.edges) {
+    const { e, pts, lab } = r;
     const cls = ['arrow'];
     for (const t of ['ok', 'bad', 'muted']) if (e.tags.includes(t)) cls.push(t);
     if (e.dashed) cls.push('dashed');
@@ -3208,7 +3957,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     // a link with cardinalities has its ends drawn as crow's feet, bars and circles instead of arrowheads
     const hp = card ? pts : shorten(pts, e.start, e.end);
     const mk = card ? '' : (e.end ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.start ? ` marker-start="url(#${headId(e, pfx)})"` : '');
-    body.push(`<path class="${cls.join(' ')}" d="${roundPath(hp)}"${mk}/>`);
+    body.push(`<path class="${cls.join(' ')}" d="${roundPath(hp, 7, hopsFor(r))}"${mk}/>`);
     if (card && pts.length > 1) { body.push(cardinalitySVG(pts[0], pts[1], card[1]), cardinalitySVG(pts[pts.length - 1], pts[pts.length - 2], card[2])); }
     if (lab && e.lab) {
       let y = lab.y + 11;
@@ -3224,7 +3973,8 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
   body.push(...labels);
 
   // legend
-  if (model.keys.length) {
+  const marks = model.marks || [];
+  if (model.keys.length || marks.length) {
     let x = 16, y = H + 2;
     const rowH = 26, maxX = Math.max(W, 420) - 16;
     const items = [];
@@ -3233,6 +3983,13 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
       const iw = 34 + 8 + tw + 22;
       if (x + iw > maxX && x > 16) { x = 16; y += rowH; }
       items.push(keySVG(k, x, y, pfx));
+      x += iw;
+    }
+    for (const mk of marks) {
+      const tw = (mk._tw || mk.text.length * 6.2);
+      const iw = 14 + 8 + tw + 22;
+      if (x + iw > maxX && x > 16) { x = 16; y += rowH; }
+      items.push(`<g class="mki ink-${mk.ink || 'none'}" transform="translate(${r1(x)} ${r1(y + 4)}) scale(${r1(MARK_SIZE / 24 * 1000) / 1000})">${mk.iconMarkup || ''}</g><text class="note muted" x="${r1(x + 20)}" y="${r1(y + 14)}">${esc(mk.text)}</text>`);
       x += iw;
     }
     body.push(...items);
@@ -3313,6 +4070,14 @@ async function compile(src, measure, ELK, opts) {
   if (!model.nodes.size) return { model, errors: [], empty: true };
   for (const k of model.keys) k._tw = measure(k.text, FONT_NOTE);
   const iconsFailed = await loadIcons(model, opts && opts.loadIcon);
+  // a mark is drawn in the ink of the zone its node stands in (muted grey outside any zone)
+  for (const mk of model.marks) {
+    mk._tw = measure(mk.text, FONT_NOTE);
+    mk.iconMarkup = iconSvg(mk.icon);
+    const t = model.nodes.get(mk.id), f = t && frameOfItem(t);
+    mk.ink = f ? (f.tags || []).find(v => PALETTE.light.zones[v === 'gray' ? 'grey' : v]) || 'green' : null;
+    if (mk.ink === 'gray') mk.ink = 'grey';
+  }
   const rm = model.mode === 'sequence' ? await layoutSequence(model, measure) : await layout(model, measure, ELK, opts);
   rm.head = measureHead(model, rm, measure);
   return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || [])], svg: render(rm, opts), standalone: theme => render(rm, { ...opts, standalone: true, theme: typeof theme === 'string' ? theme : null }) };

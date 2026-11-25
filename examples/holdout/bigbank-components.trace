@@ -1,0 +1,24 @@
+# Adapted from C4-PlantUML, samples/C4_Component Diagram Sample - bigbankplc.puml (MIT)
+direction down
+title "Components: API Application"
+
+spa: Single Page Application | JavaScript, Angular
+ma [mobile]: Mobile App | Xamarin
+store db [database]: Database | relational schema
+engine mbs: Mainframe Banking System | core banking information
+
+frame api "API Application" [blue] {
+  sign: Sign In Controller | MVC Rest Controller
+  accounts: Accounts Summary Controller | MVC Rest Controller
+  security [lock]: Security Component | Spring Bean
+  facade: Mainframe Banking System Facade | Spring Bean
+}
+
+sign -> security : uses
+accounts -> facade : uses
+security -> db : read and write, JDBC
+facade -> mbs : uses, XML/HTTPS
+spa -> sign : uses, JSON/HTTPS
+spa -> accounts : uses, JSON/HTTPS
+ma -> sign : uses, JSON/HTTPS
+ma -> accounts : uses, JSON/HTTPS

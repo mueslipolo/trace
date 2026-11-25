@@ -1,0 +1,15 @@
+# Converted with tools/mermaid-to-trace.js from kubernetes/website, content/en/docs/concepts/services-networking/ingress.md (CC BY 4.0); original in k8s-ingress.mmd
+title "Ingress: one service"
+
+pill client: client
+frame g0 "cluster" {
+  ingress: Ingress
+  service: Service
+  pod1: Pod
+  pod2: Pod
+}
+
+client --> ingress : Ingress-managed load balancer
+ingress -> service : routing rule
+service -> pod1
+service -> pod2

@@ -1,0 +1,25 @@
+direction down
+title "every service reads the flags"
+gw [api]: API gateway
+row {
+  orders: Orders
+  payments: Payments
+  shipping: Shipping
+  catalog: Catalog
+}
+store db [database]: Orders DB
+frame shared "shared" [purple] {
+  flagd [flag]: Flagd | feature flags
+}
+gw -> orders
+gw -> catalog
+orders -> payments
+orders -> shipping
+orders -> db
+orders -> flagd
+payments -> flagd
+shipping -> flagd
+catalog -> flagd
+gw -> flagd
+
+mark flagd "reads its feature flags from Flagd"

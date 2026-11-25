@@ -1,0 +1,77 @@
+# Converted with tools/mermaid-to-trace.js from opentelemetry.io, content/en/docs/demo/architecture.md (CC BY 4.0); original in otel-services.mmd
+title "OpenTelemetry demo: services"
+direction down
+
+frame g0 "Service Diagram" {
+  accounting: Accounting
+  ad: Ad
+  agent: Agent
+  store cache: Cache | Valkey
+  cart: Cart
+  chatbot: Chatbot
+  checkout: Checkout
+  currency: Currency
+  email: Email
+  flagd: Flagd
+  flagd-ui: Flagd-ui
+  fraud-detection: Fraud Detection
+  frontend: Frontend
+  frontend-proxy: Frontend Proxy | Envoy
+  image-provider: Image Provider | nginx
+  pill load-generator: Load Generator
+  mcp: MCP
+  payment: Payment
+  product-catalog: Product Catalog
+  quote: Quote
+  recommendation: Recommendation
+  shipping: Shipping
+  store queue: queue | Kafka
+  react-native-app: React Native App
+  store postgresql: astronomy-db | PostgreSQL
+  Internet: Internet
+}
+
+chatbot -> agent : HTTP
+agent --> frontend : HTTP
+agent --> mcp : HTTP
+ad -> flagd : gRPC
+checkout -> flagd : gRPC
+product-catalog -> flagd : gRPC
+email -> flagd : gRPC
+shipping -> flagd : gRPC
+agent -> flagd : gRPC
+load-generator -> flagd : HTTP
+checkout -> currency : gRPC
+checkout -> cart : gRPC
+cart -> cache
+cart -> flagd : gRPC
+checkout -> payment : gRPC
+checkout -> email : HTTP
+checkout -> queue : TCP
+checkout -> product-catalog : gRPC
+checkout -> shipping : HTTP
+shipping -> quote : HTTP
+fraud-detection -> flagd : gRPC
+frontend -> ad : gRPC
+frontend -> cart : gRPC
+frontend -> currency : gRPC
+frontend -> checkout : gRPC
+frontend -> shipping : HTTP
+frontend -> product-catalog : gRPC
+frontend -> recommendation : gRPC
+frontend-proxy -> flagd : gRPC
+frontend-proxy -> flagd-ui : HTTP
+frontend-proxy -> image-provider : HTTP
+frontend-proxy -> frontend : HTTP
+frontend-proxy -> chatbot : HTTP
+mcp -> frontend : HTTP
+payment -> flagd : gRPC
+queue -> fraud-detection : TCP
+recommendation -> product-catalog : gRPC
+recommendation -> flagd : gRPC
+product-catalog -> postgresql
+Internet -> frontend-proxy : HTTP
+load-generator -> frontend-proxy : HTTP
+react-native-app -> frontend-proxy : HTTP
+accounting -> postgresql
+queue -> accounting : TCP

@@ -1,0 +1,31 @@
+# Converted with tools/mermaid-to-trace.js from GitLab documentation, doc/development/architecture.md (CC BY-SA 4.0); original in gitlab-simple.mmd
+title "GitLab, simplified components"
+direction down
+
+pill HTTP: HTTP/HTTPS
+pill SSH: SSH
+GitLabPages: GitLab Pages
+GitLabWorkhorse: GitLab Workhorse
+GitLabShell: GitLab Shell
+Gitaly: Gitaly
+Puma: Puma (Gitlab Rails)
+Sidekiq: Sidekiq (GitLab Rails)
+PostgreSQL: PostgreSQL
+Redis: Redis
+NGINX: NGINX
+
+HTTP -> NGINX : TCP 80,443
+SSH -> GitLabShell : TCP 22
+NGINX -> GitLabPages : TCP 8090
+NGINX -> GitLabWorkhorse
+GitLabShell -> Gitaly
+GitLabShell -> GitLabWorkhorse
+GitLabWorkhorse -> Gitaly
+GitLabWorkhorse -> Puma
+GitLabWorkhorse -> Redis
+Sidekiq -> PostgreSQL
+Sidekiq -> Redis
+Puma -> PostgreSQL
+Puma -> Redis
+Puma -> Gitaly
+Gitaly -> GitLabWorkhorse

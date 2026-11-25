@@ -6,7 +6,7 @@ about how something should look, follow the style rules below and look at those.
 
 The project started in a claude.ai conversation. Everything decided there is captured in this
 file and in `docs/`. Read `docs/layout-guide.md` before drawing or restyling a case (it is the checklist for making a diagram look right), `docs/language.md` before changing the parser, `docs/architecture.md`
-before changing layout, and `docs/roadmap.md` before picking up work, and `docs/handover.md` for where the last session left off.
+before changing layout, and `docs/roadmap.md` before picking up work. `docs/drawing-rules.md` lists the rules for a good diagram learned from reviews: add to it when a review leads to a change.
 
 ## Layout of the repository
 
@@ -23,6 +23,10 @@ before changing layout, and `docs/roadmap.md` before picking up work, and `docs/
   `examples/cases/simple/*.trace` are the same diagrams as you would write them with no layout help,
   generated from the full ones by `npm run simplify` (`tools/simplify.js`); a test fails when they are
   out of date. Together they are the regression suite and the showcase.
+- `examples/holdout/`: real diagrams from public C4 and Mermaid sources, adapted to Trace with no layout help;
+  the held-out check for layout rules (`npm run metrics`, `tools/metrics.js`). Each has its Mermaid version
+  (`.mmd`); `npm run build:compare` draws both in `dist/compare.html`. Mermaid sources are converted with
+  `tools/mermaid-to-trace.js`. Sources and licences in its README.
 - `examples/features/`: one small before/after pair per language feature (`<id>.before.trace`, `<id>.after.trace`) and the text
   in `features.json`; `npm run build:features` draws them in `dist/features.html`. A feature can switch an automatic tidy-up off
   for its "before" (`beforeOff`: `fold`, `merge`, `tidy`), which is what `compile(..., { off: [...] })` does.
@@ -51,6 +55,12 @@ you were fixing. Most bugs found so far were only visible in a picture (a frame 
 node, a title under a box, a jog in a link). If you add a feature, add or extend an example that
 uses it.
 
+Then run `npm run metrics`. It measures the examples (where the rules are tuned) and `examples/holdout/`
+(real C4 and Mermaid diagrams adapted to Trace, never tuned on) and compares with `metrics/baseline.json`: links
+through or brushing nodes, overlapping links, crossings, bends, links along borders, crossed labels, overlaps. A
+layout change is kept only if it does not make the held-out set worse; save a new baseline with
+`npm run metrics -- --save` when you commit it. Never edit a held-out diagram to suit the engine.
+
 Node measures text with an approximate width table (`tools/measure.js`); the browser measures
 with canvas and Inter. Snapshots are therefore close to, not identical with, the browser.
 
@@ -74,4 +84,5 @@ the package is `trace-diagrams`, files use `.trace`.
 - Error messages tell the person what to write instead, and carry a line number.
 - UI text uses typographic apostrophes and quotes; code and syntax keep straight ones.
 - Don't add dependencies to the engine beyond elkjs without a reason; pages load elkjs 0.9.3 as a
-  UMD script from jsDelivr, pinned.
+  UMD script from jsDelivr, pinned. The comparison page also loads Mermaid 11.17.2 the same way (older
+  releases cannot read the `align` lines of the Mermaid architecture examples).

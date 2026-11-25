@@ -10,7 +10,7 @@
     "id": "k8s",
     "title": "Kubernetes ingress, service mesh and egress",
     "context": "A cloud load balancer feeds an ingress controller; services route to sidecar-injected pods across namespaces; outbound calls must leave through an egress gateway with an allow-list.",
-    "uses": "Nested frames for cluster and namespaces; two titled columns side by side, so each service lines up with its pods row by row; [span] lets the ingress controller feed all three services on straight lines.",
+    "uses": "Nested frames for cluster and namespaces; two titled columns side by side, so each service lines up with its pods row by row; [span] lets the ingress controller feed all three services on straight lines. `align podcart redis` keeps the cart pods level with Redis, and `same-height` on the pods and the stores gives both columns the same pitch, so the catalog pods line up with Postgres too: both data links are straight.",
     "gap": "The web pods call svc/cart, a link that runs backwards into the column before it. Trace draws it, but the detour is ugly, so it is left out here; a “call back” style that loops around the column edge would help."
   },
   {
@@ -24,8 +24,8 @@
     "id": "hybrid",
     "title": "Hybrid cloud: datacenter to AWS",
     "context": "An on-prem datacenter reaches an AWS VPC through a transit gateway, over Direct Connect with an IPsec VPN as backup. Public, private and database subnets; apps still authenticate against on-prem Active Directory.",
-    "uses": "Four levels of nesting (region, VPC, subnet tiers) and a transit gateway as a [bridge] on the AWS border, where the datacenter link lands. tgw <- app1 sends the LDAP call back to the datacenter without turning the whole layout around. A column holds the three subnet tiers as bands inside the VPC, the way AWS reference diagrams draw them, and same-width makes the bands one width.",
-    "gap": "The tiers are bands now, but the links between them (load balancer to the two app nodes, app nodes to the database) still leave and re-enter by the left side of each band."
+    "uses": "Four levels of nesting (region, VPC, subnet tiers) and a transit gateway as a [bridge] on the AWS border, where the datacenter link lands. tgw <- app1 sends the LDAP call back to the datacenter without turning the whole layout around. A column holds the three subnet tiers as bands inside the VPC, the way AWS reference diagrams draw them, and same-width makes the bands one width. The two app nodes and the two databases are rows (siblings across the flow inside the VPC's downward column), so the load balancer's and the apps' links drop straight; Internet users sit in a column above AWS and enter the internet gateway from the top; `same-height dc aws` gives the datacenter and AWS the same top and bottom. Inside the datacenter a column holding a row makes a block that flows down, so its contents run top to bottom and the zone is about as tall as it is wide, in proportion with AWS.",
+    "gap": "The three subnets are as wide as each other but not lined up: inside the VPC's column each is centred on its own links, and same-width cannot move a zone sideways."
   },
   {
     "id": "office",
@@ -73,8 +73,8 @@
     "id": "hub",
     "title": "Microservices sharing one identity provider",
     "context": "A web and a mobile app reach seven services through a gateway; every one of them, the gateway and both apps also check a token with the same identity provider.",
-    "uses": "Icons and one zone, nothing else on purpose. The eight “validate token” links to the identity provider are merged automatically into one bus: a trunk at the provider, a line past the services, a short branch from each, a dot where a branch joins, and the label written once.",
-    "gap": "Merging is automatic when four or more links go to (or leave) one node with the same label and style; there is no way yet to ask for it on fewer links, or to switch it off. A branch that cannot run straight to the bus finds a free lane of its own (Orders, Catalog here), so the old detours are gone; the gateway's own fan-out, which has no labels, is still drawn as separate links."
+    "uses": "Icons and one zone, nothing else on purpose. Both fans are gathered automatically on a bar inside the services zone: the gateway’s link enters a bar on the left, which feeds every service in a straight line; every service feeds a bar on the right, which sends one “validate token” link to the provider. The gateway’s own token check, from outside the zone, stays a link of its own.",
+    "gap": "Search stands in front of Catalog, so their links to the right bar go round each other in the middle of the zone; the two login links still go round the outside."
   },
   {
     "id": "oauth",
@@ -108,8 +108,8 @@
     "id": "mlops",
     "title": "Machine learning pipeline",
     "context": "Events are cleaned, turned into features, split, trained and evaluated; a good model is registered and deployed, a bad one goes back to tuning, and drift sends the pipeline round again.",
-    "uses": "A decision, a loop back (retry), dashed feedback links, green and red outcomes, a dead end.",
-    "gap": "A chain this long is folded into rows, and the feedback links (drift detected, new data) run the width of the page. Loops that return to the start of a pipeline need a way to be drawn as a short return, not a long line."
+    "uses": "A decision, a loop back (retry), dashed feedback links, green and red outcomes, a dead end. Four rows in a column, one per stage: data, training and evaluation, the two outcomes that go back or stop, serving and monitoring. Each row is a level line, so the steps of a stage line up.",
+    "gap": "The rows are centred on each other, not lined up on their first step, and the feedback links (new data, drift detected) still run the width of the page."
   },
   {
     "id": "triage",
@@ -122,8 +122,8 @@
     "id": "home",
     "title": "Home network",
     "context": "An ISP, a router, a switch and an access point with a dozen devices, a DNS filter and two backup links.",
-    "uses": "`direction down` and nothing else; the fan-outs from the switch and the access point are merged into buses.",
-    "gap": "Good. The backup links to the NAS cross the switch's bus, and the desktop is pushed to a second row because its link to the NAS is drawn below the switch's other devices."
+    "uses": "`direction down`, one zone for the wired devices and a `row` in it. The switch’s five links go into that zone, so they meet a bar inside it, like a patch panel: one link from the switch, every wired device straight below. The access point’s four links are merged into a bus.",
+    "gap": "The laptop’s backup link to the NAS runs down beside the wired zone, its label next to the zone’s title."
   },
   {
     "id": "cqrs",
@@ -136,7 +136,7 @@
     "id": "monorepo",
     "title": "Build graph of a monorepo",
     "context": "Three apps, three feature packages and seven libraries, with who depends on whom.",
-    "uses": "A dense graph with no layout help; the links into utils are merged into one bus.",
-    "gap": "Readable, but busy: the middle of the diagram has twenty links in five columns, and arrowheads stack up on types and ui-kit."
+    "uses": "Two marks: utils and types, which almost every package depends on, are shown as an icon after each name that uses them instead of seven links, and stand at the end of the flow with config. The simple form draws those links, and the links into utils merge into one bus.",
+    "gap": "The apps on the left still fan out to five packages through one busy column of links; with the marks it has 6 crossings instead of 12 and 31 bends instead of 55."
   }
 ]

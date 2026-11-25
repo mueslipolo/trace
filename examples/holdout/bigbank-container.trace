@@ -1,0 +1,27 @@
+# Adapted from C4-PlantUML, samples/C4_Container Diagram Sample - bigbankplc.puml (MIT)
+direction down
+title "Containers: Internet Banking System"
+
+pill customer [user]: Customer | personal bank accounts
+
+frame c1 "Internet Banking" [blue] {
+  web [browser]: Web Application | Java, Spring MVC
+  spa: Single-Page App | JavaScript, Angular
+  mobile [mobile]: Mobile App | C#, Xamarin
+  store database [database]: Database | SQL Database
+  api [api]: API Application | Java, Docker Container
+}
+
+engine email [mail]: E-Mail System | Microsoft Exchange
+engine banking: Mainframe Banking System | core banking information
+
+customer -> web : uses, HTTPS
+customer -> spa : uses, HTTPS
+customer -> mobile : uses
+web -> spa : delivers
+spa -> api : async, JSON/HTTPS
+mobile -> api : async, JSON/HTTPS
+api -> database : reads and writes, JDBC
+email -> customer : sends e-mails to
+api -> email : sends e-mails, SMTP
+api -> banking : sync/async, XML/HTTPS

@@ -11,10 +11,12 @@
     "build:playground": "node tools/build-playground.js",
     "build:showcase": "node tools/build-showcase.js",
     "build:features": "node tools/build-features.js",
-    "build": "npm run build:playground && npm run build:showcase && npm run build:features",
+    "build:compare": "node tools/build-compare.js",
+    "build": "npm run build:playground && npm run build:showcase && npm run build:features && npm run build:compare",
     "test": "node --test",
     "build:icons": "node tools/build-icons.js",
-    "simplify": "node tools/simplify.js"
+    "simplify": "node tools/simplify.js",
+    "metrics": "node tools/metrics.js"
   },
   "dependencies": {
     "elkjs": "0.9.3"

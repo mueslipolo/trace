@@ -1,0 +1,38 @@
+{
+  "sets": {
+    "examples": {
+      "n": 51,
+      "total": {
+        "crash": 0,
+        "through": 0,
+        "near": 0,
+        "overlap": 0,
+        "crossings": 35,
+        "bends": 727,
+        "border": 1,
+        "labels": 0,
+        "nodeOverlap": 0,
+        "frameCover": 1,
+        "wide": 8,
+        "hug": 2
+      }
+    },
+    "holdout": {
+      "n": 19,
+      "total": {
+        "crash": 0,
+        "through": 0,
+        "near": 0,
+        "overlap": 1,
+        "crossings": 24,
+        "bends": 221,
+        "border": 0,
+        "labels": 0,
+        "nodeOverlap": 0,
+        "frameCover": 0,
+        "wide": 1,
+        "hug": 0
+      }
+    }
+  }
+}

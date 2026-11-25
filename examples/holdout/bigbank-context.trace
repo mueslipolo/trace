@@ -1,0 +1,13 @@
+# Adapted from C4-PlantUML, samples/C4_Context Diagram Sample - bigbankplc.puml (MIT)
+direction down
+title "System context: Internet Banking System"
+
+pill customer [user]: Personal Banking Customer | a customer of the bank
+banking: Internet Banking System | view accounts, make payments
+engine mail [mail]: E-mail system | Microsoft Exchange
+engine mainframe: Mainframe Banking System | core banking information
+
+customer -> banking : uses
+mail -> customer : sends e-mails to
+banking -> mail : sends e-mails, SMTP
+banking -> mainframe : uses

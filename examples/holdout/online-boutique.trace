@@ -1,0 +1,34 @@
+# Adapted from the architecture diagram of GoogleCloudPlatform/microservices-demo (Online Boutique), README (Apache 2.0)
+title "Online Boutique microservices"
+
+pill user [user]: Users
+loadgen: Load generator | Python, Locust
+frontend [browser]: Frontend | Go, HTTP
+ad: Ad service | Java
+recommendation: Recommendation | Python
+catalog: Product catalog | Go
+cart: Cart service | C#
+store redis [cache]: Redis cache
+checkout: Checkout | Go
+payment [credit-card]: Payment | Node.js
+email [mail]: Email | Python
+shipping [truck]: Shipping | Go
+currency: Currency | Node.js
+
+user -> frontend
+loadgen -> frontend
+frontend -> ad
+frontend -> recommendation
+frontend -> catalog
+frontend -> cart
+frontend -> shipping
+frontend -> currency
+frontend -> checkout
+recommendation -> catalog
+cart -> redis
+checkout -> payment
+checkout -> email
+checkout -> shipping
+checkout -> currency
+checkout -> cart
+checkout -> catalog

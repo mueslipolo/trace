@@ -1,0 +1,13 @@
+# Converted with tools/mermaid-to-trace.js from the Mermaid documentation, syntax/architecture.md (MIT); original in mermaid-fan-in.mmd
+title "Databases into one server"
+
+frame api "API" {
+  store db1 [database]: DB1
+  store db2 [database]: DB2
+  store db3 [database]: DB3
+  mcp [server]: MCP
+}
+
+db1 -> mcp
+db2 -> mcp
+db3 -> mcp

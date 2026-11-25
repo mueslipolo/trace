@@ -1,0 +1,82 @@
+# OpenTelemetry demo services (opentelemetry.io, CC BY 4.0): three zones side by side in a row, made the same height
+direction down
+
+column {
+  frame clients "clients" [grey] {
+    row {
+      react-native-app: React Native App
+      Internet: Internet
+      pill load-generator: Load Generator | flags
+    }
+  }
+  row {
+    frame edge "edge" [blue] {
+      frontend-proxy: Frontend Proxy | Envoy · flags
+      image-provider: Image Provider | nginx
+    }
+    frame web "web and assistant" [blue] {
+      frontend: Frontend
+      chatbot: Chatbot
+      agent: Agent | flags
+      mcp: MCP
+    }
+    frame flags "feature flags" [purple] {
+      flagd: Flagd | read by every service marked “flags”
+      flagd-ui: Flagd-ui
+    }
+  }
+  frame services "services" [green] {
+    ad: Ad | flags
+    recommendation: Recommendation | flags
+    product-catalog: Product Catalog | flags
+    cart: Cart | flags
+    checkout: Checkout | flags
+    currency: Currency
+    payment: Payment | flags
+    email: Email | flags
+    shipping: Shipping | flags
+    quote: Quote
+  }
+  frame data "data and events" [orange] {
+    store cache: Cache | Valkey
+    store queue: queue | Kafka
+    accounting: Accounting
+    fraud-detection: Fraud Detection | flags
+    store postgresql: astronomy-db | PostgreSQL
+  }
+}
+
+same-height edge web flags
+
+chatbot -> agent : HTTP
+agent --> frontend : HTTP
+agent --> mcp : HTTP
+checkout -> currency : gRPC
+checkout -> cart : gRPC
+cart -> cache
+checkout -> payment : gRPC
+checkout -> email : HTTP
+checkout -> queue : TCP
+checkout -> product-catalog : gRPC
+checkout -> shipping : HTTP
+shipping -> quote : HTTP
+frontend -> ad : gRPC
+frontend -> cart : gRPC
+frontend -> currency : gRPC
+frontend -> checkout : gRPC
+frontend -> shipping : HTTP
+frontend -> product-catalog : gRPC
+frontend -> recommendation : gRPC
+frontend-proxy -> flagd-ui : HTTP
+frontend-proxy -> image-provider : HTTP
+frontend-proxy -> frontend : HTTP
+frontend-proxy -> chatbot : HTTP
+mcp -> frontend : HTTP
+queue -> fraud-detection : TCP
+recommendation -> product-catalog : gRPC
+product-catalog -> postgresql
+Internet -> frontend-proxy : HTTP
+load-generator -> frontend-proxy : HTTP
+react-native-app -> frontend-proxy : HTTP
+accounting -> postgresql
+queue -> accounting : TCP

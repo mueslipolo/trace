@@ -294,6 +294,20 @@
     "wide": false
   },
   {
+    "id": "mark",
+    "title": "Mark",
+    "group": "Links",
+    "does": "The links into one node are not drawn. Each node they come from carries that node’s icon after its name instead, in the colour of its zone, and the legend says what the icon means.",
+    "effect": "A node that most of the diagram uses (feature flags, a config service, an identity provider) no longer pulls a fan of links across every tier. The links stay in the source: delete the line and they are drawn again.",
+    "beforeLabel": "links drawn",
+    "afterLabel": "with mark",
+    "beforeOff": [],
+    "afterOff": [],
+    "syntax": "mark flagd \"reads its feature flags from Flagd\"\nmark config [settings] \"reads its settings\"",
+    "use": "Use it when a node is linked from most of the diagram and those links say little more than “uses it”. The icon is the node’s own, or the one in brackets.",
+    "wide": false
+  },
+  {
     "id": "tables",
     "title": "Tables and cardinality",
     "group": "Other diagram types",
@@ -325,7 +339,7 @@
     "id": "bus",
     "title": "Merged links",
     "group": "Automatic",
-    "does": "Four or more links to (or from) one node with the same label and style are drawn as one bus with the label once.",
+    "does": "Four or more links to (or from) one node with the same label and style are drawn as one bus with the label once. When five or more of them come from one zone, the bus is built inside the zone (see the next entry).",
     "effect": "A trunk at the node, a line running past the sources, a short branch from each, and a dot where a branch joins. Links with different labels stay separate.",
     "beforeLabel": "different labels",
     "afterLabel": "same label",
@@ -334,6 +348,22 @@
     "syntax": "(nothing to write)",
     "use": "Automatic: four or more links to or from one node with the same label and style are merged. Give links different labels to keep them apart.",
     "wide": false
+  },
+  {
+    "id": "junction",
+    "title": "A bar inside a zone",
+    "group": "Automatic",
+    "does": "When more than four links with the same meaning join one node to members of a zone it is not in, they meet at a bar inside that zone, and only one link crosses the zone’s edge.",
+    "effect": "The bar reaches along the members; each link runs straight across to it at its member’s level, and the bar’s own link arrives between two of them. A fan-out (a gateway into its services) has its bar where the zone is entered, a fan-in (every service to an identity provider) where it is left.",
+    "beforeLabel": "merging off",
+    "afterLabel": "merging on (automatic)",
+    "beforeOff": [
+      "merge"
+    ],
+    "afterOff": [],
+    "syntax": "(nothing to write)",
+    "use": "Automatic for five or more links with the same label and style between one node and members of one zone. Links from outside that zone stay separate.",
+    "wide": true
   },
   {
     "id": "fold",

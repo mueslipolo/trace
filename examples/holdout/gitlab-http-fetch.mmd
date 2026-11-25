@@ -1,0 +1,29 @@
+sequenceDiagram
+    participant Git on client
+    participant NGINX
+    participant Workhorse
+    participant Rails
+    participant Gitaly
+    participant Git on server
+
+    Note left of Git on client: git fetch<br/>info-refs
+    Git on client->>+Workhorse: GET /info/refs?service=git-upload-pack
+    Workhorse->>+Rails: GET /info/refs?service=git-upload-pack
+    Note right of Rails: Auth check
+    Rails-->>-Workhorse: Gitlab::Workhorse.git_http_ok
+    Workhorse->>+Gitaly: SmartHTTPService.InfoRefsUploadPack request
+    Gitaly->>+Git on server: git upload-pack --stateless-rpc --advertise-refs
+    Git on server-->>-Gitaly: git upload-pack response
+    Gitaly-->>-Workhorse: SmartHTTPService.InfoRefsUploadPack response
+    Workhorse-->>-Git on client: 200 OK
+
+    Note left of Git on client: git fetch<br/>fetch-pack
+    Git on client->>+Workhorse: POST /git-upload-pack
+    Workhorse->>+Rails: POST /git-upload-pack
+    Note right of Rails: Auth check
+    Rails-->>-Workhorse: Gitlab::Workhorse.git_http_ok
+    Workhorse->>+Gitaly: SmartHTTPService.PostUploadPack request
+    Gitaly->>+Git on server: git upload-pack --stateless-rpc
+    Git on server-->>-Gitaly: git upload-pack response
+    Gitaly-->>-Workhorse: SmartHTTPService.PostUploadPack response
+    Workhorse-->>-Git on client: 200 OK

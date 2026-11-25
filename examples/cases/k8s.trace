@@ -47,3 +47,6 @@ podcat -> pg : 5432/tcp
 podcart -> egw [dashed] : 15443 mesh egress
 egw -> stripe : 443/tcp only
 egw -> smtp : 587/tcp STARTTLS
+
+align podcart redis
+same-height podweb podcart podcat redis pg
