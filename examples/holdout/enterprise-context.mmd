@@ -1,0 +1,18 @@
+%% Written for comparison from the same nodes and links as enterprise-context.trace
+flowchart TD
+  customer(["Customer<br/>of Widgets Limited"])
+  subgraph c0[Widgets Limited]
+    csa(["Customer Service Agent<br/>deals with enquiries"])
+    ecommerce["E-commerce System<br/>widgets.com"]
+    fulfillment["Fulfillment System<br/>processing and shipping"]
+  end
+  taxamo{{"Taxamo<br/>local tax, front-end for Braintree"}}
+  braintree{{"Braintree Payments<br/>credit card payments"}}
+  post{{"Jersey Post<br/>shipping costs"}}
+  customer -->|asks questions, telephone| csa
+  customer -->|places orders using| ecommerce
+  csa -->|looks up order information| ecommerce
+  ecommerce -->|sends order information| fulfillment
+  fulfillment -->|gets shipping charges| post
+  ecommerce -->|delegates card processing| taxamo
+  taxamo -->|credit card processing| braintree

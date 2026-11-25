@@ -5,11 +5,12 @@ this, then `docs/roadmap.md` for the backlog.
 
 ## Where things stand
 
-- **Tests:** `npm test` runs 108 tests (parse, layout invariants for every example, the simple forms, the
+- **Tests:** `npm test` runs 113 tests (parse, layout invariants for every example, the simple forms, the
   showcase and features pages, and targeted tests per feature). All pass.
 - **Examples:** 11 playground examples, 20 showcase cases (each in a full and a simple form), 25 feature pairs.
-- **Pages:** `npm run build` writes `dist/playground.html`, `dist/showcase.html` (the 20 cases, simple and full)
-  and `dist/features.html` (every feature drawn without and with it, as a manual).
+- **Pages:** `npm run build` writes `dist/playground.html`, `dist/showcase.html` (the 20 cases, simple and full),
+  `dist/features.html` (every feature drawn without and with it, as a manual) and `dist/compare.html` (the
+  held-out diagrams, Trace beside Mermaid).
 - **Pushed:** the owner pushes; the last commits on `main` may not be on the remote yet. Old local branches are
   all merged into `main` and can be deleted (`git branch --merged main`).
 
@@ -64,6 +65,13 @@ features page uses it to draw "without". Environment switches for Node: `TRACE_L
 
 ## Recently built (last sessions)
 
+- **Metrics and the held-out set** (`npm run metrics`, `examples/holdout/`): 19 real C4 and Mermaid diagrams,
+  never tuned on; a layout change is kept only if they do not get worse. `tools/mermaid-to-trace.js` converts a
+  Mermaid diagram plainly (nodes, links, labels, subgraphs, no layout help). `dist/compare.html`
+  (`npm run build:compare`) draws each held-out diagram with Trace and with Mermaid side by side.
+- **Routing rules from the reviews** (`docs/drawing-rules.md`): no link through or brushing a node, no two links
+  on top of each other, rerouting never adds crossings, hops where links cross.
+
 - **Side zones:** `[side]`, `[side left|right|top|bottom]`, `[span]` on a top-level frame (language.md,
   "Side zones"). Several per side, both sides, nested frames, root nodes, rails. Used by the DMZ case (SIEM)
   and the data platform (orchestration). Tests in `test/fixtures/side*.trace`.
@@ -104,7 +112,12 @@ features page uses it to draw "without". Environment switches for Node: `TRACE_L
    as the long-term answer to overloaded diagrams; not designed in detail.
 7. **Layout recommendations:** analyse a diagram and suggest the layout features to use (rows, columns,
    align, side zones), applied one by one or tried automatically and compared. The owner wants it, later.
-8. Smaller: an `agent` dot on nodes (for "an agent runs on every VM"), a snake for folds, an off switch for
+8. **Layout speed on large diagrams:** the full GitLab component diagram (about 80 links) takes over four
+   minutes in Node. Find which pass is slow (likely the router or the candidate layouts) before adding it to
+   the held-out set.
+9. **Held-out weak spots:** OpenTelemetry services (19 crossings, 82 bends: the flagd fan-in), online-boutique
+   (two links on top of each other).
+10. Smaller: an `agent` dot on nodes (for "an agent runs on every VM"), a snake for folds, an off switch for
    merging, splitting `trace.js` into modules, syntax highlighting in the playground.
 
 ## Housekeeping

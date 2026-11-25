@@ -1,0 +1,20 @@
+%% Written for comparison from the same nodes and links as bigbank-components.trace
+flowchart TD
+  spa["Single Page Application<br/>JavaScript, Angular"]
+  ma["Mobile App<br/>Xamarin"]
+  db[("Database<br/>relational schema")]
+  mbs{{"Mainframe Banking System<br/>core banking information"}}
+  subgraph api[API Application]
+    sign["Sign In Controller<br/>MVC Rest Controller"]
+    accounts["Accounts Summary Controller<br/>MVC Rest Controller"]
+    security["Security Component<br/>Spring Bean"]
+    facade["Mainframe Banking System Facade<br/>Spring Bean"]
+  end
+  sign -->|uses| security
+  accounts -->|uses| facade
+  security -->|read and write, JDBC| db
+  facade -->|uses, XML/HTTPS| mbs
+  spa -->|uses, JSON/HTTPS| sign
+  spa -->|uses, JSON/HTTPS| accounts
+  ma -->|uses, JSON/HTTPS| sign
+  ma -->|uses, JSON/HTTPS| accounts

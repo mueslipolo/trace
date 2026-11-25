@@ -1,0 +1,28 @@
+%% Written for comparison from the same nodes and links as bigbank-deployment.trace
+flowchart TD
+  subgraph plc[Big Bank plc data center]
+    subgraph dn[bigbank-api x8, Ubuntu 16.04]
+      api["API Application<br/>Java, Spring MVC, Tomcat 8"]
+    end
+    subgraph db01[bigbank-db01, Oracle primary]
+      db[("Database<br/>relational schema")]
+    end
+    subgraph db02[bigbank-db02, Oracle secondary]
+      db2[("Database<br/>relational schema")]
+    end
+    subgraph bb2[bigbank-web x4, Ubuntu 16.04]
+      web["Web Application<br/>Java, Spring MVC, Tomcat 8"]
+    end
+  end
+  subgraph mob[Customer's mobile device]
+    mobile["Mobile App<br/>Xamarin"]
+  end
+  subgraph comp[Customer's computer, web browser]
+    spa["Single Page Application<br/>JavaScript, Angular"]
+  end
+  mobile -->|API calls, json/HTTPS| api
+  spa -->|API calls, json/HTTPS| api
+  web -->|delivers to the browser| spa
+  api -->|reads and writes, JDBC| db
+  api -.->|reads and writes, JDBC| db2
+  db -->|replicates data to| db2

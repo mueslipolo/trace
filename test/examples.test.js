@@ -530,6 +530,44 @@ test('the showcase page shows one case at a time, with a list of every case, a m
   assert.match(html, /ArrowRight/);
 });
 
+test('the comparison page draws every held-out diagram with Trace and Mermaid, each with its Mermaid version', () => {
+  const { execFileSync } = require('child_process');
+  execFileSync('node', [path.join(root, 'tools/build-compare.js')], { stdio: 'pipe' });
+  const html = fs.readFileSync(path.join(root, 'dist/compare.html'), 'utf8');
+  const dir = path.join(root, 'examples/holdout');
+  for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.trace'))) {
+    const id = f.replace(/\.trace$/, '');
+    assert.ok(fs.existsSync(path.join(dir, id + '.mmd')), `${id}.mmd next to ${f}`);
+    assert.match(html, new RegExp(`<li><a href="#${id}">`), `${id} in the list`);
+  }
+  assert.match(html, /mermaid@\d+\.\d+\.\d+\/dist\/mermaid\.min\.js/, 'Mermaid pinned to a version');
+  assert.match(html, /id="mcanvas"/);
+});
+
+test('mermaid-to-trace: shapes, both label forms, notes after a line break, subgraphs and padding subgraphs', () => {
+  const { convert } = require('../tools/mermaid-to-trace.js');
+  const out = convert([
+    'flowchart LR',
+    '  subgraph pad [ ]',
+    '    style pad fill:none,stroke:none',
+    '    subgraph c1[Cluster]',
+    '      api["API<br/>Go"] -- calls --> db[(Postgres)]',
+    '    end',
+    '  end',
+    '  user([User]) -.->|uses| api',
+    '  api --> x.y',
+  ].join('\n'));
+  assert.match(out, /frame c1 "Cluster" \{/);
+  assert.doesNotMatch(out, /frame pad/, 'a padding subgraph is not a frame');
+  assert.match(out, /api: API \| Go/);
+  assert.match(out, /store db: Postgres/);
+  assert.match(out, /pill user: User/);
+  assert.match(out, /^api -> db : calls$/m, 'a solid link stays solid even when its label holds a dot');
+  assert.match(out, /^user --> api : uses$/m);
+  assert.match(out, /^api -> x\.y$/m);
+  assert.doesNotMatch(out, /direction down/);
+});
+
 test('rails: a dot marks each place a tap meets the bus, when there are several', async () => {
   const body = ['direction down', 'a: A', 'b: B', 'a -> b', 'rail logs [right] {', '  siem: SIEM', '}'];
   const one = await compile([...body, 'a -> logs'].join('\n'), measure, ELK, {});

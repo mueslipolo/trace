@@ -1,0 +1,10 @@
+%% Written for comparison from the same nodes and links as bigbank-context.trace
+flowchart TD
+  customer(["Personal Banking Customer<br/>a customer of the bank"])
+  banking["Internet Banking System<br/>view accounts, make payments"]
+  mail{{"E-mail system<br/>Microsoft Exchange"}}
+  mainframe{{"Mainframe Banking System<br/>core banking information"}}
+  customer -->|uses| banking
+  mail -->|sends e-mails to| customer
+  banking -->|sends e-mails, SMTP| mail
+  banking -->|uses| mainframe

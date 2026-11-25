@@ -1,0 +1,70 @@
+# Converted with tools/mermaid-to-trace.js from opentelemetry.io, content/en/docs/demo/architecture.md (CC BY 4.0); original in otel-telemetry.mmd
+title "OpenTelemetry demo: telemetry data flow"
+direction down
+
+frame tdf "Telemetry Data Flow" {
+  oc-grpc: OTLP Receiver | listening on grpc://localhost:4317
+  oc-http: OTLP Receiver | listening on localhost:4318
+  pr-sc: Prometheus OTLP Write Receiver
+  ja-col: Jaeger Collector | listening on grpc://jaeger:4317
+  os-http: OpenSearch | listening on localhost:9200
+  engine op-b: Browser | OpAMP UI
+  engine pr-b: Browser | Prometheus UI
+  engine ja-b: Browser | Jaeger UI
+  engine gr-b: Browser | Grafana UI
+  frame od "OpenTelemetry Demo" {
+    ms: Microservice
+  }
+  frame oc "OTel Collector" {
+    oc-proc: Processors
+    oc-spanmetrics: Span Metrics Connector
+    oc-prom: OTLP HTTP Exporter
+    oc-otlp: OTLP Exporter
+    oc-opensearch: OpenSearch Exporter
+    oc-opamp: OpAMP Extension
+  }
+  frame op "OpAMP Server" {
+    op-srv: OpAMP Server
+    op-http: OpAMP HTTP | listening on localhost:8080/opamp/
+  }
+  frame pr "Prometheus" {
+    store pr-tsdb: Prometheus TSDB
+    pr-http: Prometheus HTTP | listening on localhost:9090
+  }
+  frame ja "Jaeger" {
+    store ja-db: Jaeger DB
+    ja-http: Jaeger HTTP | listening on localhost:16686
+  }
+  frame os "OpenSearch" {
+    store os-db: OpenSearch Index
+  }
+  frame gr "Grafana" {
+    gr-srv: Grafana Server
+    gr-http: Grafana HTTP | listening on localhost:3000
+  }
+}
+
+ms --> oc-grpc : OTLP gRPC
+ms --> oc-http : OTLP HTTP POST
+oc-grpc -> oc-proc
+oc-http -> oc-proc
+oc-proc -> oc-prom
+oc-proc -> oc-otlp
+oc-proc -> oc-opensearch
+oc-proc -> oc-spanmetrics
+oc-spanmetrics -> oc-prom
+oc-prom -> pr-sc : localhost:9090/api/v1/otlp
+oc-otlp -> ja-col : gRPC
+oc-opensearch -> os-http : HTTP
+op-srv -> op-http
+oc-opamp -> op-srv : reports status over WebSocket
+op-http -> op-b : localhost:8080/opamp/
+pr-sc -> pr-tsdb
+pr-tsdb -> pr-http
+pr-http -> pr-b : localhost:9090/graph
+ja-col -> ja-db
+ja-db -> ja-http
+os-http -> os-db
+gr-srv -> gr-http
+ja-http -> ja-b : localhost:16686/search
+gr-http -> gr-b : localhost:3000/dashboard

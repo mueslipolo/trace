@@ -1,0 +1,35 @@
+%%{init: {"flowchart": { "useMaxWidth": false } }}%%
+graph TB
+  %% Component declarations and formatting
+  HTTP((HTTP/HTTPS))
+  SSH((SSH))
+  GitLabPages(GitLab Pages)
+  GitLabWorkhorse(GitLab Workhorse)
+  GitLabShell(GitLab Shell)
+  Gitaly(Gitaly)
+  Puma("Puma (Gitlab Rails)")
+  Sidekiq("Sidekiq (GitLab Rails)")
+  PostgreSQL(PostgreSQL)
+  Redis(Redis)
+
+  HTTP -- TCP 80,443 --> NGINX
+  SSH -- TCP 22 --> GitLabShell
+
+  NGINX -- TCP 8090 --> GitLabPages
+  NGINX --> GitLabWorkhorse
+
+  GitLabShell --> Gitaly
+  GitLabShell --> GitLabWorkhorse
+
+  GitLabWorkhorse --> Gitaly
+  GitLabWorkhorse --> Puma
+  GitLabWorkhorse --> Redis
+
+  Sidekiq --> PostgreSQL
+  Sidekiq --> Redis
+
+  Puma --> PostgreSQL
+  Puma --> Redis
+  Puma --> Gitaly
+
+  Gitaly --> GitLabWorkhorse

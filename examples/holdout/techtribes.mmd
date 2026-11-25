@@ -1,0 +1,27 @@
+%% Written for comparison from the same nodes and links as techtribes.trace
+flowchart TD
+  anon(["Anonymous User"])
+  aggregated(["Aggregated User"])
+  admin(["Administration User"])
+  subgraph c1[techtribes.js]
+    web["Web Application<br/>Java, Spring MVC, Tomcat 7"]
+    reldb[("Relational Database<br/>MySQL 5.5")]
+    fs[("File System<br/>search indexes")]
+    nosql[("NoSQL Data Store<br/>MongoDB 2.2")]
+    updater["Updater<br/>Java 7 console app"]
+  end
+  twitter{{"Twitter"}}
+  github{{"GitHub"}}
+  blogs{{"Blogs"}}
+  anon -->|uses, HTTPS| web
+  aggregated -->|uses, HTTPS| web
+  admin -->|uses, HTTPS| web
+  web -->|reads and writes, SQL/JDBC 3306| reldb
+  web -->|reads from| fs
+  web -->|reads from, MongoDB 27017| nosql
+  updater -->|reads and writes, SQL/JDBC 3306| reldb
+  updater -->|writes to| fs
+  updater -->|reads and writes, MongoDB 27017| nosql
+  updater -->|profiles and tweets, HTTPS| twitter
+  updater -->|public repositories, HTTPS| github
+  updater -->|RSS and Atom feeds, HTTP| blogs

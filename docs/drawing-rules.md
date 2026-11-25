@@ -13,8 +13,6 @@ How a rule is kept:
 When a review leads to a change, add the rule here in the same commit, and run `npm run metrics`: a rule is
 kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 
-| Rerouting never adds crossings (unless a link ran through a node; two at most to separate links on top of each other); the router pays 40 px per crossing. | metrics: today's rerouting had raised crossings from 52 to 72 over the examples | engine: `rerouteBlocked` | crossings before and after a change |
-
 ## Links
 
 | Rule | From | Kept by | How to check it |
@@ -37,6 +35,7 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | Links into the same node step at the same height. | DMZ | engine: `alignJogs` | single-step links into one node with different step heights |
 | When a fan-out has no room to become a bus, more space between the layers gives it room. | hub (the gateway's five links) | usage: `spacing 1.3` | four or more links from one node that do not merge |
 | Four or more links with the same meaning into one node are one bus with the label once, if there is room for the arrowheads. | hub, column and row (arrows squeezed against the bus) | engine: `mergeHubs`, needs a 46 px gap | four or more links, same target, same label |
+| Rerouting never adds crossings (unless a link ran through a node; two at most to separate links on top of each other); the router pays 40 px per crossing. | metrics: today's rerouting had raised crossings from 52 to 72 over the examples | engine: `rerouteBlocked` | crossings before and after a change |
 
 ## Placement
 

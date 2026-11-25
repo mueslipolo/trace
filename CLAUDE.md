@@ -24,7 +24,9 @@ before changing layout, and `docs/roadmap.md` before picking up work, and `docs/
   generated from the full ones by `npm run simplify` (`tools/simplify.js`); a test fails when they are
   out of date. Together they are the regression suite and the showcase.
 - `examples/holdout/`: real diagrams from public C4 and Mermaid sources, adapted to Trace with no layout help;
-  the held-out check for layout rules (`npm run metrics`, `tools/metrics.js`). Sources and licences in its README.
+  the held-out check for layout rules (`npm run metrics`, `tools/metrics.js`). Each has its Mermaid version
+  (`.mmd`); `npm run build:compare` draws both in `dist/compare.html`. Mermaid sources are converted with
+  `tools/mermaid-to-trace.js`. Sources and licences in its README.
 - `examples/features/`: one small before/after pair per language feature (`<id>.before.trace`, `<id>.after.trace`) and the text
   in `features.json`; `npm run build:features` draws them in `dist/features.html`. A feature can switch an automatic tidy-up off
   for its "before" (`beforeOff`: `fold`, `merge`, `tidy`), which is what `compile(..., { off: [...] })` does.

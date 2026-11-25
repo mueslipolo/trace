@@ -1,0 +1,30 @@
+# Converted with tools/mermaid-to-trace.js from GitLab documentation, doc/development/architecture.md (CC BY-SA 4.0); original in gitlab-http-fetch.mmd
+sequence
+title "GitLab: git fetch over HTTP"
+git_on_client: Git on client
+nginx: NGINX
+workhorse: Workhorse
+rails: Rails
+gitaly: Gitaly
+git_on_server: Git on server
+
+note left of git_on_client : git fetch info-refs
+git_on_client -> workhorse : GET /info/refs?service=git-upload-pack
+workhorse -> rails : GET /info/refs?service=git-upload-pack
+note right of rails : Auth check
+rails --> workhorse : Gitlab::Workhorse.git_http_ok
+workhorse -> gitaly : SmartHTTPService.InfoRefsUploadPack request
+gitaly -> git_on_server : git upload-pack --stateless-rpc --advertise-refs
+git_on_server --> gitaly : git upload-pack response
+gitaly --> workhorse : SmartHTTPService.InfoRefsUploadPack response
+workhorse --> git_on_client : 200 OK
+note left of git_on_client : git fetch fetch-pack
+git_on_client -> workhorse : POST /git-upload-pack
+workhorse -> rails : POST /git-upload-pack
+note right of rails : Auth check
+rails --> workhorse : Gitlab::Workhorse.git_http_ok
+workhorse -> gitaly : SmartHTTPService.PostUploadPack request
+gitaly -> git_on_server : git upload-pack --stateless-rpc
+git_on_server --> gitaly : git upload-pack response
+gitaly --> workhorse : SmartHTTPService.PostUploadPack response
+workhorse --> git_on_client : 200 OK

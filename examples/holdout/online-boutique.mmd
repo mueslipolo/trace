@@ -1,0 +1,32 @@
+%% Written for comparison from the same nodes and links as online-boutique.trace
+flowchart LR
+  user(["Users"])
+  loadgen["Load generator<br/>Python, Locust"]
+  frontend["Frontend<br/>Go, HTTP"]
+  ad["Ad service<br/>Java"]
+  recommendation["Recommendation<br/>Python"]
+  catalog["Product catalog<br/>Go"]
+  cart["Cart service<br/>C#"]
+  redis[("Redis cache")]
+  checkout["Checkout<br/>Go"]
+  payment["Payment<br/>Node.js"]
+  email["Email<br/>Python"]
+  shipping["Shipping<br/>Go"]
+  currency["Currency<br/>Node.js"]
+  user --> frontend
+  loadgen --> frontend
+  frontend --> ad
+  frontend --> recommendation
+  frontend --> catalog
+  frontend --> cart
+  frontend --> shipping
+  frontend --> currency
+  frontend --> checkout
+  recommendation --> catalog
+  cart --> redis
+  checkout --> payment
+  checkout --> email
+  checkout --> shipping
+  checkout --> currency
+  checkout --> cart
+  checkout --> catalog

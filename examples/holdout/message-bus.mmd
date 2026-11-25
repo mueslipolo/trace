@@ -1,0 +1,22 @@
+%% Written for comparison from the same nodes and links as message-bus.trace
+flowchart TD
+  customer(["Customer"])
+  subgraph c1[Customer Information]
+    app["Customer Application<br/>JavaScript, Angular"]
+    svc["Customer Service<br/>Java, Spring Boot"]
+    bus["Message Bus<br/>RabbitMQ"]
+    reporting["Reporting Service<br/>Ruby"]
+    audit["Audit Service<br/>C#/.NET"]
+    customerdb[("Customer Database<br/>Oracle 12c")]
+    reportingdb[("Reporting Database<br/>MySQL")]
+    auditstore[("Audit Store<br/>Event Store")]
+  end
+  customer -->|uses, HTTPS| app
+  app -->|updates customer information, async JSON/HTTPS| svc
+  svc -->|sends events, WebSocket| app
+  svc -->|sends customer update events| bus
+  svc -->|stores data, JDBC| customerdb
+  bus -->|customer update events| reporting
+  bus -->|customer update events| audit
+  reporting -->|stores data| reportingdb
+  audit -->|stores events| auditstore
