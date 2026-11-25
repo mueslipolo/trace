@@ -116,7 +116,9 @@ author, or tried automatically and compared with the same cost the engine uses. 
   `opentype.js`; no kerning, about a percent), PNGs drawn with the same font (`tools/png.js`), and the CLI
   takes `out.png`, `--dark`, `--light`, `--zoom` and `--watch`.
 - Labels placed above horizontal links consistently (ELK sometimes puts them below).
-- Edge labels in direction down take a whole row; find a placement that sits beside the link.
+- Edge labels in direction down take a whole row; find a placement that sits beside the link. Tried: ELK's
+  `edgeLabels.inline` (no effect in 0.9.3), and labels given to ELK at 1px so they take no room (the incident
+  case got 6% shorter, but the held-out set got 7 more crossings and 10 more bends: rejected).
 - “Call back” links that run backwards into the previous column (k8s: web pods calling svc/cart)
   should loop around the column edge.
 - Done: a strip wider than 3.5:1 is retried as two or three rows (`foldCandidate`; `TRACE_NOFOLD=1` or
