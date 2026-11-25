@@ -849,6 +849,23 @@ test('layout blocks hold even when every straight way into a frame member is blo
   }
 });
 
+test('zones side by side in a row share their top, same-height makes them equal, and no zone covers another', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'test/fixtures/row-zones.trace'), 'utf8'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  assert.ok(!(res.rm.notes || []).length, String(res.rm.notes));
+  const F = id => res.rm.frames.find(f => f.f.id === id);
+  const row = ['edge', 'web', 'flags'].map(F);
+  for (const f of row) {
+    assert.ok(Math.abs(f.y - row[0].y) < 0.5, `${f.f.id} starts at ${f.y}, ${row[0].f.id} at ${row[0].y}`);
+    assert.ok(Math.abs(f.h - row[0].h) < 0.5, `${f.f.id} is ${f.h} tall, ${row[0].f.id} ${row[0].h}`);
+  }
+  const fr = res.rm.frames;
+  for (let i = 0; i < fr.length; i++) for (let j = i + 1; j < fr.length; j++) {
+    const a = fr[i], b = fr[j];
+    assert.ok(!overlap(a, b), `${a.f.id} and ${b.f.id} overlap`);
+  }
+});
+
 test('every link is orthogonal: each stretch is horizontal or vertical, in every example and held-out diagram', async () => {
   const holdout = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace')).map(f => 'examples/holdout/' + f);
   for (const file of [...files, ...holdout]) {

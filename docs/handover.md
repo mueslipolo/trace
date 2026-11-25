@@ -105,9 +105,8 @@ features page uses it to draw "without". Environment switches for Node: `TRACE_L
 3. **Links to a zone with layout blocks:** a link that names a frame disables the per-frame layout, so with
    side zones it is refused with a message. Supporting it would allow "the cluster is scraped" with one arrow.
 4. **Frames side by side in a row:** done: a link whose way into a frame is blocked no longer makes the layout
-   give up (last-resort port). Still open: frames in one row do not share their top, and `same-height` on them
-   grows them without moving the frame above, so they overlap (see `test/fixtures/blocked-port.trace` with
-   `same-height edge web flags`).
+   give up (last-resort port); frames in one row share their top, and `same-height` keeps a gap
+   (`test/fixtures/row-zones.trace`).
 5. **A platform case for the showcase** (services, data, observability and admin on the sides): attempted,
    left out because of 3 and 4.
 6. **Views** (C4-style): one model, several diagrams (runtime, observability, admin). The owner liked the idea

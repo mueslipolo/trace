@@ -2561,11 +2561,62 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
         opts['elk.separateConnectedComponents'] = 'false'; // unlinked children still follow the lane's order
       }
       const r = await elk.layout({ id: Fr ? prefix(Fr) + Fr.id : 'root', layoutOptions: opts, children, edges });
+      // (not the rows that side zones are built from: spanSides places those zones level with what they serve)
+      if (isLane && dirH && !String(Fr.id).startsWith('_side')) alignRowTops(r, children);
       const minW = Fr && !isLane ? Math.ceil(Fr.titleW + 36) : 0;
       const w = Math.max(r.width, minW), dx = (w - r.width) / 2;
       const pos = new Map(r.children.map(c => [c.id, { x: c.x + dx, y: c.y }]));
       lay.set(Fr || null, { res: r, w, h: r.height, dx, pos });
       return true;
+    }
+    // a row of zones shares its top: ELK's layered placement slides each one up or down to straighten links,
+    // which leaves zones side by side at different heights. Every zone goes to the top of the row, and the
+    // links between them are drawn again as plain orthogonal routes (the router later takes any blocked one round)
+    function alignRowTops(r, children) {
+      // zones only: a node in the row keeps the place ELK gave it, level with what it links to
+      const zones = r.children.filter(c => /^[FL]:/.test(c.id));
+      if (zones.length < 2) return;
+      const top = Math.min(...zones.map(c => c.y));
+      const dy = new Map(r.children.map(c => [c.id, zones.includes(c) ? top - c.y : 0]));
+      if ([...dy.values()].every(v => Math.abs(v) < 0.5)) return;
+      const owner = new Map(), side = new Map();
+      for (const c of children) { owner.set(c.id, c.id); for (const q of c.ports || []) { owner.set(q.id, c.id); side.set(q.id, (q.layoutOptions || {})['elk.port.side']); } }
+      for (const c of r.children) c.y += dy.get(c.id);
+      for (const ed of r.edges || []) {
+        const secs = ed.sections || [];
+        if (!secs.length) continue;
+        const ds = dy.get(owner.get(ed.sources[0])) || 0, dt = dy.get(owner.get(ed.targets[0])) || 0;
+        const a = { x: secs[0].startPoint.x, y: secs[0].startPoint.y + ds }, b = { x: secs[secs.length - 1].endPoint.x, y: secs[secs.length - 1].endPoint.y + dt };
+        const hs = !/NORTH|SOUTH/.test(side.get(ed.sources[0]) || ''), ht = !/NORTH|SOUTH/.test(side.get(ed.targets[0]) || '');
+        let mid;
+        if (Math.abs(a.y - b.y) < 0.5 || Math.abs(a.x - b.x) < 0.5) mid = [];
+        else if (hs && ht) {
+          // a zone in between: out into the gap beside the source, over the row, down the gap beside the target
+          const sc = r.children.find(c => c.id === owner.get(ed.sources[0])), tc = r.children.find(c => c.id === owner.get(ed.targets[0]));
+          const lo = Math.min(a.x, b.x), hi = Math.max(a.x, b.x);
+          const between = r.children.filter(c => c !== sc && c !== tc && c.x < hi && c.x + c.width > lo);
+          if (sc && tc && between.length) {
+            const gapBeside = (c, right) => {
+              const edge = right ? c.x + c.width : c.x;
+              const nb = r.children.filter(o => o !== c && (right ? o.x >= edge - 0.5 : o.x + o.width <= edge + 0.5));
+              const near = right ? Math.min(...nb.map(o => o.x)) : Math.max(...nb.map(o => o.x + o.width));
+              return (edge + near) / 2;
+            };
+            const fwd = b.x > a.x, gy = top - 14;
+            const g1 = gapBeside(sc, fwd), g2 = gapBeside(tc, !fwd);
+            mid = [{ x: g1, y: a.y }, { x: g1, y: gy }, { x: g2, y: gy }, { x: g2, y: b.y }];
+          } else { const mx = (a.x + b.x) / 2; mid = [{ x: mx, y: a.y }, { x: mx, y: b.y }]; }
+        }
+        else if (hs) mid = [{ x: b.x, y: a.y }];
+        else if (ht) mid = [{ x: a.x, y: b.y }];
+        else { const my = (a.y + b.y) / 2; mid = [{ x: a.x, y: my }, { x: b.x, y: my }]; }
+        ed.sections = [{ ...secs[0], startPoint: a, endPoint: b, bendPoints: mid }];
+        for (const l of ed.labels || []) l.y += (ds + dt) / 2;
+      }
+      // the row is as tall as what it holds now: its children and the routes between them
+      const ys = r.children.map(c => c.y + c.height);
+      for (const ed of r.edges || []) for (const sc of ed.sections || []) ys.push(sc.startPoint.y, sc.endPoint.y, ...(sc.bendPoints || []).map(q => q.y));
+      r.height = Math.max(...ys);
     }
     for (const Fr of frames) if (!(await layoutFrame(Fr))) return null;
     if (!(await layoutFrame(null))) return null;
@@ -2847,7 +2898,7 @@ function alignRows(rm, model) {
 
 // same-width / same-height on frames: a frame takes its size from its contents, so the narrower ones are
 // grown to the size of the widest afterwards, around their centre when that is free, else to the side
-// that is. A frame that cannot grow without covering another frame or node stays as it is, and says so.
+// that is, keeping a gap of 10px from other frames. A frame that cannot grow without covering another frame or node stays as it is, and says so.
 function sameSizeFrames(rm, model) {
   for (const ss of model.sameSize) {
     if (ss.kind !== 'frame') continue;
@@ -2860,6 +2911,8 @@ function sameSizeFrames(rm, model) {
     const free0 = (b, pos) => {
       const c = { ...b, [A]: pos, [S]: target };
       const hit = (u, v) => u.x < v.x + v.w - 1 && v.x < u.x + u.w - 1 && u.y < v.y + v.h - 1 && v.y < u.y + u.h - 1;
+      const gap = 10, cg = { x: c.x - gap, y: c.y - gap, w: c.w + 2 * gap, h: c.h + 2 * gap };
+      if (rm.frames.some(o => o !== b && !boxes.includes(o) && !within(o.f, b.f) && !within(b.f, o.f) && hit(cg, o))) return false;
       if (rm.frames.some(o => o !== b && !boxes.includes(o) && !within(o.f, b.f) && !within(b.f, o.f) && hit(c, o))) return false;
       if (rm.nodes.some(n => n.x !== undefined && !owns(b.f, n) && !(n.tags && n.tags.includes('bridge')) && hit(c, n))) return false;
       return true;
@@ -2878,7 +2931,9 @@ function sameSizeFrames(rm, model) {
       const free = pos => {
         const c = { ...b, [A]: pos, [S]: target };
         const hit = (u, v) => u.x < v.x + v.w - 1 && v.x < u.x + u.w - 1 && u.y < v.y + v.h - 1 && v.y < u.y + u.h - 1;
-        if (rm.frames.some(o => o !== b && !within(o.f, b.f) && !within(b.f, o.f) && hit(c, o))) return false;
+        // and keeps a gap from every other frame: a border touching another one reads as one zone
+        const gap = 10, cg = { x: c.x - gap, y: c.y - gap, w: c.w + 2 * gap, h: c.h + 2 * gap };
+        if (rm.frames.some(o => o !== b && !within(o.f, b.f) && !within(b.f, o.f) && hit(cg, o))) return false;
         if (rm.nodes.some(n => n.x !== undefined && !owns(b.f, n) && !(n.tags && n.tags.includes('bridge')) && hit(c, n))) return false;
         return true;
       };
