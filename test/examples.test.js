@@ -770,3 +770,20 @@ test('title, caption and cartouche are drawn: the title and caption above, the c
   assert.strictEqual(m.errors[0].line, 2);
   assert.match(parse('cartouche {\n  just text\n}').errors[0].msg, /key: value/);
 });
+
+test('no link runs through a node that is not one of its ends, in any example', async () => {
+  for (const file of files) {
+    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
+    for (const r of res.rm.edges) {
+      if (!r.pts || r.e.rail || r.e.lifeline || r.e.divider) continue;
+      for (const n of res.rm.nodes) {
+        if (n.x === undefined || n.id === r.e.a || n.id === r.e.b) continue;
+        for (let i = 1; i < r.pts.length; i++) {
+          const a = r.pts[i - 1], b = r.pts[i];
+          const hit = Math.min(a.x, b.x) < n.x + n.w - 1 && n.x + 1 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h - 1 && n.y + 1 < Math.max(a.y, b.y);
+          assert.ok(!hit, `${file}: ${r.e.a} -> ${r.e.b} runs through ${n.id}`);
+        }
+      }
+    }
+  }
+});

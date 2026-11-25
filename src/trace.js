@@ -933,6 +933,157 @@ function clearFrames(rm) {
   }
 }
 
+// A link that runs through a node that is not one of its ends is routed again: an orthogonal route on the
+// grid of lines just outside every node, the shortest with the fewest bends, from where it leaves its source to
+// the side of its target that its route reaches first. Links that are clear are not touched.
+function rerouteBlocked(rm) {
+  const M = 8;                                             // the route keeps this far from every node
+  const boxes = rm.nodes.filter(n => n.x !== undefined && n.kind !== 'start');
+  const inside = (b, x, y, m) => x > b.x - m + 0.01 && x < b.x + b.w + m - 0.01 && y > b.y - m + 0.01 && y < b.y + b.h + m - 0.01;
+  const segHits = (a, p, b, m) => Math.min(a.x, p.x) < b.x + b.w + m - 0.5 && b.x - m + 0.5 < Math.max(a.x, p.x) && Math.min(a.y, p.y) < b.y + b.h + m - 0.5 && b.y - m + 0.5 < Math.max(a.y, p.y);
+  for (const r of rm.edges) {
+    const e = r.e;
+    if (e.rail || e.lifeline || e.divider || r.merged || !r.pts || r.pts.length < 2 || e.a === e.b) continue;
+    let S = boxes.find(n => n.id === e.a), T = boxes.find(n => n.id === e.b);
+    if (!S || !T) continue;
+    // the points may run either way round (a link written with <-): S is the node at the first point
+    const dd = (n, p) => Math.hypot(Math.max(n.x - p.x, 0, p.x - n.x - n.w), Math.max(n.y - p.y, 0, p.y - n.y - n.h));
+    if (dd(T, r.pts[0]) < dd(S, r.pts[0])) [S, T] = [T, S];
+    const others = boxes.filter(n => n !== S && n !== T);
+    const blocked = r.pts.some((p, i) => i && others.some(b => segHits(r.pts[i - 1], p, b, 0)));
+    // a link that turns right against its node (a first or last stretch under 10px) reads as touching it
+    const len = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    const q0 = simplifyPts(r.pts), n = q0.length;
+    const hugs = n > 2 && ((len(q0[n - 2], q0[n - 1]) < 10 && !T.cols && !T.span) || (len(q0[0], q0[1]) < 10 && !S.cols && !S.span));
+    if (!blocked && !hugs) continue;
+    // first choice: one straight line, when the two nodes overlap across the gap between them
+    if (!S.cols && !S.span && !T.cols && !T.span) {
+      const ox0 = Math.max(S.x, T.x) + 10, ox1 = Math.min(S.x + S.w, T.x + T.w) - 10;
+      const oy0 = Math.max(S.y, T.y) + 10, oy1 = Math.min(S.y + S.h, T.y + T.h) - 10;
+      let st = null;
+      if (ox1 >= ox0) { const x = (ox0 + ox1) / 2; st = S.y + S.h <= T.y ? [{ x, y: S.y + S.h }, { x, y: T.y }] : T.y + T.h <= S.y ? [{ x, y: S.y }, { x, y: T.y + T.h }] : null; }
+      else if (oy1 >= oy0) { const y = (oy0 + oy1) / 2; st = S.x + S.w <= T.x ? [{ x: S.x + S.w, y }, { x: T.x, y }] : T.x + T.w <= S.x ? [{ x: S.x, y }, { x: T.x + T.w, y }] : null; }
+      if (st && !others.some(b => segHits(st[0], st[1], b, 4))) { r.pts = st; continue; }
+    }
+    // where it leaves: as it did, a short way straight out of its side
+    const p0 = r.pts[0];
+    const sideOf = (b, p) => Math.abs(p.x - b.x) < 2 ? [-1, 0] : Math.abs(p.x - b.x - b.w) < 2 ? [1, 0] : Math.abs(p.y - b.y) < 2 ? [0, -1] : [0, 1];
+    const [dx0, dy0] = sideOf(S, p0);
+    const nearB = (v, vert) => rm.frames.some(f => vert ? Math.abs(v - f.x) < 9 || Math.abs(v - f.x - f.w) < 9 : Math.abs(v - f.y) < 9 || Math.abs(v - f.y - f.h) < 9);
+    // a stub long enough that the turn after it is not on a frame border
+    const stubOut = (p, dx, dy) => { for (const L of [12, 20, 28, 36, 44]) { const q = { x: p.x + dx * L, y: p.y + dy * L }; if (!(dx ? nearB(q.x, true) : nearB(q.y, false))) return q; } return { x: p.x + dx * 12, y: p.y + dy * 12 }; };
+    const s1 = stubOut(p0, dx0, dy0);
+    // where it may arrive: the middle of each side of the target, a short way out
+    // where it may arrive: the middle of each side of the target, or level with where it leaves (a straight
+    // link when the two overlap); a table or a span node keeps the attachment point it was given
+    const pend = r.pts[r.pts.length - 1];
+    const sides = T.cols || T.span ? [sideOf(T, pend)] : [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    const ports = [];
+    for (const [dx, dy] of sides) {
+      const cands = [];
+      if (T.cols || T.span) cands.push({ ...pend });
+      else {
+        cands.push({ x: dx < 0 ? T.x : dx > 0 ? T.x + T.w : T.x + T.w / 2, y: dy < 0 ? T.y : dy > 0 ? T.y + T.h : T.y + T.h / 2 });
+        if (dy && p0.x > T.x + 10 && p0.x < T.x + T.w - 10) cands.push({ x: p0.x, y: dy < 0 ? T.y : T.y + T.h });
+        if (dx && p0.y > T.y + 10 && p0.y < T.y + T.h - 10) cands.push({ x: dx < 0 ? T.x : T.x + T.w, y: p0.y });
+      }
+      // a side where other links already arrive costs more: arrowheads side by side read as one
+      const ends = rm.edges.filter(o => o !== r && o.pts && o.pts.length > 1).flatMap(o => [o.pts[0], o.pts[o.pts.length - 1]]).filter(q => dx ? Math.abs(q.x - (dx < 0 ? T.x : T.x + T.w)) < 2 && q.y > T.y - 1 && q.y < T.y + T.h + 1 : Math.abs(q.y - (dy < 0 ? T.y : T.y + T.h)) < 2 && q.x > T.x - 1 && q.x < T.x + T.w + 1);
+      // and where one already arrives, the new one takes a quarter of the side away from it
+      if (ends.length && !T.cols && !T.span) {
+        cands.length = 0;
+        for (const k of [0.25, 0.75]) {
+          const p = dx ? { x: dx < 0 ? T.x : T.x + T.w, y: T.y + T.h * k } : { x: T.x + T.w * k, y: dy < 0 ? T.y : T.y + T.h };
+          if (!ends.some(q => Math.abs(dx ? q.y - p.y : q.x - p.x) < 10)) cands.push(p);
+        }
+      }
+      for (const p of cands) ports.push({ p, q: stubOut(p, dx, dy), d: [dx, dy], extra: ends.length * 150 });
+    }
+    const xs = new Set([s1.x, ...ports.map(o => o.q.x)]), ys = new Set([s1.y, ...ports.map(o => o.q.y)]);
+    for (const b of others.concat([S, T])) { xs.add(b.x - M - 2); xs.add(b.x + b.w + M + 2); ys.add(b.y - M - 2); ys.add(b.y + b.h + M + 2); }
+    // lines that stay clear of the frame borders: a route is not drawn along a border
+    for (const f of rm.frames) { for (const v of [f.x - 14, f.x + 14, f.x + f.w - 14, f.x + f.w + 14]) xs.add(v); for (const v of [f.y - 14, f.y + 14, f.y + f.h - 14, f.y + f.h + 14]) ys.add(v); }
+    const keep = new Set([s1.x, s1.y, ...ports.flatMap(o => [o.q.x, o.q.y])]);
+    const nearX = v => rm.frames.some(f => Math.abs(v - f.x) < 8 || Math.abs(v - f.x - f.w) < 8), nearY = v => rm.frames.some(f => Math.abs(v - f.y) < 8 || Math.abs(v - f.y - f.h) < 8);
+    const X = [...xs].filter(v => keep.has(v) || !nearX(v)).sort((a, b) => a - b), Y = [...ys].filter(v => keep.has(v) || !nearY(v)).sort((a, b) => a - b);
+    const all = others.concat([S, T]);
+    const free = (x, y) => !all.some(b => inside(b, x, y, M - 1));
+    const key = (i, j) => i * Y.length + j;
+    const ix = new Map(X.map((v, i) => [v, i])), iy = new Map(Y.map((v, j) => [v, j]));
+    const start = key(ix.get(s1.x), iy.get(s1.y));
+    const goals = new Map(ports.map(o => [key(ix.get(o.q.x), iy.get(o.q.y)), o]));
+    // Dijkstra over (grid point, direction): length plus a price per bend
+    const BEND = 60, dist = new Map(), prev = new Map(), heap = [];
+    const push = (k, d, c) => { const id = k * 4 + d; if (c < (dist.get(id) ?? Infinity)) { dist.set(id, c); heap.push([c, id]); } };
+    const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const d0 = DIRS.findIndex(([a, b]) => a === dx0 && b === dy0);
+    push(start, d0 < 0 ? 0 : d0, 0);
+    let best = null;
+    while (heap.length) {
+      let m = 0; for (let k = 1; k < heap.length; k++) if (heap[k][0] < heap[m][0]) m = k;
+      const [c, id] = heap.splice(m, 1)[0];
+      if (c > (dist.get(id) ?? Infinity)) continue;
+      const k = Math.floor(id / 4), d = id % 4, i = Math.floor(k / Y.length), j = k % Y.length;
+      if (goals.has(k)) {
+        const o = goals.get(k);
+        // arrive straight: the last stretch runs into the side, so the direction must point at the node
+        const need = DIRS.findIndex(([a, b]) => a === -o.d[0] && b === -o.d[1]);
+        const back = DIRS[d][0] === o.d[0] && DIRS[d][1] === o.d[1];      // arriving the wrong way round
+        const total = c + (d === need ? 0 : BEND) + (o.extra || 0);
+        if (!back && (!best || total < best.c)) best = { c: total, id, o };
+      }
+      for (let nd = 0; nd < 4; nd++) {
+        const [a, b] = DIRS[nd];
+        const ni = i + a, nj = j + b;
+        if (ni < 0 || nj < 0 || ni >= X.length || nj >= Y.length) continue;
+        const P = { x: X[i], y: Y[j] }, Q = { x: X[ni], y: Y[nj] };
+        if (!free(Q.x, Q.y) && !goals.has(key(ni, nj))) continue;
+        if (all.some(bx => segHits(P, Q, bx, M - 2))) continue;
+        push(key(ni, nj), nd, c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND));
+        if (!prev.has(key(ni, nj) * 4 + nd) || dist.get(key(ni, nj) * 4 + nd) === c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND)) prev.set(key(ni, nj) * 4 + nd, id);
+      }
+    }
+    if (!best) continue;
+    const path = [];
+    for (let id = best.id; id !== undefined; id = prev.get(id)) { const k = Math.floor(id / 4); path.unshift({ x: X[Math.floor(k / Y.length)], y: Y[k % Y.length] }); if (Math.floor(id / 4) === start) break; }
+    const pts = simplifyPts([p0, ...path, best.o.p]);
+    if (pts.some((p, i) => i && others.some(b => segHits(pts[i - 1], p, b, 0)))) continue;
+    r.pts = pts;
+  }
+}
+
+// A link with one small step (12px or less) is made straight, by sliding its end along the side of its
+// target (or its start along its source), when that side has room and no other link ends there.
+function straightenSmallJogs(rm) {
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  for (const r of rm.edges) {
+    const e = r.e;
+    if (e.rail || e.lifeline || r.merged || !r.pts || e.a === e.b) continue;
+    const q = simplifyPts(r.pts);
+    if (q.length !== 4) continue;
+    const S = rm.nodes.find(n => n.id === e.a), T = rm.nodes.find(n => n.id === e.b);
+    if (!S || !T || S.cols || T.cols) continue;
+    const hv = eq(q[0].y, q[1].y) && eq(q[1].x, q[2].x) && eq(q[2].y, q[3].y);
+    const vh = eq(q[0].x, q[1].x) && eq(q[1].y, q[2].y) && eq(q[2].x, q[3].x);
+    if (!hv && !vh) continue;
+    const A = hv ? 'y' : 'x', L = hv ? 'h' : 'w';
+    const off = q[3][A] - q[0][A];
+    if (Math.abs(off) < 0.5 || Math.abs(off) > 12) continue;
+    const clear = (node, v, skip) => v >= node[A] + 6 && v <= node[A] + node[L] - 6 &&
+      !rm.edges.some(o => o !== r && o.pts && [o.pts[0], o.pts[o.pts.length - 1]].some(p => p !== skip && Math.abs(p[A] - v) < 8 && (hv ? Math.abs(p.x - (skip === 'end' ? q[3].x : q[0].x)) < 2 : Math.abs(p.y - (skip === 'end' ? q[3].y : q[0].y)) < 2)));
+    const hit = (a, b) => rm.nodes.some(n => n !== S && n !== T && n.x !== undefined && Math.min(a.x, b.x) < n.x + n.w && n.x < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h && n.y < Math.max(a.y, b.y));
+    // a span node keeps its attachment points: only the other end slides
+    if (!T.span && clear(T, q[0][A], 'end')) {
+      const end = { ...q[3], [A]: q[0][A] };
+      if (!hit(q[0], end)) { r.pts = [q[0], end]; continue; }
+    }
+    if (!S.span && clear(S, q[3][A], 'start')) {
+      const st = { ...q[0], [A]: q[3][A] };
+      if (!hit(st, q[3])) r.pts = [st, q[3]];
+    }
+  }
+}
+
 // Links that go to (or come from) one node, say the same thing and look the same are merged into a bus: a
 // short trunk at the node, a line running along its side, and a branch from each of the others (a dot
 // where a branch meets the line in the middle of it). The text is written once. A hand would draw it so;
@@ -1375,7 +1526,7 @@ async function layout(model, measure, ELK, opts) {
   const env = (typeof process !== 'undefined' && process.env) || {};
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
-  const finish = rm => { spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); if (!off.has('tidy')) { separateParallels(rm); spreadEnds(rm); } placeLabels(rm, measure); return rm; };
+  const finish = rm => { spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); rerouteBlocked(rm); straightenSmallJogs(rm); if (!off.has('merge')) mergeHubs(rm); if (!off.has('tidy')) { separateParallels(rm); spreadEnds(rm); } placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -2755,8 +2906,16 @@ function alignJogs(rm) {
     if (!r.pts || r.pts.length < 2 || r.e.a === r.e.b) continue;
     const q = simp(r.pts);
     if (q.length !== 4) continue;
-    if (eq(q[0].x, q[1].x) && eq(q[1].y, q[2].y) && eq(q[2].x, q[3].x) && q[0].y < q[3].y) zs.push({ r, q, kind: 'v', lo: q[0].y, hi: q[3].y });
-    else if (eq(q[0].y, q[1].y) && eq(q[1].x, q[2].x) && eq(q[2].y, q[3].y) && q[0].x < q[3].x) zs.push({ r, q, kind: 'h', lo: q[0].x, hi: q[3].x });
+    // the ends must face each other: a link that enters its target from the far side would cut through it
+    let sb = rm.nodes.find(n => n.id === r.e.a), tb = rm.nodes.find(n => n.id === r.e.b);
+    // the points may run either way round (a link written with <-): take the node nearer the first point as its start
+    const dd = (n, p) => n && n.x !== undefined ? Math.hypot(Math.max(n.x - p.x, 0, p.x - n.x - n.w), Math.max(n.y - p.y, 0, p.y - n.y - n.h)) : Infinity;
+    if (dd(tb, q[0]) < dd(sb, q[0])) [sb, tb] = [tb, sb];
+    const facing = (kind) => !sb || !tb || sb.x === undefined || tb.x === undefined || (kind === 'v'
+      ? Math.abs(q[0].y - (sb.y + sb.h)) < 2 && Math.abs(q[3].y - tb.y) < 2
+      : Math.abs(q[0].x - (sb.x + sb.w)) < 2 && Math.abs(q[3].x - tb.x) < 2);
+    if (eq(q[0].x, q[1].x) && eq(q[1].y, q[2].y) && eq(q[2].x, q[3].x) && q[0].y < q[3].y && facing('v')) zs.push({ r, q, kind: 'v', lo: q[0].y, hi: q[3].y });
+    else if (eq(q[0].y, q[1].y) && eq(q[1].x, q[2].x) && eq(q[2].y, q[3].y) && q[0].x < q[3].x && facing('h')) zs.push({ r, q, kind: 'h', lo: q[0].x, hi: q[3].x });
   }
   const groups = new Map();
   const used = new Set();

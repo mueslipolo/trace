@@ -6,7 +6,7 @@ about how something should look, follow the style rules below and look at those.
 
 The project started in a claude.ai conversation. Everything decided there is captured in this
 file and in `docs/`. Read `docs/layout-guide.md` before drawing or restyling a case (it is the checklist for making a diagram look right), `docs/language.md` before changing the parser, `docs/architecture.md`
-before changing layout, and `docs/roadmap.md` before picking up work, and `docs/handover.md` for where the last session left off.
+before changing layout, and `docs/roadmap.md` before picking up work, and `docs/handover.md` for where the last session left off. `docs/drawing-rules.md` lists the rules for a good diagram learned from reviews: add to it when a review leads to a change.
 
 ## Layout of the repository
 
