@@ -208,6 +208,37 @@ label gets as much room between its lifelines as it needs.
   branch with a dashed divider (`and "label"` inside a `par`).
 - No frames, rows, columns, rails, `align` or `same-width` in a sequence diagram.
 
+## Side zones
+
+```
+frame obs "observability" [green side] {
+  gw: OTel gateway
+}
+frame admin "admin access" [orange side left span] {
+  bastion: Bastion host
+}
+```
+
+A frame tagged `side` stands **beside** the main flow instead of after it. Use it for what watches or
+administers the diagram rather than being part of its path: logs, metrics, admin access.
+
+- Only the two sides across the flow exist: left and right in a diagram that flows down (the default side is
+  right), top and bottom in one that flows right (the default is bottom). The ends of the flow are where it
+  starts and stops. Write `[side left]`, `[left]`, `[side top]` and so on to choose.
+- A side zone goes at the top level. The rest of the diagram goes in a block of its own and the side zones in
+  blocks beside it, so it is what you would write with rows and columns, written for you.
+- Several zones on one side stack along it, in the order of where their links come from. One on each side is
+  fine. More than two on a side is a sign to split the diagram.
+- Each side zone sits level with the zones it is linked to.
+- **`[side span]`** makes a side zone as tall as the zones it is linked to (as wide, beside a flow to the right),
+  from the top of the first to the bottom of the last. The nodes inside move level with what they are linked
+  to, so the links across the gutter are straight. A zone without `span` keeps its own height and the spanning
+  zones on that side make room for it; two spanning zones share the length between them.
+- Links go between nodes (`col1 -> gw`), not to the zone itself: a link to a zone is refused with a message
+  while there are side zones.
+- Mistakes name the line and what to write: a side zone inside another frame, `top` in a diagram that flows
+  down, two sides on one zone, `span` without a side.
+
 ## Equal sizes
 
 ```

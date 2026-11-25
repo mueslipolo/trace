@@ -1,0 +1,30 @@
+direction down
+title "root nodes, nested frame in the side zone, one without links"
+pill users [user]: Users
+gw0 [arrow-right-left]: API gateway
+frame app "app" [blue] {
+  orders [package]: Orders
+  catalog [list]: Catalog
+}
+frame data "data" [purple] {
+  store pg [database]: Postgres
+}
+frame obs "observability" [green side span] {
+  frame backends "backends" [grey] {
+    loki [file-text]: Loki
+    tempo [route]: Tempo
+  }
+  grafana [chart-bar]: Grafana
+}
+frame notes "notes" [grey side left] {
+  readme [document]: Runbook
+}
+users -> gw0
+gw0 -> orders
+gw0 -> catalog
+orders -> pg
+catalog -> pg
+orders -> loki : logs
+catalog -> tempo : traces
+loki -> grafana
+tempo -> grafana

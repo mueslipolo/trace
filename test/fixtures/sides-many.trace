@@ -1,0 +1,42 @@
+direction down
+title "four side zones, a rail, root nodes"
+pill users [user]: Users
+gw0 [arrow-right-left]: API gateway
+frame app "app" [blue] {
+  orders [package]: Orders
+  catalog [list]: Catalog
+}
+frame data "data" [purple] {
+  store pg [database]: Postgres
+}
+frame obs "observability" [green side right span] {
+  loki [file-text]: Loki
+  tempo [route]: Tempo
+}
+frame sec "security" [grey side right span] {
+  siem [monitor]: SIEM
+}
+frame admin "admin" [orange side left span] {
+  bastion [terminal]: Bastion
+}
+frame ci "delivery" [blue side left] {
+  pipe [rocket]: CI/CD
+}
+rail logs "management" [bottom] {
+  syslog [file-text]: Syslog
+}
+users -> gw0
+gw0 -> orders
+gw0 -> catalog
+orders -> pg
+catalog -> pg
+orders -> loki : logs
+catalog -> tempo : traces
+orders -> siem : audit
+pg -> siem : audit
+bastion -> gw0 : ssh
+bastion -> pg : psql
+pipe -> orders : deploy
+pipe -> catalog : deploy
+orders -> logs
+catalog -> logs

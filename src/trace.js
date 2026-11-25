@@ -12,6 +12,8 @@ const EDGE_TAG_SET = {
 };
 const FRAME_TAGS = new Set(['green', 'blue', 'orange', 'purple', 'grey', 'gray', 'dashed']);
 const RAIL_SIDES = new Set(['top', 'bottom', 'left', 'right']);
+// a frame may also be a side zone: [side], [side left], [right span] ...
+const SIDE_FRAME_TAGS = new Set([...FRAME_TAGS, 'side', 'span', ...RAIL_SIDES]);
 const RAIL_TAGS = new Set([...FRAME_TAGS, ...RAIL_SIDES]);
 const ARROWS = /\s*(<->|<--|-->|<-|->|--)\s*/;
 const ID_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
@@ -322,7 +324,7 @@ function parse(src) {
         model.groups.splice(model.groups.indexOf(parent), 1);
       }
       if (kind === 'frame') {
-        let { rest, tags } = takeTags(hm[2], FRAME_TAGS, 'frame');
+        let { rest, tags } = takeTags(hm[2], SIDE_FRAME_TAGS, 'frame');
         let title = '';
         const qm = rest.match(/"([^"]*)"\s*$/);
         if (qm) { title = qm[1]; rest = rest.slice(0, qm.index).trim(); }
@@ -456,7 +458,75 @@ function parse(src) {
     const linked = model.edges.some(e => (e.a === al.a && e.b === al.b) || (e.a === al.b && e.b === al.a));
     if (!linked) model.errors.push({ line: al.line, msg: `align ${al.a} ${al.b} keeps the link between them straight, so they need one: write ${al.a} -> ${al.b}` });
   }
+  if (!model.errors.length) desugarSides(model);
   return model;
+}
+
+
+// ---------------------------------------------------------------- side zones
+// A frame tagged [side] (or [left] [right] [top] [bottom], with [span]) is a zone that stands beside the main
+// flow instead of after it: logs, metrics, admin access. Only the two sides across the flow exist: left and
+// right in a diagram that flows down, top and bottom in one that flows right. The rest of the diagram goes
+// in a block of its own, and the side zones in blocks on either side of it, ordered by where their links come
+// from. It is what you would write with rows and columns, written for you.
+const SIDE_WORDS = new Set(['left', 'right', 'top', 'bottom']);
+function desugarSides(model) {
+  const root = model.root;
+  const isSide = f => f.type === 'frame' && f.tags.some(t => t === 'side' || t === 'span' || SIDE_WORDS.has(t));
+  for (const f of model.frames.values()) {
+    if (isSide(f) && f.parent !== root) { model.errors.push({ line: f.line, msg: `The zone "${f.id}" is tagged as a side zone, which goes at the top level: put it outside every frame, row and column` }); return; }
+  }
+  const sides = root.items.filter(isSide);
+  if (!sides.length) return;
+  const flowH = model.direction === 'RIGHT';
+  const slots = flowH ? ['top', 'bottom'] : ['left', 'right'];
+  const dflt = flowH ? 'bottom' : 'right';
+  for (const f of sides) {
+    const words = f.tags.filter(t => SIDE_WORDS.has(t));
+    if (words.length > 1) { model.errors.push({ line: f.line, msg: `A side zone is on one side: write [side ${words[0]}] or [side ${words[1]}], not both` }); return; }
+    f.side = words[0] || dflt;
+    f.spanSide = f.tags.includes('span');
+    if (!f.tags.includes('side') && !words.length) { model.errors.push({ line: f.line, msg: `span on a frame goes with a side: write [side span] for "${f.id}"` }); return; }
+    if (!slots.includes(f.side)) { model.errors.push({ line: f.line, msg: `In a diagram that flows ${flowH ? 'right' : 'down'} a side zone goes ${slots[0]} or ${slots[1]}: the other two sides are where the flow starts and ends. Write [side ${slots[0]}] or [side ${slots[1]}] for "${f.id}"` }); return; }
+  }
+  const main = root.items.filter(i => !sides.includes(i) && i.type !== 'rail');
+  if (!main.length) return;
+  const toZone = model.edges.find(e => model.frames.has(e.a) || model.frames.has(e.b));
+  if (toZone) { const z = model.frames.has(toZone.a) ? toZone.a : toZone.b; model.errors.push({ line: toZone.line, msg: `With side zones, links go between nodes: "${z}" is a zone. Link a node in it (a collector, a gateway) instead` }); return; }
+  // where each side zone's links come from: the mean place, in the main flow, of what it is linked to
+  const nodesOf = it => { const out = new Set(); (function w(c) { for (const x of c.items || []) { if (x.type === 'node') out.add(x.id); else w(x); } })(it); return out; };
+  const mainOf = new Map();
+  main.forEach((it, i) => { if (it.type === 'node') mainOf.set(it.id, i); else for (const id of nodesOf(it)) mainOf.set(id, i); if (it.type === 'frame') mainOf.set(it.id, i); });
+  const bary = f => {
+    const mine = nodesOf(f); mine.add(f.id);
+    const idx = [];
+    for (const e of model.edges) {
+      const a = mine.has(e.a), b = mine.has(e.b);
+      if (a === b) continue;
+      const other = a ? e.b : e.a;
+      if (mainOf.has(other)) idx.push(mainOf.get(other));
+    }
+    return idx.length ? idx.reduce((t, v) => t + v, 0) / idx.length : null;
+  };
+  const order = list => list.map((f, i) => ({ f, i, b: bary(f) })).sort((x, y) => (x.b === null ? 1e9 + x.i : x.b) - (y.b === null ? 1e9 + y.i : y.b) || x.i - y.i).map(x => x.f);
+  let n = 0;
+  const lane = (axis, items) => { const l = { type: 'lane', id: '_side' + (++n), axis, title: '', items, parent: null, line: 0 }; for (const it of items) it.parent = l; return l; };
+  const at = side => order(sides.filter(f => f.side === side));
+  const mainLane = lane(flowH ? 'h' : 'v', main);
+  model.mainLane = mainLane;
+  const parts = [];
+  if (!flowH) {
+    if (at('left').length) parts.push(lane('v', at('left')));
+    parts.push(mainLane);
+    if (at('right').length) parts.push(lane('v', at('right')));
+  } else {
+    if (at('top').length) parts.push(lane('h', at('top')));
+    parts.push(mainLane);
+    if (at('bottom').length) parts.push(lane('h', at('bottom')));
+  }
+  const outer = lane(flowH ? 'v' : 'h', parts);
+  outer.parent = root;
+  root.items = [outer, ...root.items.filter(i => i.type === 'rail')];
 }
 
 // ---------------------------------------------------------------- measuring
@@ -1152,6 +1222,128 @@ function spreadEnds(rm, gap0 = 22) {
   }
 }
 
+
+// [side span]: a side zone is as tall (as wide, beside a flow to the right) as the zones it is linked to, from
+// the top of the first to the bottom of the last, and the nodes in it move level with what they are linked to,
+// so the links across the gutter are straight. Done after the layout; the links that touch a moved node are
+// drawn again, the others stay as they were.
+function spanSides(rm, model) {
+  const allSides = [...model.frames.values()].filter(f => f.side);
+  const zones = allSides;
+  if (!allSides.some(f => f.spanSide) || !model.mainLane || (rm.notes || []).some(n => /could not be placed/.test(n))) return;
+  const flowH = model.direction === 'RIGHT';
+  const A = flowH ? 'x' : 'y', S = flowH ? 'w' : 'h', C = flowH ? 'y' : 'x', CS = flowH ? 'h' : 'w';   // along the side, across it
+  const GAP = 14, TITLE = 30;
+  const fbox = f => rm.frames.find(b => b.f === f);
+  const nbox = id => rm.nodes.find(n => n.id === id);
+  const leaves = c => { const out = []; (function w(x) { for (const i of x.items || []) { if (i.type === 'node') out.push(i.id); else w(i); } })(c); return out; };
+  const mainItem = id => {
+    let p = model.nodes.get(id);
+    while (p && p.parent !== model.mainLane) p = p.parent;
+    return p || null;
+  };
+  const boxOfItem = it => it.type === 'frame' ? fbox(it) : it.type === 'node' ? nbox(it.id) : (() => {
+    const ids = leaves(it).map(nbox).filter(Boolean);
+    if (!ids.length) return null;
+    const x = Math.min(...ids.map(b => b.x)), y = Math.min(...ids.map(b => b.y));
+    return { x, y, w: Math.max(...ids.map(b => b.x + b.w)) - x, h: Math.max(...ids.map(b => b.y + b.h)) - y };
+  })();
+  const bySide = {};
+  for (const f of zones) (bySide[f.side] = bySide[f.side] || []).push(f);
+  const plans = [];
+  for (const list of Object.values(bySide)) {
+    const mk = [];
+    for (const F of list) {
+      const FB = fbox(F);
+      if (!FB) continue;
+      const mine = new Set(leaves(F));
+      const ext = [];                                    // the other end of each link that crosses the zone's border
+      for (const e of model.edges) {
+        const a = mine.has(e.a), b = mine.has(e.b);
+        if (a === b) continue;
+        const other = a ? e.b : e.a, mineId = a ? e.a : e.b;
+        const it = mainItem(other);
+        if (!it) continue;
+        const ib = boxOfItem(it), ob = nbox(other);
+        if (ib && ob) ext.push({ e, other: ob, mine: mineId, item: ib });
+      }
+      const inner = F.items.filter(i => i.type === 'node').map(i => nbox(i.id)).filter(Boolean);
+      const flat = inner.length === leaves(F).length;
+      const need = TITLE + (flat ? inner.reduce((t, nb) => t + nb[S] + GAP, -GAP) + 12 : FB[S] - TITLE);
+      const fixed = !F.spanSide;                          // a zone without [span] keeps its place and size, and the others make room
+      const lo = ext.length && !fixed ? Math.min(FB[A], ...ext.map(x => x.item[A])) : FB[A];
+      const hi = ext.length && !fixed ? Math.max(FB[A] + FB[S], ...ext.map(x => x.item[A] + x.item[S])) : FB[A] + FB[S];
+      mk.push({ F, FB, mine, ext, inner, flat, need, lo, hi, fixed });
+    }
+    mk.sort((p, q) => p.lo - q.lo);
+    // zones on the same side share the length: where two ranges overlap the line between them is halfway
+    for (let i = 1; i < mk.length; i++) {
+      const p = mk[i - 1], q = mk[i];
+      if (p.hi + GAP > q.lo) {
+        if (p.fixed && q.fixed) continue;
+        if (p.fixed) q.lo = p.hi + GAP;
+        else if (q.fixed) p.hi = q.lo - GAP;
+        else { const mid = (Math.max(p.lo, q.lo) + Math.min(p.hi, q.hi)) / 2; p.hi = Math.min(p.hi, mid - GAP / 2); q.lo = Math.max(q.lo, mid + GAP / 2); }
+        if (!p.fixed && p.hi < p.lo + p.need) p.hi = p.lo + p.need;
+        if (q.lo < p.hi + GAP && !q.fixed) q.lo = p.hi + GAP;
+      }
+    }
+    for (const m of mk) if (!m.fixed && m.hi < m.lo + m.need) m.hi = m.lo + m.need;
+    plans.push(...mk);
+  }
+  for (const m of plans) {
+    if (m.fixed) continue;
+    const { F, FB, mine, ext, inner, flat } = m, lo = m.lo, hi = m.hi;
+    if (flat && inner.length) {
+      const want = new Map();
+      for (const nb of inner) {
+        const cs = ext.filter(x => x.mine === nb.id).map(x => x.other[A] + x.other[S] / 2);
+        const rel = (nb[A] + nb[S] / 2 - FB[A]) / FB[S];
+        want.set(nb, cs.length ? cs.reduce((t, v) => t + v, 0) / cs.length : lo + rel * (hi - lo));
+      }
+      const ord = [...inner].sort((p, q) => want.get(p) - want.get(q));
+      let pos = lo + TITLE;
+      for (const nb of ord) { const d = want.get(nb) - nb[S] / 2; nb[A] = Math.max(d, pos); pos = nb[A] + nb[S] + GAP; }
+      let limit = hi - 12;                                // not past the end: push back up
+      for (let i = ord.length - 1; i >= 0; i--) { const nb = ord[i]; nb[A] = Math.min(nb[A], limit - nb[S]); limit = nb[A] - GAP; }
+    }
+    FB[A] = lo; FB[S] = hi - lo;
+    // draw again the links that touch a node of this zone
+    const toward = F.side === 'right' || F.side === 'bottom' ? 1 : -1;   // the zone lies this way from the main flow
+    const Q = (al, cr) => flowH ? { x: al, y: cr } : { x: cr, y: al };   // a point from its place along the side and across it
+    for (const r of rm.edges) {
+      const e = r.e, a = mine.has(e.a), b = mine.has(e.b);
+      if (a === b) {
+        if (a && flat) {                                     // between two nodes of the zone
+          const u = nbox(e.a), v = nbox(e.b);
+          if (!u || !v) continue;
+          const down = u[A] < v[A];
+          const ov0 = Math.max(u[C], v[C]), ov1 = Math.min(u[C] + u[CS], v[C] + v[CS]);
+          const m1 = down ? u[A] + u[S] : u[A], m2 = down ? v[A] : v[A] + v[S];
+          // a node between them in the way: go round by the far side of the zone
+          const between = inner.some(w => w !== u && w !== v && w[A] < Math.max(m1, m2) && Math.min(m1, m2) < w[A] + w[S] && (ov1 > ov0 + 8 ? w[C] < (ov0 + ov1) / 2 + 2 && (ov0 + ov1) / 2 - 2 < w[C] + w[CS] : false));
+          if (between) { const far = FB[C] + FB[CS] - 10, c1 = u[C] + u[CS] / 2, c2 = v[C] + v[CS] / 2, a1 = u[A] + u[S] / 2, a2 = v[A] + v[S] / 2; r.pts = [Q(a1, u[C] + u[CS]), Q(a1, far), Q(a2, far), Q(a2, v[C] + v[CS])]; }
+          else if (ov1 > ov0 + 8) { const cc = (ov0 + ov1) / 2; r.pts = [Q(m1, cc), Q(m2, cc)]; }
+          else { const c1 = u[C] + u[CS] / 2, c2 = v[C] + v[CS] / 2, mid = (m1 + m2) / 2; r.pts = [Q(m1, c1), Q(mid, c1), Q(mid, c2), Q(m2, c2)]; }
+        }
+        continue;
+      }
+      const inside = nbox(a ? e.a : e.b), outside = nbox(a ? e.b : e.a);
+      if (!inside || !outside || !mainItem(outside.id)) continue;
+      // from the main flow across the gutter into the zone
+      const o1 = toward > 0 ? outside[C] + outside[CS] : outside[C], i1 = toward > 0 ? inside[C] : inside[C] + inside[CS];
+      const co = outside[A] + outside[S] / 2, ci = inside[A] + inside[S] / 2;
+      const gut = toward > 0 ? FB[C] - 16 : FB[C] + FB[CS] + 16;
+      const pts = Math.abs(co - ci) < 0.5 ? [Q(co, o1), Q(ci, i1)] : [Q(co, o1), Q(co, gut), Q(ci, gut), Q(ci, i1)];
+      if (a) pts.reverse();
+      r.pts = pts;
+      if (r.lab && e.lab) { const m = { x: (pts[0].x + pts[1].x) / 2, y: pts[0].y }; r.lab = pts.length === 2 ? { x: (pts[0].x + pts[1].x) / 2, y: pts[0].y - 4 - e.lab.h, anchor: 'middle' } : { x: m.x, y: m.y - 4 - e.lab.h, anchor: 'middle' }; }
+    }
+  }
+  // the drawing grows if a zone does
+  for (const f of rm.frames) { rm.width = Math.max(rm.width, f.x + f.w + 16); rm.height = Math.max(rm.height, f.y + f.h + 16); }
+}
+
 // The tidy-up runs on the layout that was chosen, after the choice: it changes the number of points in a
 // link without changing how it looks, and the choice is made on those counts.
 // opts.off lists the automatic tidy-ups to leave out (for showing what they do): 'wrap', 'fold', 'merge', 'tidy'
@@ -1159,7 +1351,7 @@ async function layout(model, measure, ELK, opts) {
   const env = (typeof process !== 'undefined' && process.env) || {};
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
-  const finish = rm => { clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); if (!off.has('tidy')) { separateParallels(rm); spreadEnds(rm); } placeLabels(rm, measure); return rm; };
+  const finish = rm => { spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); if (!off.has('tidy')) { separateParallels(rm); spreadEnds(rm); } placeLabels(rm, measure); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into

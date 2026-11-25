@@ -1,0 +1,33 @@
+direction down
+title "two sides"
+frame admin "admin access" [orange] {
+  eng [user]: Engineers
+  bastion [terminal]: Bastion host | SSO + MFA
+}
+frame dmz "DMZ" [orange] {
+  lb [loadbalancer]: Load balancer
+  col1 [server]: Collector
+}
+frame app "app zone" [blue] {
+  web1 [server]: web-01
+  api1 [api]: api-01
+  col2 [server]: Collector
+}
+frame data "data zone" [purple] {
+  store pg [database]: Postgres
+  col3 [server]: Collector
+}
+frame obs "observability" [green] {
+  gw [server]: OTel gateway
+  loki [file-text]: Loki
+}
+lb -> web1
+web1 -> pg
+eng -> bastion
+bastion -> lb : ssh
+bastion -> api1 : ssh
+bastion -> pg : psql
+col1 -> gw : 4317
+col2 -> gw : 4317
+col3 -> gw : 4317
+gw -> loki

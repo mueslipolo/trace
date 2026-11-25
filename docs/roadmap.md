@@ -124,6 +124,10 @@ column of nodes keep table-level attachment only; a table generated from SQL or 
   or caption (not `note`, which is a sequence statement), and a cartouche, the title block of an engineering
   drawing: a small table at the bottom right with free `key: value` fields (author, date, version, status). Open:
   whether `title` becomes visible by default (it would change every example) or takes a tag like `[visible]`.
+- Done: side zones (`[side]`, `[side left|right|top|bottom]`, `[span]` on a frame): placed beside the main flow, level
+  with the zones they are linked to, optionally spanning them; several per side, both sides, nested frames, root nodes
+  in the main flow. Left: links to a zone (not a node) are refused while side zones exist; the bus along the gutter
+  for many collectors; an `[agent]` dot on nodes.
 - Fan-in to one point (CI “all green?”): optional join/bracket for a column's outgoing links.
 - Done (first version): links that go to or leave one node with the same label and style, four or more, are merged
   into a bus (`mergeHubs`; case `hub`). Branches that cannot run straight to the bus take a free lane of their own. Left: an escape hatch to

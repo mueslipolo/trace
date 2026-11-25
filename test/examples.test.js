@@ -648,3 +648,103 @@ test('every feature example draws, before and after, and the features page has a
   const html = fs.readFileSync(path.join(root, 'dist/features.html'), 'utf8');
   assert.strictEqual((html.match(/<details class="case" id="/g) || []).length, meta.length);
 });
+
+// ---- side zones: [side], [side left|right|top|bottom], [span]
+const readFx = n => fs.readFileSync(path.join(root, 'test/fixtures', n), 'utf8');
+const frameBox = (res, id) => res.rm.frames.find(f => f.f.id === id);
+const within = (res, b) => b.x >= -0.5 && b.y >= -0.5 && b.x + b.w <= res.rm.width + 0.5 && b.y + b.h <= res.rm.height + 0.5;
+const noOverlap = (res, a, b) => !(a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && a.y < b.y + b.h - 1 && b.y < a.y + a.h - 1);
+
+test('a side zone stands to the right of the main flow, and spans the zones it is linked to', async () => {
+  const res = await compile(readFx('side-span.trace'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const obs = frameBox(res, 'obs'), main = ['dmz', 'app', 'data'].map(id => frameBox(res, id));
+  assert.ok(obs.x >= Math.max(...main.map(b => b.x + b.w)) + 20, 'to the right of every main zone');
+  assert.ok(obs.y <= Math.min(...main.map(b => b.y)) + 0.5 && obs.y + obs.h >= Math.max(...main.map(b => b.y + b.h)) - 0.5, 'as tall as the zones it is linked to');
+  assert.ok(within(res, obs));
+  for (const n of res.rm.nodes) if (['gw', 'loki'].includes(n.id)) assert.ok(n.x >= obs.x && n.x + n.w <= obs.x + obs.w && n.y >= obs.y && n.y + n.h <= obs.y + obs.h, `${n.id} stays inside the zone`);
+  for (const r of res.rm.edges) for (let i = 1; i < r.pts.length; i++) assert.ok(Math.abs(r.pts[i].x - r.pts[i - 1].x) < 0.5 || Math.abs(r.pts[i].y - r.pts[i - 1].y) < 0.5, 'links stay orthogonal');
+  // without span it keeps the height of its content
+  const free = await compile(readFx('side-span.trace').replace('[green side span]', '[green side]'), measure, ELK, {});
+  assert.ok(frameBox(free, 'obs').h < obs.h - 40, 'free height is shorter');
+});
+
+test('side zones on both sides of the main flow', async () => {
+  const res = await compile(readFx('sides-two.trace'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const admin = frameBox(res, 'admin'), obs = frameBox(res, 'obs'), main = ['dmz', 'app', 'data'].map(id => frameBox(res, id));
+  assert.ok(admin.x + admin.w <= Math.min(...main.map(b => b.x)) - 20, 'admin on the left');
+  assert.ok(obs.x >= Math.max(...main.map(b => b.x + b.w)) + 20, 'observability on the right');
+  assert.ok(within(res, admin) && within(res, obs));
+  const nodes = res.rm.nodes;
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) assert.ok(noOverlap(res, nodes[i], nodes[j]), `${nodes[i].id} and ${nodes[j].id} overlap`);
+});
+
+test('two side zones on one side stack along it, each with its own slice, inside the drawing', async () => {
+  const res = await compile(readFx('sides-stacked.trace'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const obs = frameBox(res, 'obs'), sec = frameBox(res, 'sec');
+  assert.ok(noOverlap(res, obs, sec), 'they do not overlap');
+  assert.ok(obs.y < sec.y, 'ordered by where their links come from');
+  assert.ok(within(res, obs) && within(res, sec), 'both inside the drawing');
+  assert.ok(Math.abs(obs.x - sec.x) < 1, 'in line');
+  for (const n of res.rm.nodes) { const z = n.id === 'gw' ? obs : n.id === 'siem' ? sec : null; if (z) assert.ok(n.y >= z.y && n.y + n.h <= z.y + z.h, `${n.id} inside its zone`); }
+});
+
+test('in a diagram that flows right the side zones go above and below', async () => {
+  const res = await compile(readFx('sides-right-flow.trace'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const admin = frameBox(res, 'admin'), obs = frameBox(res, 'obs'), main = ['web', 'app', 'db'].map(id => frameBox(res, id));
+  assert.ok(admin.y + admin.h <= Math.min(...main.map(b => b.y)) - 20, 'admin above');
+  assert.ok(obs.y >= Math.max(...main.map(b => b.y + b.h)) + 20, 'observability below');
+  assert.ok(admin.x <= Math.min(...main.map(b => b.x)) + 0.5 && admin.x + admin.w >= Math.max(...main.map(b => b.x + b.w)) - 0.5, 'spans the width of the zones it is linked to');
+  assert.ok(within(res, admin) && within(res, obs));
+});
+
+test('a side zone with a frame inside it, one with no links, and root nodes in the main flow', async () => {
+  const res = await compile(readFx('sides-nested.trace'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const obs = frameBox(res, 'obs'), back = frameBox(res, 'backends');
+  assert.ok(back.x >= obs.x && back.x + back.w <= obs.x + obs.w && back.y >= obs.y && back.y + back.h <= obs.y + obs.h, 'the inner frame stays inside');
+  assert.ok(within(res, frameBox(res, 'notes')));
+  const nodes = res.rm.nodes;
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) assert.ok(noOverlap(res, nodes[i], nodes[j]), `${nodes[i].id} and ${nodes[j].id} overlap`);
+});
+
+test('the DMZ case with the SIEM as a side zone keeps its bridges and draws every link', async () => {
+  const res = await compile(readFx('sides-dmz.trace'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const mgmt = frameBox(res, 'mgmt'), data = frameBox(res, 'data');
+  assert.ok(mgmt.x >= data.x + data.w + 20, 'beside the data zone');
+  const siem = res.rm.edges.filter(r => r.e.b === 'siem');
+  assert.strictEqual(siem.length, 3);
+  for (const r of siem) assert.ok(r.pts.length >= 2 && r.pts[0].x < r.pts[r.pts.length - 1].x, 'each link runs into the zone');
+});
+
+test('side zone mistakes are told with a line number and what to write', () => {
+  const { parse } = require('../src/trace.js');
+  const err = s => parse(s).errors[0];
+  assert.match(err('frame a "a" {\n  frame b "b" [side] {\n    x: X\n  }\n}\nfoo: Foo').msg, /top level/);
+  assert.match(err('direction down\nframe a "a" {\n  x: X\n}\nframe b "b" [side top] {\n  y: Y\n}').msg, /left or right/);
+  assert.match(err('direction right\nframe a "a" {\n  x: X\n}\nframe b "b" [side left] {\n  y: Y\n}').msg, /top or bottom/);
+  assert.match(err('frame a "a" {\n  x: X\n}\nframe b "b" [side left right] {\n  y: Y\n}').msg, /one side/);
+  assert.match(err('frame a "a" {\n  x: X\n}\nframe b "b" [span] {\n  y: Y\n}').msg, /\[side span\]/);
+  assert.strictEqual(err('frame a "a" {\n  x: X\n}\nframe b "b" [side left right] {\n  y: Y\n}').line, 4);
+});
+
+test('four side zones, a fixed one among spanning ones, root nodes and a rail: nothing overlaps, everything inside', async () => {
+  const res = await compile(readFx('sides-many.trace'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const zones = ['admin', 'ci', 'obs', 'sec'].map(id => frameBox(res, id));
+  for (let i = 0; i < zones.length; i++) { assert.ok(within(res, zones[i]), `${zones[i].f.id} inside`); for (let j = i + 1; j < zones.length; j++) assert.ok(noOverlap(res, zones[i], zones[j]), `${zones[i].f.id} and ${zones[j].f.id}`); }
+  const nodes = res.rm.nodes;
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) assert.ok(noOverlap(res, nodes[i], nodes[j]), `${nodes[i].id} and ${nodes[j].id} overlap`);
+  for (const f of res.rm.frames) for (const n of nodes) { if (!f.f.items.includes(n) && f.f.id !== 'mgmt') assert.ok(noOverlap(res, f, n) || n.parent === f.f || (function w(c) { return (c.items || []).some(x => x === n || w(x)); })(f.f), `${n.id} over frame ${f.f.id}`); }
+});
+
+test('links to a zone are refused with side zones, and the message names a way out', () => {
+  const { parse } = require('../src/trace.js');
+  const m = parse('direction down\nframe a "a" [blue] {\n  x: X\n}\nframe b "b" [green side] {\n  y: Y\n}\nx -> y\nb -> a');
+  assert.match(m.errors[0].msg, /Link a node in it/);
+  assert.strictEqual(m.errors[0].line, 9);
+});

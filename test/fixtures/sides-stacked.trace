@@ -1,0 +1,27 @@
+direction down
+title "two on one side"
+frame dmz "DMZ" [orange] {
+  lb [loadbalancer]: Load balancer
+  col1 [server]: Collector
+}
+frame app "app zone" [blue] {
+  web1 [server]: web-01
+  col2 [server]: Collector
+}
+frame data "data zone" [purple] {
+  store pg [database]: Postgres
+  col3 [server]: Collector
+}
+frame obs "observability" [green side span] {
+  gw [server]: OTel gateway
+}
+frame sec "security" [grey side span] {
+  siem [monitor]: SIEM
+}
+lb -> web1
+web1 -> pg
+col1 -> gw : 4317
+col2 -> gw : 4317
+col3 -> gw : 4317
+col2 -> siem : audit
+col3 -> siem : audit

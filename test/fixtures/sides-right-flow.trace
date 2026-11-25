@@ -1,0 +1,30 @@
+direction right
+title "flows right, zones top and bottom"
+frame admin "admin" [orange side top span] {
+  eng [user]: Engineers
+  bastion [terminal]: Bastion host
+}
+frame web "web tier" [blue] {
+  w1 [server]: web-01
+  c1 [server]: Collector
+}
+frame app "app tier" [green] {
+  a1 [api]: api-01
+  c2 [server]: Collector
+}
+frame db "data tier" [purple] {
+  store pg [database]: Postgres
+  c3 [server]: Collector
+}
+frame obs "observability" [grey side bottom span] {
+  gw [server]: OTel gateway
+  loki [file-text]: Loki
+}
+w1 -> a1 -> pg
+eng -> bastion
+bastion -> w1 : ssh
+bastion -> pg : psql
+c1 -> gw : 4317
+c2 -> gw : 4317
+c3 -> gw : 4317
+gw -> loki

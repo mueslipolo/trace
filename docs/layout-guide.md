@@ -103,6 +103,11 @@ Fix: put those two zones one after the other along the flow instead.
   nodes that tap on are near it: a firewall at the right edge of a top-down diagram suits `[right]`; a
   node in the middle would have to cross its neighbours (the result tells you).
 
+- For zones that watch or administer the rest (observability, admin access, security tooling), tag the frame
+  `[side]` (and `span` to make it as tall as the zones it talks to): it stands beside the flow instead of
+  becoming the last tier. Plain frames cannot tell a logging sink from a data tier, because both are the end of
+  some links.
+
 ## 6. Reading a result
 
 | What you see | What it means | Try |
