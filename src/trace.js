@@ -85,6 +85,8 @@ const LOGO_ALIASES = {
   kafka: 'apachekafka', postgres: 'postgresql', k8s: 'kubernetes', node: 'nodedotjs', nodejs: 'nodedotjs', vue: 'vuedotjs',
   mongo: 'mongodb', elastic: 'elasticsearch', gcp: 'googlecloud', otel: 'opentelemetry', golang: 'go', ts: 'typescript',
   js: 'javascript', 'hashicorp-vault': 'vault', traefik: 'traefikproxy', argocd: 'argo',
+  // Java's own logo is not available (its owner had it removed): OpenJDK's stands in, and says so in the note
+  java: 'openjdk', httpd: 'apache',
 };
 const LOGO_CDN = 'https://cdn.jsdelivr.net/npm/simple-icons@16.37.0/icons/';
 const LOGO_SMALL = 11;               // a logo beside the technology's name, in the note line

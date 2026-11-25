@@ -46,7 +46,8 @@ const si = Object.values(require('simple-icons')).filter(x => x && x.slug);
 const LOGO_CORE = ['postgresql', 'mysql', 'mariadb', 'sqlite', 'mongodb', 'redis', 'elasticsearch', 'apachekafka', 'rabbitmq',
   'kubernetes', 'docker', 'helm', 'nginx', 'traefikproxy', 'cloudflare', 'googlecloud', 'terraform', 'ansible', 'github', 'gitlab',
   'jenkins', 'githubactions', 'argo', 'prometheus', 'grafana', 'datadog', 'opentelemetry', 'python', 'go', 'nodedotjs', 'typescript',
-  'javascript', 'react', 'vuedotjs', 'dotnet', 'keycloak', 'auth0', 'vault', 'linux', 'ubuntu'];
+  'javascript', 'react', 'vuedotjs', 'dotnet', 'keycloak', 'auth0', 'vault', 'linux', 'ubuntu',
+  'apache', 'perl', 'checkmk', 'redhat', 'openjdk'];
 const bySlug = new Map(si.map(x => [x.slug, x]));
 const lmissing = LOGO_CORE.filter(n => !bySlug.has(n));
 if (lmissing.length) { console.error('Not in simple-icons: ' + lmissing.join(', ')); process.exit(1); }
