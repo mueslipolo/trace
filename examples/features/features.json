@@ -60,7 +60,7 @@
     "title": "Technology logos",
     "group": "Nodes",
     "does": "A technology’s name in the brackets draws its logo: small, before the technology’s name under the node’s own name when the node has a role icon; in the icon’s place when it has none; before the title of a zone.",
-    "effect": "You see what each part does (the role icon) and what it is built with (the logo and its name). Logos are in one colour; a node with no note gets the technology’s name as its note.",
+    "effect": "You see what each part does (the role icon) and what it is built with (the logo and its name). The note starts with the technology’s name (“Redis · sessions, 1 h”); with no role icon, the logo takes the icon’s place. Logos are in one colour.",
     "beforeLabel": "technology written in the note",
     "afterLabel": "with logos",
     "beforeOff": [],

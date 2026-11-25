@@ -679,6 +679,11 @@ function sizeNode(n, measure) {
     n.w = n.barV ? 6 : L; n.h = n.barV ? L : 6; n.nameLines = []; n.noteLines = []; n.textH = 0; n.ports = []; return;
   }
   n.nameLines = n.name ? wrap(n.name, FONT_NAME, 210, measure) : [];
+  // with a role icon and a logo, the note starts with the technology's name ("Redis · sessions, 1 h"), so the
+  // logo before it always stands beside its name; the note as written is kept for the next sizing
+  if (n.noteWritten === undefined) n.noteWritten = n.note || '';
+  const lg = n.logo && n.icon && n.kind !== 'table' ? logoData(n.logo) : null;
+  n.note = lg && iconSvg(n.icon) ? (!n.noteWritten ? lg.t : n.noteWritten.toLowerCase().startsWith(lg.t.toLowerCase()) ? n.noteWritten : `${lg.t} · ${n.noteWritten}`) : n.noteWritten;
   n.noteLines = n.note ? wrap(n.note, FONT_NOTE, 230, measure) : [];
   const tw = Math.max(0, ...n.nameLines.map(l => measure(l, FONT_NAME)), ...n.noteLines.map(l => measure(l, FONT_NOTE)));
   n.textH = n.nameLines.length * 16 + n.noteLines.length * 14;
@@ -687,11 +692,9 @@ function sizeNode(n, measure) {
   n.padX = padX;
   n.iconMarkup = n.icon ? iconSvg(n.icon) : null;
   // a logo: in the icon's place when there is no icon, else small, before the technology's name in the note
-  // (the note is the technology's name when there is none)
   n.logoD = n.logo ? (logoData(n.logo) || {}).d || null : null;
   n.logoMain = !!(n.logoD && !n.iconMarkup);
   n.logoSmall = !!(n.logoD && n.iconMarkup);
-  if (n.logoSmall && !n.note) { n.note = logoData(n.logo).t; n.noteLines = wrap(n.note, FONT_NOTE, 230, measure); }
   const tw2 = n.logoSmall ? Math.max(0, ...n.nameLines.map(l => measure(l, FONT_NAME)), ...n.noteLines.map((l, i) => measure(l, FONT_NOTE) + (i ? 0 : LOGO_SMALL + 4))) : 0;
   if (n.logoSmall) { n.textH = n.nameLines.length * 16 + n.noteLines.length * 14; n._noteW = measure(n.noteLines[0], FONT_NOTE); }
   const slot = (n.iconMarkup || n.logoMain) && !n.iconTop ? ICON_SIZE + 8 : 0;

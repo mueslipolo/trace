@@ -85,9 +85,11 @@ api [go]: Orders API
 frame k8s "Kubernetes cluster" [blue kubernetes] { ... }
 ```
 
-- With a role icon, the logo stands small, in the note's grey, before the technology's name in the note; a node
-  with no note gets the technology's name as its note (`Orders DB` above reads "PostgreSQL" under its name).
-- Without a role icon, the logo takes the icon's place.
+- With a role icon, the logo stands small, in the note's grey, before the technology's name, which starts the
+  note: `Orders DB` above reads "PostgreSQL" under its name, and `cache [zap redis]: Cache | sessions, 1 h` reads
+  "Redis · sessions, 1 h" (a note that already starts with the name is left as it is).
+- To show only the logo, write no role icon: `api [go]: Orders API`.
+- Without a role icon, the logo takes the icon's place, and the note stays as written.
 - On a frame, the logo stands before its title.
 - Logos are drawn in one colour (the ink, or the note's grey when small), never in brand colours.
 - The names are Simple Icons' (simpleicons.org; CC0, the logos remain their owners' trademarks), with short

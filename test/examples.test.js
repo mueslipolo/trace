@@ -911,7 +911,7 @@ test('logos: beside the technology name with a role icon, in its place without o
   assert.deepStrictEqual(res.warnings, []);
   const N = id => res.rm.nodes.find(n => n.id === id);
   assert.ok(N('pg').logoSmall && N('pg').note === 'PostgreSQL', 'a node with a role icon and no note gets the technology name as its note');
-  assert.ok(N('cache').logoSmall && N('cache').note === 'sessions, 1 h', 'a note of its own stays');
+  assert.ok(N('cache').logoSmall && N('cache').note === 'Redis · sessions, 1 h', 'a note of its own comes after the technology name');
   assert.ok(N('api').logoMain, 'no role icon: the logo takes its place');
   assert.ok(N('events').logoSmall && N('events').note === 'Apache Kafka', 'kafka is the short name of apachekafka');
   assert.strictEqual((res.svg.match(/class="logo-soft"/g) || []).length, 6 + 1, 'six small logos and the zone');
