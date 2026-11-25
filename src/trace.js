@@ -2062,6 +2062,27 @@ function splitDecisions(rm, flowH) {
   }
 }
 
+// A hierarchy: a tree (no zones, no layout blocks, every node reached by at most one link, one root) with no
+// decisions. Its parents are centred on their children.
+function isTree(model) {
+  if (model.treeShape !== undefined) return model.treeShape;
+  const ok = (() => {
+    if (model.frames.size || model.groups.length || model.mode === 'sequence') return false;
+    const nodes = [...model.nodes.values()];
+    // a flowchart (decisions) keeps its straight main path; centring is for hierarchies
+    if (nodes.some(n => n.kind === 'ask')) return false;
+    const into = new Map();
+    for (const e of model.edges) {
+      if (e.a === e.b || e.start) return false;
+      into.set(e.b, (into.get(e.b) || 0) + 1);
+    }
+    if ([...into.values()].some(v => v > 1)) return false;
+    return nodes.length >= 4 && model.edges.length === nodes.length - 1 && nodes.filter(n => !into.has(n.id)).length === 1;
+  })();
+  model.treeShape = ok;
+  return ok;
+}
+
 async function chooseLayout(model, measure, ELK) {
   // Three ways to place frames, best valid one wins (fewest link bends, then the earlier one):
   //  1. per frame: each frame laid out by its own ELK run, then composed (null if it cannot)
@@ -2610,7 +2631,8 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       'elk.layered.spacing.edgeEdgeBetweenLayers': sp(12),
       'elk.spacing.edgeLabel': '4',
       'elk.layered.edgeLabels.sideSelection': 'ALWAYS_UP',
-      'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+      // a tree (an org chart, a hierarchy) puts each parent centred on its children
+      ...(isTree(model) ? { 'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF', 'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED' } : { 'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX' }),
       'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
       ...(CYC ? { 'elk.layered.cycleBreaking.strategy': CYC } : {}),
       'elk.layered.thoroughness': '30',

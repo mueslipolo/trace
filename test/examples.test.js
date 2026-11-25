@@ -958,6 +958,17 @@ test('a decision sends its two outcomes out of different sides, each with its la
   }
 });
 
+test('a hierarchy (a tree with no decisions) puts each parent in the middle of its children; a decision tree keeps its straight path', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/orgchart.trace'), 'utf8'), measure, ELK, {});
+  const N = id => res.rm.nodes.find(n => n.id === id), c = n => n.y + n.h / 2;
+  for (const [p, kids] of [['cto', ['platform', 'security']], ['cfo', ['finance', 'legal']], ['coo', ['support', 'ops']]]) {
+    const lo = c(N(kids[0])), hi = c(N(kids[1])), mid = (lo + hi) / 2;
+    assert.ok(Math.abs(c(N(p)) - mid) <= (hi - lo) / 4 + 1, `${p} in the middle half of its children (${c(N(p))}, children ${lo} to ${hi})`);
+  }
+  const who = await compile(fs.readFileSync(path.join(root, 'examples/playground/who-may-delete-audit-rows.trace'), 'utf8'), measure, ELK, {});
+  assert.ok(who.rm.edges.some(r => r.e.label === 'yes' && r.pts.length === 2), 'the decision tree keeps a straight yes');
+});
+
 test('every link is orthogonal: each stretch is horizontal or vertical, in every example and held-out diagram', async () => {
   const holdout = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace')).map(f => 'examples/holdout/' + f);
   for (const file of [...files, ...holdout]) {
