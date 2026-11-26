@@ -609,6 +609,7 @@ function desugarSides(model) {
   const lane = (axis, items) => { const l = { type: 'lane', id: '_side' + (++n), axis, title: '', items, parent: null, line: 0 }; for (const it of items) it.parent = l; return l; };
   const at = side => order(sides.filter(f => f.side === side));
   const mainLane = lane(flowH ? 'h' : 'v', main);
+  mainLane.id = '_main';     // the main flow's zones line up like any column's; only the side lanes are left alone
   model.mainLane = mainLane;
   const parts = [];
   if (!flowH) {
@@ -2958,7 +2959,10 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       }
       const r = await elk.layout({ id: Fr ? prefix(Fr) + Fr.id : 'root', layoutOptions: opts, children, edges });
       // (not the rows that side zones are built from: spanSides places those zones level with what they serve)
-      if (isLane && !/^_(side|fold)/.test(String(Fr.id))) { if (dirH) alignRowTops(r, children); else alignColumnLefts(r, children); }
+      // the main flow beside side zones lines its zones up only when they are written the same size (same-width
+      // edge core access): otherwise each keeps the centring ELK gave it, as without side zones
+      const sameSized = Fr && Fr.id === '_main' && model.sameSize.some(ss => ss.axis === (dirH ? 'h' : 'w') && r.children.filter(c => ss.ids.some(id => c.id === 'F:' + id)).length >= 2);
+      if (isLane && (!/^_(side|fold|main)/.test(String(Fr.id)) || sameSized)) { if (dirH) alignRowTops(r, children); else alignColumnLefts(r, children); }
       const minW = Fr && !isLane ? Math.ceil(Fr.titleW + 36) : 0;
       const w = Math.max(r.width, minW), dx = (w - r.width) / 2;
       const pos = new Map(r.children.map(c => [c.id, { x: c.x + dx, y: c.y }]));

@@ -69,6 +69,7 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | A long pipeline reads as one row per stage, each row a level line. | ML pipeline (nodes scattered by the automatic wrap) | usage: a `column` of `row`s, one per stage | nodes of one chain at many different heights |
 | Topics, consumers and similar stacks are ordered to minimise crossings. | Kafka | usage: declaration order (found by trying every order) | crossings between two stacks |
 | A zone's title never sits on a link; a zone with no free corner grows by a title band, or sideways, to make one. | zero-trust mockup, network boundaries, simple DMZ (titles under links through narrow zones) | engine: `roomForTitles` | a zone title crossed by a link |
+| Zones written the same width line up on the left too, also when a side zone stands beside them. | office mockup with the security services as a side zone (edge zone shifted right, side zone dropped below the tiers) | engine: the main flow's lane aligns same-width zones | same-width zones with different left edges |
 
 ## Reading
 

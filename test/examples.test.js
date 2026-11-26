@@ -1048,3 +1048,14 @@ test('no zone title is crossed by a link in any example (a zone with no free pla
     }
   }
 });
+
+test('side zones: zones written the same width in the main flow keep a common left edge, and the side zone stands level with them', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'test/fixtures/side-same-width.trace'), 'utf8'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const f = id => res.rm.frames.find(x => x.f.id === id);
+  const xs = ['edge', 'core', 'access'].map(id => f(id).x);
+  assert.ok(Math.max(...xs) - Math.min(...xs) < 1, `edge, core and access line up on the left (${xs.map(Math.round)})`);
+  const sec = f('sec'), access = f('access'), edge = f('edge');
+  assert.ok(sec.y < access.y + access.h && sec.y + sec.h > edge.y, 'the side zone is beside the tiers, not below them');
+  assert.ok(sec.x + sec.w < Math.min(...xs), 'and on their left');
+});
