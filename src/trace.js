@@ -1872,7 +1872,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); return rm; };
+  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); roomForTitles(rm); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -4046,6 +4046,94 @@ function measureHead(model, rm, measure) {
   return head;
 }
 
+// A zone whose title has no free place (a narrow zone with a link through its middle) grows, when the room it
+// grows into is empty (no node, no other zone, no label, no link running along it): by a title band below its
+// contents, else above them, else wide enough to hold the title beside the links that cross its top, to the right
+// or to the left. The zones round it grow with it where they would no longer hold it.
+function roomForTitles(rm) {
+  const B = 18;
+  const contains = (g, f) => g !== f && g.x <= f.x + 0.5 && g.y <= f.y + 0.5 && g.x + g.w >= f.x + f.w - 0.5 && g.y + g.h >= f.y + f.h - 0.5;
+  const ov = (a, b, m) => a.x < b.x + b.w + m && b.x - m < a.x + a.w && a.y < b.y + b.h + m && b.y - m < a.y + a.h;
+  const labBox = r => { const w = r.e.lab.w, x = r.lab.anchor === 'middle' ? r.lab.x - w / 2 : r.lab.anchor === 'end' ? r.lab.x - w : r.lab.x; return { x, y: r.lab.y, w, h: r.e.lab.h }; };
+  for (const fr of rm.frames) {
+    if (!fr.f.title || titleSpot(rm, fr)) continue;
+    const tw = fr.f.titleW || fr.f.title.length * 6.5;
+    // the links crossing the strip under the top edge, where the title would go
+    const xs = rm.edges.filter(r => r.pts && !r.e.lifeline).flatMap(r => r.pts.flatMap((q, i) => {
+      if (!i) return [];
+      const a = r.pts[i - 1];
+      return Math.abs(a.x - q.x) < 0.5 && Math.min(a.y, q.y) < fr.y + 23 && fr.y + 9 < Math.max(a.y, q.y) && a.x > fr.x && a.x < fr.x + fr.w ? [a.x] : [];
+    }));
+    const wR = xs.length ? Math.max(...xs) + 6 + tw + 12 - (fr.x + fr.w) : 0;
+    const wL = xs.length ? fr.x - (Math.min(...xs) - 6 - tw - 12) : 0;
+    const tries = [
+      { band: { x: fr.x, y: fr.y + fr.h, w: fr.w, h: B }, horiz: true },
+      { band: { x: fr.x, y: fr.y - B, w: fr.w, h: B }, horiz: true },
+      ...(wR > 0 && wR < tw + 24 ? [{ band: { x: fr.x + fr.w, y: fr.y, w: wR, h: fr.h }, horiz: false }] : []),
+      ...(wL > 0 && wL < tw + 24 && fr.x - wL >= 8 ? [{ band: { x: fr.x - wL, y: fr.y, w: wL, h: fr.h }, horiz: false }] : []),
+    ];
+    for (const { band, horiz } of tries) {
+      if (band.y < 0) continue;
+      const anc = rm.frames.filter(g => contains(g, fr));
+      const free = !rm.nodes.some(n => n.x !== undefined && ov(band, n, 4)) &&
+        !rm.frames.some(g => g !== fr && !anc.includes(g) && !contains(fr, g) && ov(band, g, 4)) &&
+        !rm.edges.some(r => r.lab && r.e.lab && ov(band, labBox(r), 2)) &&
+        !rm.edges.some(r => r.pts && r.pts.some((q, i) => {
+          if (!i) return false;
+          const a = r.pts[i - 1];
+          if (horiz ? Math.abs(q.y - a.y) >= 0.5 : Math.abs(q.x - a.x) >= 0.5) return false;   // a link crossing the band is fine
+          return ov(band, { x: Math.min(q.x, a.x), y: Math.min(q.y, a.y), w: Math.abs(q.x - a.x), h: Math.abs(q.y - a.y) }, 2);
+        }));
+      if (!free) continue;
+      const all = [fr, ...anc], was = all.map(g => [g.x, g.y, g.w, g.h]);
+      const R = { x: Math.min(fr.x, band.x), y: Math.min(fr.y, band.y), x2: Math.max(fr.x + fr.w, band.x + band.w), y2: Math.max(fr.y + fr.h, band.y + band.h) };
+      fr.x = R.x; fr.y = R.y; fr.w = R.x2 - R.x; fr.h = R.y2 - R.y;
+      for (const g of anc) {
+        const x = Math.min(g.x, fr.x - 10), y = Math.min(g.y, fr.y - 10);
+        const x2 = Math.max(g.x + g.w, fr.x + fr.w + 10), y2 = Math.max(g.y + g.h, fr.y + fr.h + 10);
+        g.x = x; g.y = y; g.w = x2 - x; g.h = y2 - y;
+      }
+      if (titleSpot(rm, fr)) break;
+      all.forEach((g, i) => { [g.x, g.y, g.w, g.h] = was[i]; });
+    }
+  }
+  for (const f of rm.frames) { rm.width = Math.max(rm.width, f.x + f.w + 16); rm.height = Math.max(rm.height, f.y + f.h + 16); }
+}
+
+// Where a zone's title goes: the first corner where it clears every node, link and label, then the first free
+// place along the top edge, then the bottom edge, nearest the right. null when there is none.
+function titleSpot(rm, fr) {
+  // first corner where the title clears every node
+  const tw = fr.f.titleW || fr.f.title.length * 6.5;
+  const spots = [
+    { x: fr.x + fr.w - 12, y: fr.y + 20, a: 'end' }, { x: fr.x + 12, y: fr.y + 20, a: 'start' },
+    { x: fr.x + fr.w - 12, y: fr.y + fr.h - 10, a: 'end' }, { x: fr.x + 12, y: fr.y + fr.h - 10, a: 'start' },
+  ];
+  if (fr.titleBottom) spots.push(...spots.splice(0, 2));
+  if (fr.titleLeft) spots.unshift({ x: fr.x + 10, y: fr.y + 17, a: 'start' });
+  const clear = sp => {
+    const x0 = sp.a === 'end' ? sp.x - tw : sp.x, y0 = sp.y - 11;
+    const onLabel = rm.edges.some(r => r.lab && r.e.lab && (() => {
+      const b0 = r.lab.anchor === 'middle' ? r.lab.x - r.e.lab.w / 2 : r.lab.anchor === 'end' ? r.lab.x - r.e.lab.w : r.lab.x;
+      return b0 < x0 + tw + 4 && x0 - 4 < b0 + r.e.lab.w && r.lab.y < y0 + 14 && y0 < r.lab.y + r.e.lab.h;
+    })());
+    return !onLabel && !rm.nodes.some(n => n.x < x0 + tw + 4 && x0 - 4 < n.x + n.w && n.y < y0 + 14 && y0 < n.y + n.h) &&
+      !rm.edges.some(r => r.pts && !r.e.lifeline && r.pts.some((q, i) => {
+        if (!i) return false;
+        const a = r.pts[i - 1];
+        return Math.min(a.x, q.x) < x0 + tw + 4 && x0 - 4 < Math.max(a.x, q.x) && Math.min(a.y, q.y) < y0 + 14 && y0 < Math.max(a.y, q.y);
+      }));
+  };
+  let sp = spots.find(clear);
+  if (!sp) {
+    // every corner is taken: the free place along the top edge, then the bottom edge, nearest the right
+    const out = [];
+    for (const [y, base] of [[fr.y + 20, 0], [fr.y + fr.h - 10, 1]]) for (let x = fr.x + fr.w - 12; x >= fr.x + 12 + tw; x -= 6) out.push({ x, y, a: 'end', base });
+    sp = out.find(clear);
+  }
+  return sp || null;
+}
+
 function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) {
   const pfx = idPrefix + '-';
   const model = rm.model;
@@ -4057,35 +4145,8 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     const color = (t.find(x => PALETTE.light.zones[x === 'gray' ? 'grey' : x]) || 'green').replace('gray', 'grey');
     body.push(`<rect class="zone zone-${color}${t.includes('dashed') ? ' dashed' : ''}" x="${r1(fr.x)}" y="${r1(fr.y)}" width="${r1(fr.w)}" height="${r1(fr.h)}" rx="10"/>`);
     if (fr.f.title) {
-      // first corner where the title clears every node
       const tw = fr.f.titleW || fr.f.title.length * 6.5;
-      const spots = [
-        { x: fr.x + fr.w - 12, y: fr.y + 20, a: 'end' }, { x: fr.x + 12, y: fr.y + 20, a: 'start' },
-        { x: fr.x + fr.w - 12, y: fr.y + fr.h - 10, a: 'end' }, { x: fr.x + 12, y: fr.y + fr.h - 10, a: 'start' },
-      ];
-      if (fr.titleBottom) spots.push(...spots.splice(0, 2));
-      if (fr.titleLeft) spots.unshift({ x: fr.x + 10, y: fr.y + 17, a: 'start' });
-      const clear = sp => {
-        const x0 = sp.a === 'end' ? sp.x - tw : sp.x, y0 = sp.y - 11;
-        const onLabel = rm.edges.some(r => r.lab && r.e.lab && (() => {
-          const b0 = r.lab.anchor === 'middle' ? r.lab.x - r.e.lab.w / 2 : r.lab.anchor === 'end' ? r.lab.x - r.e.lab.w : r.lab.x;
-          return b0 < x0 + tw + 4 && x0 - 4 < b0 + r.e.lab.w && r.lab.y < y0 + 14 && y0 < r.lab.y + r.e.lab.h;
-        })());
-        return !onLabel && !rm.nodes.some(n => n.x < x0 + tw + 4 && x0 - 4 < n.x + n.w && n.y < y0 + 14 && y0 < n.y + n.h) &&
-          !rm.edges.some(r => r.pts && !r.e.lifeline && r.pts.some((q, i) => {
-            if (!i) return false;
-            const a = r.pts[i - 1];
-            return Math.min(a.x, q.x) < x0 + tw + 4 && x0 - 4 < Math.max(a.x, q.x) && Math.min(a.y, q.y) < y0 + 14 && y0 < Math.max(a.y, q.y);
-          }));
-      };
-      let sp = spots.find(clear);
-      if (!sp) {
-        // every corner is taken: the free place along the top edge, then the bottom edge, nearest the right
-        const out = [];
-        for (const [y, base] of [[fr.y + 20, 0], [fr.y + fr.h - 10, 1]]) for (let x = fr.x + fr.w - 12; x >= fr.x + 12 + tw; x -= 6) out.push({ x, y, a: 'end', base });
-        sp = out.find(clear);
-      }
-      sp = sp || spots[0];
+      const sp = titleSpot(rm, fr) || { x: fr.x + fr.w - 12, y: fr.y + 20, a: 'end' };
       const zl = fr.f.logo && logoData(fr.f.logo);
       if (zl) {
         // the logo before the title, both in the title's grey

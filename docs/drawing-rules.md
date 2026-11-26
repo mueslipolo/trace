@@ -68,6 +68,7 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | A diagram is roughly page-shaped; a long chain folds into rows, but not at the price of a link crossing the page. | CI/CD, k8s | engine: chain wrap, `foldCandidate` with its guards | width over 3.5 times the height |
 | A long pipeline reads as one row per stage, each row a level line. | ML pipeline (nodes scattered by the automatic wrap) | usage: a `column` of `row`s, one per stage | nodes of one chain at many different heights |
 | Topics, consumers and similar stacks are ordered to minimise crossings. | Kafka | usage: declaration order (found by trying every order) | crossings between two stacks |
+| A zone's title never sits on a link; a zone with no free corner grows by a title band, or sideways, to make one. | zero-trust mockup, network boundaries, simple DMZ (titles under links through narrow zones) | engine: `roomForTitles` | a zone title crossed by a link |
 
 ## Reading
 

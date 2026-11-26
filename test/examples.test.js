@@ -1033,3 +1033,18 @@ test('join: a zone border beside another row does not stop a bus (CI/CD gate, DM
     assert.ok(into.every(r => r.merged), `${f}: the links into ${hub} are joined`);
   }
 });
+
+test('no zone title is crossed by a link in any example (a zone with no free place grows to make one)', async () => {
+  for (const file of files) {
+    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
+    if (res.errors.length) continue;
+    for (const fr of res.rm.frames) {
+      if (!fr.f.title || fr.f.logo) continue;
+      const m = res.svg.match(new RegExp(`<text class="ztitle muted" x="([\\d.]+)" y="([\\d.]+)" text-anchor="(\\w+)">${fr.f.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/&/g, '&amp;')}</text>`));
+      if (!m) continue;
+      const x = +m[1], y = +m[2], w = fr.f.titleW, x0 = m[3] === 'end' ? x - w : x;
+      const hit = res.rm.edges.some(r => r.pts && !r.e.lifeline && r.pts.some((q, i) => i && Math.min(r.pts[i - 1].x, q.x) < x0 + w && x0 < Math.max(r.pts[i - 1].x, q.x) && Math.min(r.pts[i - 1].y, q.y) < y + 3 && y - 11 < Math.max(r.pts[i - 1].y, q.y)));
+      assert.ok(!hit, `${file}: the title of ${fr.f.id} is not crossed by a link`);
+    }
+  }
+});
