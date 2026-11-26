@@ -1069,3 +1069,16 @@ test('zones that ELK puts side by side in one layer share their top (per-zone la
     assert.ok(Math.max(...tops) - Math.min(...tops) < 1, `the four backends share their top (${tops.map(Math.round)})`);
   } finally { if (was === undefined) delete process.env.TRACE_LAYOUT; else process.env.TRACE_LAYOUT = was; }
 });
+
+test('sequence: a message label has a ground of the page colour, so lifelines it spans do not show through it', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/gitlab-ssh-fetch.trace'), 'utf8'), measure, ELK, {});
+  const labelled = res.rm.edges.filter(r => !r.e.lifeline && r.lab && r.e.lab).length;
+  assert.ok(labelled > 0);
+  assert.strictEqual((res.svg.match(/class="labbg"/g) || []).length, labelled);
+});
+
+test('arrowheads at the start of a link use their own marker with orient="auto" (PNG renderers lack auto-start-reverse)', async () => {
+  const res = await compile('a -> b\nc <- d\n', measure, ELK, {});
+  assert.ok(!/auto-start-reverse/.test(res.svg));
+  assert.match(res.svg, /marker-start="url\(#[^)]*s\)"/);
+});

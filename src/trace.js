@@ -3893,6 +3893,7 @@ function diagramCSS(p, scope) {
     `${s}.fg{fill:${p.fg}}${s}.muted{fill:${p.muted}}` +
     `${s}.dtitle{font-size:16px;font-weight:700}${s}.cap{font-size:12px}${s}.ck{font-size:10.5px}${s}.cv{font-size:11px;font-weight:600}${s}.name{font-size:13px;font-weight:600}${s}.note{font-size:11px;font-weight:400}${s}.ztitle{font-size:11.5px;font-weight:600}` +
     `${s}.halo{paint-order:stroke;stroke:${p.panel};stroke-width:4px;stroke-linejoin:round}` +
+    `${s}.labbg{fill:${p.panel}}` +
     `${s}.box{fill:${p.box};stroke:${p.line};stroke-width:1.2}` +
     `${s}.box.engine{fill:${p.engine}}${s}.box.store{fill:${p.storeFill};stroke:${p.storeLine};stroke-width:1.4}` +
     `${s}.box.ok{stroke:${p.ok};stroke-width:1.6}${s}.box.bad{stroke:${p.bad};stroke-width:1.6}` +
@@ -4251,10 +4252,16 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     const card = (e.tags || []).map(t => CARD_RE.exec(t)).find(Boolean);
     // a link with cardinalities has its ends drawn as crow's feet, bars and circles instead of arrowheads
     const hp = card ? pts : shorten(pts, e.start, e.end);
-    const mk = card ? '' : (e.end ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.start ? ` marker-start="url(#${headId(e, pfx)})"` : '');
+    const mk = card ? '' : (e.end ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.start ? ` marker-start="url(#${headId(e, pfx)}s)"` : '');
     body.push(`<path class="${cls.join(' ')}" d="${roundPath(hp, 7, hopsFor(r))}"${mk}/>`);
     if (card && pts.length > 1) { body.push(cardinalitySVG(pts[0], pts[1], card[1]), cardinalitySVG(pts[pts.length - 1], pts[pts.length - 2], card[2])); }
     if (lab && e.lab) {
+      // in a sequence a message label usually spans lifelines: a halo is too thin to hide them, so the label
+      // gets a ground of the page's colour
+      if (model.mode === 'sequence' && !e.lifeline) {
+        const w = e.lab.w + 6, x0 = lab.anchor === 'middle' ? lab.x - w / 2 : lab.anchor === 'end' ? lab.x - w + 3 : lab.x - 3;
+        labels.push(`<rect class="labbg" x="${r1(x0)}" y="${r1(lab.y)}" width="${r1(w)}" height="${r1(e.lab.h)}" rx="2"/>`);
+      }
       let y = lab.y + 11;
       for (const l of e.lab.lines) {
         labels.push(`<text class="note muted halo" x="${r1(lab.x)}" y="${r1(y)}" text-anchor="${lab.anchor}">${esc(l)}</text>`);
@@ -4293,7 +4300,10 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
 
   const defs = ['a:head', 'ok:head-ok', 'bad:head-bad', 'mu:head-muted'].map(s => {
     const [id, c] = s.split(':');
-    return `<marker id="${pfx}${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" class="${c}"/></marker>`;
+    // a head for the end and one for the start, each with plain orient="auto": not every renderer knows
+    // auto-start-reverse (resvg, used for the PNGs, does not)
+    return `<marker id="${pfx}${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" class="${c}"/></marker>` +
+      `<marker id="${pfx}${id}s" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0 L0 5 L10 10 Z" class="${c}"/></marker>`;
   }).join('');
   // the title and caption above the drawing, the cartouche at the bottom right
   const head = rm.head || { title: null, caption: [], cart: null };
