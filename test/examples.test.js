@@ -478,7 +478,10 @@ test('labels and titles stay off the links in the DMZ case', async () => {
   // the log links run to the SIEM in the side zone, and their labels sit beyond the firewall they leave
   const taps = res.rm.edges.filter(r => r.e.b === 'siem');
   assert.strictEqual(taps.length, 3);
-  for (const t of taps) { const n = res.rm.nodes.find(x => x.id === t.e.a); assert.ok(t.lab.x - t.e.lab.w / 2 >= n.x + n.w - 1, 'a log label is clear of its firewall'); }
+  // they are joined ([join] on the SIEM): one carries the label, and it is clear of every firewall
+  const labelled = taps.filter(t => t.lab);
+  assert.strictEqual(labelled.length, 1);
+  for (const t of labelled) for (const id of ['fw1', 'fw2', 'fw3']) { const n = res.rm.nodes.find(x => x.id === id); assert.ok(t.lab.x - t.e.lab.w / 2 >= n.x + n.w - 1, 'the log label is clear of the firewalls'); }
   // a step's label is above the step, not on it
   const step = res.rm.edges.find(r => r.e.a === 'api1' && r.e.b === 'fw3');
   const ys = step.pts.filter((p, i) => i && Math.abs(p.y - step.pts[i - 1].y) < 0.5 && Math.abs(p.x - step.pts[i - 1].x) > 1).map(p => p.y);
@@ -1008,4 +1011,25 @@ test('no two links lie on top of each other, in any example (links merged into o
     }
   }
   assert.deepStrictEqual(bad, []);
+});
+
+test('join: links into a node tagged join meet one line with a dot, from two links up; without the tag they stay apart', async () => {
+  const src = fs.readFileSync(path.join(root, 'examples/features/join.after.trace'), 'utf8');
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const into = res.rm.edges.filter(r => r.e.b === 'gate');
+  assert.strictEqual(into.length, 3);
+  assert.ok(into.every(r => r.merged && r.mergeHub === 'gate'), 'the three checks are joined');
+  assert.ok(res.rm.joins.length >= 1, 'a dot where they meet');
+  const plain = await compile(src.replace(' [join]', ''), measure, ELK, {});
+  assert.ok(!plain.rm.edges.some(r => r.merged), 'three links alone are not joined');
+});
+
+test('join: a zone border beside another row does not stop a bus (CI/CD gate, DMZ SIEM)', async () => {
+  for (const [f, hub, from] of [['cicd', 'gate', ['unit', 'lint', 'sast']], ['dmz', 'siem', ['fw1', 'fw2', 'fw3']]]) {
+    const res = await compile(fs.readFileSync(path.join(root, `examples/cases/${f}.trace`), 'utf8'), measure, ELK, {});
+    const into = res.rm.edges.filter(r => r.e.b === hub && from.includes(r.e.a));
+    assert.strictEqual(into.length, 3);
+    assert.ok(into.every(r => r.merged), `${f}: the links into ${hub} are joined`);
+  }
 });

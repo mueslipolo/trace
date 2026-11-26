@@ -16,12 +16,10 @@ and `docs/architecture.md`). Not folded today because the long return links cost
 save: cicd, hybrid, k8s, the unhinted DMZ.
 
 Left:
-- Relation statements (`place app below dmz`, `proxy beside fw`) as sugar for the same thing, if
-  nesting blocks turns out to be awkward. Needed by: hybrid cloud (subnet tiers as bands in the
-  VPC), branch office (proxy beside the firewall), network boundaries (store network right of the
-  workers). Try these as layout blocks first.
-- A snake: a row that flows right to left, so a link from the end of one row reaches the start of
-  the next without looping round.
+- Relation statements (`place app below dmz`, `proxy beside fw`): decided against (owner, November 2026):
+  where a node stands is a design question, answered by writing rows, columns and zones.
+- A snake: decided against as a feature (owner, November 2026). Write the row's nodes right to left to get
+  one, or use a single column; the automatic fold stays as it is.
 - Links between lanes loop round the grid when the zones are far apart (the DMZ to app links); a
   cheaper route or port choice would help.
 - Bridges between rows (a firewall on a horizontal border while the diagram flows right).
@@ -119,8 +117,8 @@ author, or tried automatically and compared with the same cost the engine uses. 
 - Edge labels in direction down take a whole row; find a placement that sits beside the link. Tried: ELK's
   `edgeLabels.inline` (no effect in 0.9.3), and labels given to ELK at 1px so they take no room (the incident
   case got 6% shorter, but the held-out set got 7 more crossings and 10 more bends: rejected).
-- “Call back” links that run backwards into the previous column (k8s: web pods calling svc/cart)
-  should loop around the column edge.
+- “Call back” links that run backwards into the previous column (k8s: web pods calling svc/cart): mocked as a
+  loop over the column and as a return lane; the owner kept today's routing (November 2026).
 - Done: a strip wider than 3.5:1 is retried as two or three rows (`foldCandidate`; `TRACE_NOFOLD=1` or
   `compile(..., { off: ['fold'] })` switches it off). Kept only when the finished drawing has less width, no more
   crossings, at most 15% more bends, no more labels crossed and no return link longer than 30% of the width.
@@ -133,7 +131,11 @@ author, or tried automatically and compared with the same cost the engine uses. 
   with the zones they are linked to, optionally spanning them; several per side, both sides, nested frames, root nodes
   in the main flow. Left: links to a zone (not a node) are refused while side zones exist; the bus along the gutter
   for many collectors; an `[agent]` dot on nodes.
-- Fan-in to one point (CI “all green?”): optional join/bracket for a column's outgoing links.
+- Done: `[join]` on a node asks for the bus from two links up (CI “all green?”, the DMZ's SIEM); chosen among a
+  bar, a bracket, a bus with a dot and fork-and-join. A bus is no longer refused for a zone border that is level
+  with it but in another row. Rejected: placement statements (`place proxy beside fw`: a design question, written
+  with rows), an opener mark for “dials out, then traffic flows in” (the label says it), a grid of tables (zones
+  by domain are already possible and none of the arrangements beat the automatic layout).
 - Done: links that go to or leave one node with the same label and style, four or more, are merged into a bus
   (`mergeHubs`); a bus never crosses another bus's line. Five or more between one node and members of one zone it
   is not in meet at a bar inside that zone (`addJunctions`, `placeOnConcentrators`; cases `hub` and `home`). Left:

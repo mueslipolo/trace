@@ -8,12 +8,12 @@
         "near": 0,
         "overlap": 0,
         "crossings": 35,
-        "bends": 727,
+        "bends": 735,
         "border": 1,
         "labels": 0,
         "nodeOverlap": 0,
         "frameCover": 1,
-        "wide": 8,
+        "wide": 10,
         "hug": 2
       }
     },

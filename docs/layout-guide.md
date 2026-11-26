@@ -128,7 +128,7 @@ both sit on the same border.
 
 ## 7. Many links into one node
 
-Ten links into one node read as a tangle. Three answers, from the least to the most written:
+Ten links into one node read as a tangle. Four answers, from the least to the most written:
 
 - **Same label, nothing to write:** four or more links with the same label and style to or from one node are
   drawn as one bus, the label written once.
@@ -136,6 +136,8 @@ Ten links into one node read as a tangle. Three answers, from the least to the m
   that all validate a token, the devices behind one switch), the engine gathers them on a bar inside the zone,
   and only one link crosses its edge. A zone round the group, and a `row` or `column` so the members line up
   along the bar, is often all it takes (the home network case).
+- **Fewer than four, written:** tag the node `[join]` (a gate after a parallel stage, a log collector) and two or
+  three links that look the same meet a line with a dot, then one arrow reaches it.
 - **`mark` the node** when the links say no more than “uses it” and it is not what the diagram is about
   (feature flags, a shared library): the links are no longer drawn, each sender carries the node's icon, and
   a legend line explains it. Not for a node whose links carry their own labels, nor for the subject of the

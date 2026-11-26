@@ -2,7 +2,7 @@
 // Parser → model → ELK layout (with hand-stacked column/row groups) → SVG.
 
 const KINDS = new Set(['box', 'store', 'engine', 'state', 'pill', 'ask', 'start', 'final', 'end']);
-const NODE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'span', 'bridge']);
+const NODE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'span', 'bridge', 'join']);
 const EDGE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted']);
 const CARD_RE = /^(1|n|01|0n)-(1|n|01|0n)$/;
 // the tags a link accepts: the fixed ones, and a cardinality for its two ends (n-1, 1-1, 0n-1, n-01 ...)
@@ -1364,9 +1364,12 @@ function mergeHubs(rm, MIN = 4) {
   const sorted = [...groups.entries()].sort((x, y) => y[1].length - x[1].length);
   for (const [k, list0] of sorted) {
     const list = list0.filter(r => !used.has(r));
-    if (list.length < MIN) continue;
+    if (list.length < 2) continue;
     const role = k.split('|')[1];
     const hub = rm.nodes.find(n => n.id === list[0].e[role]);
+    // a node tagged join asks for it from two links up
+    const need = hub && hub.tags && hub.tags.includes('join') ? 2 : MIN;
+    if (list.length < need) continue;
     if (!hub || hub.x === undefined || hub.cols || hub.span) continue;
     const rev = role === 'a';
     // every link seen as running toward the hub
@@ -1468,11 +1471,17 @@ function mergeHubs(rm, MIN = 4) {
       }
       return ok.filter(it => res.has(it)).map(it => res.get(it));
     };
-    const frameNear = m => rm.frames.some(f => vert ? (Math.abs(m - f.y) < 20 || Math.abs(m - f.y - f.h) < 20) : (Math.abs(m - f.x) < 20 || Math.abs(m - f.x - f.w) < 20));
+    // a border only counts where the bus runs beside it: across the span of its branches and trunk
+    const spanC = ok.map(it => C(it.P[0])).concat(trunkC), sLo = Math.min(...spanC) - 20, sHi = Math.max(...spanC) + 20;
+    const frameNear = m => rm.frames.some(f => vert
+      ? (Math.abs(m - f.y) < 20 || Math.abs(m - f.y - f.h) < 20) && f.x < sHi && sLo < f.x + f.w
+      : (Math.abs(m - f.x) < 20 || Math.abs(m - f.x - f.w) < 20) && f.y < sHi && sLo < f.y + f.h);
     const startMax = Math.max(...ok.map(it => M(it.P[0]) * dir)) ;
     // the side of the bus that carries the arrowheads needs room for them (30px); the other side 16px
     const e0 = ok[0].r.e, arrowAtHub = role === 'b' ? !!e0.end : !!e0.start;
-    const TR = arrowAtHub ? 30 : 16, BR = arrowAtHub ? 16 : 30;
+    // (a join that was asked for makes do with a little less)
+    const ask = need === 2 ? 0.8 : 1;
+    const TR = (arrowAtHub ? 30 : 16) * ask, BR = (arrowAtHub ? 16 : 30) * ask;
     let plan = [], busM;
     if (J) {
       // the members' side needs room for arrowheads only when the branches have them there
@@ -1493,13 +1502,13 @@ function mergeHubs(rm, MIN = 4) {
       }
       if (!plan.length && !frameNear(busM)) plan = build(busM);
     }
-    if (plan.length < MIN) continue;
+    if (plan.length < need) continue;
     // a bus never crosses the line of another bus: a branch cutting across it reads as joining it, so such a
     // branch stays an ordinary link (crossing another bus's branch is an ordinary crossing, with a hop)
     // and a bus that would leave out more than a quarter of its links is not built: it would not say they are alike
     const whole = plan.length;
     plan = plan.filter(x => !x.path.some((p, j) => j && busLines.some(([u, w]) => crossSeg(x.path[j - 1], p, u, w))));
-    if (plan.length < Math.max(MIN, Math.ceil(whole * 0.75))) continue;
+    if (plan.length < Math.max(need, Math.ceil(whole * 0.75))) continue;
     const cs = plan.map(x => x.c).concat(trunkC), lo = Math.min(...cs), hi = Math.max(...cs);
     // nor is it built where branches of a bus already drawn would cut across its own line
     const mine = [[mk(busM, lo), mk(busM, hi)], [mk(busM, trunkC), mk(endM, trunkC)]];

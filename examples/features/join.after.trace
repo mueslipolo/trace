@@ -1,0 +1,14 @@
+title "A parallel stage"
+build [container]: Build
+column {
+  unit [flask-conical]: Unit tests
+  lint [list-checks]: Lint
+  sast [shield]: Security scan
+}
+ask gate [join]: all green?
+build -> unit
+build -> lint
+build -> sast
+unit -> gate
+lint -> gate
+sast -> gate

@@ -74,6 +74,7 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | Rule | From | Kept by | How to check it |
 |---|---|---|---|
 | Two directions between the same groups are told apart by style. | Kafka (publishes dashed) | usage: `[dashed]` on one direction | links both ways between two stacks |
+| Links that close a parallel stage, or that all carry the same thing to one collector, meet a line with a dot before the node. | CI/CD (three checks squeezed into “all green?”), DMZ (three log links side by side into the SIEM); the owner chose the bus with a dot over a bar, a bracket and fork-and-join | feature: `[join]` (automatic from four links) | two or three alike links ending side by side on one node |
 | Cross-cutting concerns are not drawn as a line per node. | the platform study | feature: side zones, a collector per zone, the bus | a node with links from most of the diagram |
 | A node linked from most of the diagram is shown as a mark on each user (its icon after the name, a legend line) rather than a fan of links. | OpenTelemetry services (twelve links into Flagd from every tier; the owner chose the small icon inside the box) | feature: `mark` | a node with links arriving from most of the diagram |
 | A marked node with nothing left to draw goes at the end of the flow, after what uses it. | monorepo (utils and types floated among the apps) | feature: `mark` (last layer) | an unlinked node placed in the first layer |

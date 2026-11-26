@@ -109,6 +109,7 @@ Tags (in brackets, before the colon or at the end of the label):
 | `dashed` | dashed border (planned, optional, retired) |
 | `muted` | soft grey border |
 | `span` | grows to the full height (direction right) or width (down) of the column or row it links to; one connection point per member, so each link runs straight |
+| `join` | links into (or out of) it that look the same meet a line with a dot first, then one arrow reaches it, label written once; done by itself from four such links, the tag asks for it from two. For a parallel stage closing on a gate, or log links into one collector |
 | `bridge` | sits on the border between its frame and the frame of a node linking into it, with the two frames widened into bands; for firewalls, gateways, anything on two networks |
 
 ## Links

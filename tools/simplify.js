@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Turns a "full" diagram into its "simple" form: the same nodes, links, labels and frames, written the
 // way you would without any layout help. It removes
-//   - icons and the tags span, bridge and top,
+//   - icons and the tags span, bridge, join and top,
 //   - rows and columns (the members become plain nodes in their frame),
 //   - same-width and same-height lines,
 //   - side and span on frames (side zones go back to being the next tier),
@@ -16,7 +16,7 @@ const { parse } = require('../src/trace.js');
 const KEEP = new Set(['ok', 'bad', 'dashed', 'muted']);
 
 function simplify(src) {
-  const stats = { icons: 0, span: 0, bridge: 0, top: 0, blocks: 0, rails: 0, reversed: 0, sizing: 0, marks: 0 };
+  const stats = { icons: 0, span: 0, bridge: 0, join: 0, top: 0, blocks: 0, rails: 0, reversed: 0, sizing: 0, marks: 0 };
   const rails = new Map();   // rail id -> its first node
   let curRail = null;
   const out = [];
@@ -50,7 +50,7 @@ function simplify(src) {
       const keep = [];
       for (const g of tags) {
         if (KEEP.has(g)) keep.push(g);
-        else if (g === 'span' || g === 'bridge' || g === 'top') stats[g]++;
+        else if (g === 'span' || g === 'bridge' || g === 'join' || g === 'top') stats[g]++;
         else stats.icons++;
       }
       if (curRail && !curRail.first) curRail.first = nm[1].trim().split(/\s+/).pop();
