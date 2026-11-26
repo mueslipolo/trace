@@ -50,8 +50,10 @@ function flowchart(lines, title) {
     if (!n) { n = { id, label: nodeLabel(label || m[1]), kind, parent: here }; nodes.set(id, n); here.items.push(n); }
     else {
       if (label !== null) { n.label = nodeLabel(label); if (kind) n.kind = kind; }
-      // as in Mermaid, a node mentioned inside a subgraph belongs to it (if it was only mentioned at the top so far)
-      if (here !== n.parent && here.parent && !n.parent.parent) { n.parent.items.splice(n.parent.items.indexOf(n), 1); here.items.push(n); n.parent = here; }
+      // as in Mermaid, a node belongs to the innermost subgraph that mentions it: one mentioned first in an outer
+      // subgraph (or at the top) moves into a subgraph nested in it
+      const inside = (c, f) => { for (let p = c.parent; p; p = p.parent) if (p === f) return true; return false; };
+      if (here !== n.parent && inside(here, n.parent)) { n.parent.items.splice(n.parent.items.indexOf(n), 1); here.items.push(n); n.parent = here; }
     }
     return { id, rest: txt.trim().slice(m[0].length) };
   };
@@ -91,7 +93,7 @@ function flowchart(lines, title) {
       let label = '', em;
       const inl = rest.match(/^(<?)(--|-\.|==)\s+(.+?)\s+(-->|---|-\.->|\.->|==>|===|--x|--o)/);
       if (inl) { em = inl; label = inl[3]; rest = rest.slice(inl[0].length).trim(); }
-      else if ((em = rest.match(/^(<?)(-{2,}>|-{3,}|-\.+->|-\.+-|={2,}>|={3,}|--x|--o|~~~)(\|([^|]*)\|)?/))) { label = em[4] || ''; rest = rest.slice(em[0].length).trim(); }
+      else if ((em = rest.match(/^(<?)(-{2,}>|-{3,}|-\.+->|-\.+-|={2,}>|={3,}|--x|--o|~~~)(\s*\|([^|]*)\|)?/))) { label = em[4] || ''; rest = rest.slice(em[0].length).trim(); }
       else break;
       const op = inl ? inl[1] + inl[2] + inl[4] : em[1] + em[2];
       prev = { ids: group, link: { label: clean(label), dashed: /\./.test(op), both: op.startsWith('<'), arrow: />/.test(op), invisible: /~~~/.test(op) } };

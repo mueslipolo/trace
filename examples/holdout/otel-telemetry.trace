@@ -3,11 +3,6 @@ title "OpenTelemetry demo: telemetry data flow"
 direction down
 
 frame tdf "Telemetry Data Flow" {
-  oc-grpc: OTLP Receiver | listening on grpc://localhost:4317
-  oc-http: OTLP Receiver | listening on localhost:4318
-  pr-sc: Prometheus OTLP Write Receiver
-  ja-col: Jaeger Collector | listening on grpc://jaeger:4317
-  os-http: OpenSearch | listening on localhost:9200
   engine op-b: Browser | OpAMP UI
   engine pr-b: Browser | Prometheus UI
   engine ja-b: Browser | Jaeger UI
@@ -16,6 +11,8 @@ frame tdf "Telemetry Data Flow" {
     ms: Microservice
   }
   frame oc "OTel Collector" {
+    oc-grpc: OTLP Receiver | listening on grpc://localhost:4317
+    oc-http: OTLP Receiver | listening on localhost:4318
     oc-proc: Processors
     oc-spanmetrics: Span Metrics Connector
     oc-prom: OTLP HTTP Exporter
@@ -28,14 +25,17 @@ frame tdf "Telemetry Data Flow" {
     op-http: OpAMP HTTP | listening on localhost:8080/opamp/
   }
   frame pr "Prometheus" {
+    pr-sc: Prometheus OTLP Write Receiver
     store pr-tsdb: Prometheus TSDB
     pr-http: Prometheus HTTP | listening on localhost:9090
   }
   frame ja "Jaeger" {
+    ja-col: Jaeger Collector | listening on grpc://jaeger:4317
     store ja-db: Jaeger DB
     ja-http: Jaeger HTTP | listening on localhost:16686
   }
   frame os "OpenSearch" {
+    os-http: OpenSearch | listening on localhost:9200
     store os-db: OpenSearch Index
   }
   frame gr "Grafana" {
@@ -66,5 +66,8 @@ ja-col -> ja-db
 ja-db -> ja-http
 os-http -> os-db
 gr-srv -> gr-http
+pr-http -> gr-srv : localhost:9090/api
+ja-http -> gr-srv : localhost:16686/api
+os-http -> gr-srv : localhost:9200/api
 ja-http -> ja-b : localhost:16686/search
 gr-http -> gr-b : localhost:3000/dashboard
