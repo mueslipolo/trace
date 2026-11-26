@@ -1,0 +1,31 @@
+# Full-feature version of ../bigbank-container.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+direction down
+title "Containers: Internet Banking System"
+
+row {
+  pill customer [user]: Customer | personal bank accounts
+  engine email [mail]: E-Mail System | Microsoft Exchange
+}
+frame c1 "Internet Banking" [blue] {
+  row {
+    web [browser]: Web Application | Java, Spring MVC
+    spa [app-window javascript]: Single-Page App | JavaScript, Angular
+    mobile [mobile]: Mobile App | C#, Xamarin
+  }
+  row {
+    api [api]: API Application | Java, Docker Container
+    store database [database]: Database | SQL Database
+  }
+}
+engine banking [server]: Mainframe Banking System | core banking information
+
+customer -> web : uses, HTTPS
+customer -> spa : uses, HTTPS
+customer -> mobile : uses
+web -> spa : delivers
+spa -> api : async, JSON/HTTPS
+mobile -> api : async, JSON/HTTPS
+api -> database : reads and writes, JDBC
+customer <- email : sends e-mails to
+email <- api : sends e-mails, SMTP
+api -> banking : sync/async, XML/HTTPS

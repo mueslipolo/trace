@@ -1,0 +1,27 @@
+# Full-feature version of ../k8s-ingress-fanout.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+title "Ingress: fan-out by path"
+direction down
+
+pill client [user]: client
+frame g0 "cluster" [blue kubernetes] {
+  ingress [route]: Ingress, 178.91.123.132
+  service1 [span network]: Service service1:4200
+  service2 [span network]: Service service2:8080
+  row {
+    pod1 [container]: Pod
+    pod2 [container]: Pod
+  }
+  row {
+    pod3 [container]: Pod
+    pod4 [container]: Pod
+  }
+}
+
+client --> ingress : Ingress-managed load balancer
+ingress -> service1 : /foo
+ingress -> service2 : /bar
+service1 -> pod1
+service1 -> pod2
+service2 -> pod3
+service2 -> pod4
+same-width service1 service2

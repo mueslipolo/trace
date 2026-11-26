@@ -1,0 +1,31 @@
+# Full-feature version of ../gitlab-simple.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+title "GitLab, simplified components"
+direction down
+
+pill SSH [terminal]: SSH
+pill HTTP [globe]: HTTP/HTTPS
+GitLabShell [square-terminal]: GitLab Shell
+NGINX [nginx]: NGINX
+GitLabWorkhorse [gitlab]: GitLab Workhorse
+GitLabPages [file-code]: GitLab Pages
+Puma [rubyonrails]: Puma (Gitlab Rails)
+Sidekiq [rubyonrails]: Sidekiq (GitLab Rails)
+store Gitaly [git-branch]: Gitaly
+store PostgreSQL [postgresql]: PostgreSQL
+store Redis [redis join]: Redis
+
+HTTP -> NGINX : TCP 80,443
+SSH -> GitLabShell : TCP 22
+NGINX -> GitLabPages : TCP 8090
+NGINX -> GitLabWorkhorse
+GitLabShell -> Gitaly
+GitLabShell -> GitLabWorkhorse
+GitLabWorkhorse -> Gitaly
+GitLabWorkhorse -> Puma
+GitLabWorkhorse -> Redis
+Sidekiq -> PostgreSQL
+Sidekiq -> Redis
+Puma -> PostgreSQL
+Puma -> Redis
+Puma -> Gitaly
+GitLabWorkhorse <- Gitaly

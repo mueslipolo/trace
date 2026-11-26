@@ -9,7 +9,7 @@ const { compile, parse, FONT_NOTE } = require('../src/trace.js');
 const { measure } = require('../tools/measure.js');
 
 const root = path.join(__dirname, '..');
-const files = ['playground', 'cases', 'cases/simple'].flatMap(g =>
+const files = ['playground', 'cases', 'cases/simple', 'holdout/full'].flatMap(g =>
   fs.readdirSync(path.join(root, 'examples', g)).filter(f => f.endsWith('.trace')).map(f => path.join('examples', g, f)));
 
 const overlap = (a, b, m = 0) => a.x < b.x + b.w - m && b.x < a.x + a.w - m && a.y < b.y + b.h - m && b.y < a.y + a.h - m;

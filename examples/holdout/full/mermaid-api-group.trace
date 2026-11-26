@@ -1,0 +1,19 @@
+# Full-feature version of ../mermaid-api-group.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+# Converted with tools/mermaid-to-trace.js from the Mermaid documentation, syntax/architecture.md (MIT); original in mermaid-api-group.mmd
+direction down
+title "API group"
+
+frame api "API" {
+  row {
+    server [server]: Server
+    store db [database]: Database
+  }
+  row {
+    store disk1 [hard-drive]: Storage
+    store disk2 [hard-drive]: Storage
+  }
+}
+
+db -- server
+server -- disk1
+db -- disk2

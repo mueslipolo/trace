@@ -1,0 +1,89 @@
+# Full-feature version of ../otel-telemetry.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+title "OpenTelemetry demo: telemetry data flow"
+direction down
+
+frame tdf "Telemetry Data Flow" {
+  column {
+    row {
+      frame od "OpenTelemetry Demo" {
+        ms [container]: Microservice
+      }
+    }
+    frame oc "OTel Collector" [blue opentelemetry] {
+      row {
+        oc-grpc: OTLP Receiver | listening on grpc://localhost:4317
+        oc-http: OTLP Receiver | listening on localhost:4318
+      }
+      oc-proc [span]: Processors
+      oc-spanmetrics: Span Metrics Connector
+      row {
+        oc-opamp: OpAMP Extension
+        oc-prom: OTLP HTTP Exporter
+        oc-opensearch: OpenSearch Exporter
+        oc-otlp: OTLP Exporter
+      }
+    }
+    row {
+      frame op "OpAMP Server" [green] {
+        op-srv [server]: OpAMP Server
+        op-http: OpAMP HTTP | listening on localhost:8080/opamp/
+      }
+      frame pr "Prometheus" [orange prometheus] {
+        pr-sc: Prometheus OTLP Write Receiver
+        store pr-tsdb [database]: Prometheus TSDB
+        pr-http: Prometheus HTTP | listening on localhost:9090
+      }
+      frame os "OpenSearch" [blue opensearch] {
+        os-http: OpenSearch | listening on localhost:9200
+        store os-db [database]: OpenSearch Index
+      }
+      frame ja "Jaeger" [blue jaeger] {
+        ja-col: Jaeger Collector | listening on grpc://jaeger:4317
+        store ja-db [database]: Jaeger DB
+        ja-http: Jaeger HTTP | listening on localhost:16686
+      }
+    }
+    row {
+      engine op-b [browser]: Browser | OpAMP UI
+      engine pr-b [browser]: Browser | Prometheus UI
+      frame gr "Grafana" [orange grafana] {
+        gr-srv [server]: Grafana Server
+        gr-http: Grafana HTTP | listening on localhost:3000
+      }
+      engine ja-b [browser]: Browser | Jaeger UI
+    }
+    engine gr-b [browser]: Browser | Grafana UI
+  }
+}
+
+ms --> oc-grpc : OTLP gRPC
+ms --> oc-http : OTLP HTTP POST
+oc-grpc -> oc-proc
+oc-http -> oc-proc
+oc-proc -> oc-prom
+oc-proc -> oc-otlp
+oc-proc -> oc-opensearch
+oc-proc -> oc-spanmetrics
+oc-spanmetrics -> oc-prom
+oc-prom -> pr-sc : localhost:9090/api/v1/otlp
+oc-otlp -> ja-col : gRPC
+oc-opensearch -> os-http : HTTP
+op-srv -> op-http
+oc-opamp -> op-srv : reports status over WebSocket
+op-http -> op-b : localhost:8080/opamp/
+pr-sc -> pr-tsdb
+pr-tsdb -> pr-http
+pr-http -> pr-b : localhost:9090/graph
+ja-col -> ja-db
+ja-db -> ja-http
+os-http -> os-db
+gr-srv -> gr-http
+pr-http -> gr-srv : localhost:9090/api
+ja-http -> gr-srv : localhost:16686/api
+os-http -> gr-srv : localhost:9200/api
+ja-http -> ja-b : localhost:16686/search
+gr-http -> gr-b : localhost:3000/dashboard
+
+align op-http op-b
+align pr-http pr-b
+align ja-http ja-b

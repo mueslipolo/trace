@@ -1,0 +1,41 @@
+# Full-feature version of ../online-boutique.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+# Adapted from the architecture diagram of GoogleCloudPlatform/microservices-demo (Online Boutique), README (Apache 2.0)
+title "Online Boutique microservices"
+
+column {
+  pill user [user]: Users
+  loadgen [locust]: Load generator | Python, Locust
+}
+frontend [browser go]: Frontend | Go, HTTP
+column {
+  recommendation [python]: Recommendation | Python
+  catalog [go]: Product catalog | Go
+  cart [shopping-cart]: Cart service | C#
+  store redis [cache redis]: Redis cache
+  currency [nodedotjs]: Currency | Node.js
+  shipping [truck]: Shipping | Go
+  ad [java]: Ad service | Java
+}
+checkout [go]: Checkout | Go
+column {
+  payment [credit-card nodedotjs]: Payment | Node.js
+  email [mail python]: Email | Python
+}
+
+user -> frontend
+loadgen -> frontend
+frontend -> ad
+frontend -> recommendation
+frontend -> catalog
+frontend -> cart
+frontend -> shipping
+frontend -> currency
+frontend -> checkout
+recommendation -> catalog
+cart -> redis
+checkout -> payment
+checkout -> email
+shipping <- checkout
+currency <- checkout
+cart <- checkout
+catalog <- checkout

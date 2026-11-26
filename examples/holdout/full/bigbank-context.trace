@@ -1,0 +1,15 @@
+# Full-feature version of ../bigbank-context.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+direction down
+title "System context: Internet Banking System"
+
+pill customer [span user]: Personal Banking Customer | a customer of the bank
+row {
+  banking [landmark]: Internet Banking System | view accounts, make payments
+  engine mail [mail]: E-mail system | Microsoft Exchange
+}
+engine mainframe [server]: Mainframe Banking System | core banking information
+
+customer -> banking : uses
+customer <- mail : sends e-mails to
+banking -> mail : sends e-mails, SMTP
+banking -> mainframe : uses

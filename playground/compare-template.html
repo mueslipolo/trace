@@ -44,7 +44,7 @@ code { font: 0.85em "JetBrains Mono", ui-monospace, Menlo, monospace; }
 .seg button[aria-pressed="true"] { background: var(--bg); color: var(--fg); font-weight: 600; }
 .seg button + button { border-left: 1px solid var(--line); }
 .context { margin: 0; color: var(--muted); font-size: 0.9rem; max-width: 110ch; }
-.stages { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0; }
+.stages { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; min-height: 0; }
 .pane { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; min-height: 0; }
 .pane h3 { margin: 0; font-size: 0.8125rem; color: var(--muted); font-weight: 600; }
 .stage { position: relative; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -59,7 +59,7 @@ body.actual .canvas svg { max-width: none; max-height: none; }
 .src summary { cursor: pointer; color: var(--accent); font-size: 0.875rem; }
 .src pre { margin: 6px 0 0; padding: 10px 12px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; font: 12px/18px "JetBrains Mono", ui-monospace, Menlo, monospace; overflow-x: auto; max-height: 40vh; }
 .dgw { background: var(--panel); }
-.srcs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.srcs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 .mm svg { background: transparent; }
 
 /* narrow screens: the list becomes a menu above the case, and the page scrolls */
@@ -78,7 +78,7 @@ body.actual .canvas svg { max-width: none; max-height: none; }
 <div class="app">
   <nav class="side" aria-label="Diagrams">
     <h1>Trace and Mermaid</h1>
-    <p class="lede">The held-out diagrams: real C4 and Mermaid diagrams from public sources, written in Trace with no layout help and never used to tune the engine. Each is drawn by Trace on the left and by Mermaid on the right, from the same nodes and links. Keys <kbd>←</kbd> <kbd>→</kbd> go to the previous and next diagram.</p>
+    <p class="lede">The held-out diagrams: real C4 and Mermaid diagrams from public sources, written in Trace with no layout help and never used to tune the engine. Each is drawn three times from the same nodes and links: by Trace as a user would first write it, by Trace with its full features (icons, rows and columns, span, mark, join), and by Mermaid. Keys <kbd>←</kbd> <kbd>→</kbd> go to the previous and next diagram.</p>
     <ol class="toc" id="toc">@@NAV@@</ol>
   </nav>
   <main class="view">
@@ -97,11 +97,13 @@ body.actual .canvas svg { max-width: none; max-height: none; }
     </div>
     <p class="context" id="context"></p>
     <div class="stages">
-      <div class="pane"><h3>Trace</h3><div class="stage"><div class="canvas tr dgw" id="canvas"><div class="wait">Drawing…</div></div></div></div>
+      <div class="pane"><h3>Trace, as first written (no layout help)</h3><div class="stage"><div class="canvas tr dgw" id="canvas"><div class="wait">Drawing…</div></div></div></div>
+      <div class="pane"><h3>Trace, full features</h3><div class="stage"><div class="canvas tr dgw" id="fcanvas"><div class="wait">Drawing…</div></div></div></div>
       <div class="pane"><h3>Mermaid</h3><div class="stage"><div class="canvas mm" id="mcanvas"><div class="wait">Drawing…</div></div></div></div>
     </div>
     <div class="srcs">
-      <details class="src"><summary>Trace source</summary><pre id="source"></pre></details>
+      <details class="src"><summary>Trace source, as first written</summary><pre id="source"></pre></details>
+      <details class="src"><summary>Trace source, full features</summary><pre id="fsource"></pre></details>
       <details class="src"><summary>Mermaid source</summary><pre id="msource"></pre></details>
     </div>
   </main>
@@ -128,31 +130,35 @@ body.actual .canvas svg { max-width: none; max-height: none; }
     return v;
   }
   const $ = id => document.getElementById(id);
-  const drawn = new Map(), mdrawn = new Map();   // diagram index -> svg, drawn once
+  const drawn = new Map(), fdrawn = new Map(), mdrawn = new Map();   // diagram index -> svg, drawn once
   let cur = 0, token = 0;
   const dark = () => document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
   if (typeof mermaid !== 'undefined') mermaid.initialize({ startOnLoad: false, theme: dark() ? 'dark' : 'default', securityLevel: 'strict', flowchart: { useMaxWidth: false }, sequence: { useMaxWidth: false } });
 
   async function draw() {
     const c = CASES[cur], i = cur, mine = ++token;
-    const slot = $('canvas'), mslot = $('mcanvas');
+    const slot = $('canvas'), fslot = $('fcanvas'), mslot = $('mcanvas');
     if (!drawn.has(i)) slot.innerHTML = '<div class="wait">Drawing…</div>';
+    if (!fdrawn.has(i)) fslot.innerHTML = '<div class="wait">Drawing…</div>';
     if (!mdrawn.has(i)) mslot.innerHTML = '<div class="wait">Drawing…</div>';
-    const trace = (async () => {
-      if (drawn.has(i)) return;
-      if (typeof ELK === 'undefined') { drawn.set(i, '<div class="wait">The layout engine didn’t load. Reload the page to try again.</div>'); return; }
+    const one = (src, store, out, pre) => (async () => {
+      if (store.has(i)) return;
+      if (!src) { store.set(i, '<div class="wait">Not written yet.</div>'); return; }
+      if (typeof ELK === 'undefined') { store.set(i, '<div class="wait">The layout engine didn’t load. Reload the page to try again.</div>'); return; }
       try {
-        const r = await compile(c.trace, measure, ELK, { idPrefix: 'h' + i });
-        drawn.set(i, r.errors.length ? `<div class="wait">Line ${r.errors[0].line}: ${r.errors[0].msg}</div>` : r.svg);
-      } catch (e) { drawn.set(i, '<div class="wait">The layout engine couldn’t place this one.</div>'); }
-    })().then(() => { if (mine === token) slot.innerHTML = drawn.get(i); });
+        const r = await compile(src, measure, ELK, { idPrefix: pre + i });
+        store.set(i, r.errors.length ? `<div class="wait">Line ${r.errors[0].line}: ${r.errors[0].msg}</div>` : r.svg);
+      } catch (e) { store.set(i, '<div class="wait">The layout engine couldn’t place this one.</div>'); }
+    })().then(() => { if (mine === token) out.innerHTML = store.get(i); });
+    const trace = one(c.trace, drawn, slot, 'h');
+    const full = one(c.full, fdrawn, fslot, 'f');
     const merm = (async () => {
       if (mdrawn.has(i)) return;
       if (typeof mermaid === 'undefined') { mdrawn.set(i, '<div class="wait">Mermaid didn’t load. Reload the page to try again.</div>'); return; }
       try { const r = await mermaid.render('mm' + i, c.mermaid); mdrawn.set(i, r.svg); }
       catch (e) { mdrawn.set(i, '<div class="wait">Mermaid couldn’t draw this one.</div>'); }
     })().then(() => { if (mine === token) mslot.innerHTML = mdrawn.get(i); });
-    await Promise.all([trace, merm]);
+    await Promise.all([trace, full, merm]);
   }
   function show(i, push) {
     cur = (i + CASES.length) % CASES.length;
@@ -161,6 +167,7 @@ body.actual .canvas svg { max-width: none; max-height: none; }
     $('title').textContent = c.title;
     $('context').textContent = c.context;
     $('source').textContent = c.trace;
+    $('fsource').textContent = c.full || '(not written yet)';
     $('msource').textContent = c.mermaid;
     $('pick').value = c.id;
     document.querySelectorAll('#toc a').forEach((a, k) => a.setAttribute('aria-current', String(k === cur)));

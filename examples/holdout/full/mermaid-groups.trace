@@ -1,0 +1,36 @@
+# Full-feature version of ../mermaid-groups.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+# Adapted from the Mermaid documentation, syntax/architecture.md, the sources, storage and output example (MIT)
+direction down
+title "Sources, storage and output"
+
+frame sources "Sources" [blue] {
+  row {
+    srca [server]: Source A
+    srcb [server]: Source B
+    srcc [server]: Source C
+  }
+}
+frame storage "Storage" [purple] {
+  row {
+    store dbone [database]: DB One
+    store dbtwo [database]: DB Two
+    store dbthree [database]: DB Three
+  }
+}
+frame output "Output" [green] {
+  row {
+    brief [file-text]: Brief
+    analyst [server]: Analyst
+    delivery [cloud]: Delivery
+  }
+}
+
+srca -> dbone
+srcb -> dbtwo
+srcc -> dbthree
+dbtwo -> brief
+brief -> analyst
+analyst -> delivery
+
+align dbtwo brief
+same-width sources storage

@@ -1,0 +1,91 @@
+# Full-feature version of ../otel-services.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+title "OpenTelemetry demo: services"
+direction down
+
+frame g0 "Service Diagram" {
+  row {
+    react-native-app [smartphone]: React Native App
+    Internet [internet]: Internet
+    pill load-generator [locust]: Load Generator
+  }
+  frontend-proxy [envoyproxy]: Frontend Proxy | Envoy
+  row {
+    flagd-ui [toggle-right]: Flagd-ui
+    image-provider [nginx]: Image Provider | nginx
+    frontend [browser]: Frontend
+    chatbot [bot]: Chatbot
+  }
+  row {
+    ad: Ad
+    recommendation: Recommendation
+    cart: Cart
+    currency: Currency
+    shipping: Shipping
+    mcp: MCP
+    agent: Agent
+  }
+  row {
+    product-catalog: Product Catalog
+    store cache [cache]: Cache | Valkey
+    checkout: Checkout
+    quote: Quote
+  }
+  row {
+    email [mail]: Email
+    payment: Payment
+    store queue [kafka]: queue | Kafka
+  }
+  row {
+    store postgresql [database postgresql]: astronomy-db | PostgreSQL
+    accounting: Accounting
+    fraud-detection: Fraud Detection
+  }
+  flagd [flag]: Flagd
+}
+
+chatbot -> agent : HTTP
+frontend <-- agent : HTTP
+agent --> mcp : HTTP
+ad -> flagd : gRPC
+checkout -> flagd : gRPC
+product-catalog -> flagd : gRPC
+email -> flagd : gRPC
+shipping -> flagd : gRPC
+agent -> flagd : gRPC
+load-generator -> flagd : HTTP
+currency <- checkout : gRPC
+cart <- checkout : gRPC
+cart -> cache
+cart -> flagd : gRPC
+checkout -> payment : gRPC
+checkout -> email : HTTP
+checkout -> queue : TCP
+product-catalog <- checkout : gRPC
+shipping <- checkout : HTTP
+shipping -> quote : HTTP
+fraud-detection -> flagd : gRPC
+frontend -> ad : gRPC
+frontend -> cart : gRPC
+frontend -> currency : gRPC
+frontend -> checkout : gRPC
+frontend -> shipping : HTTP
+frontend -> product-catalog : gRPC
+frontend -> recommendation : gRPC
+frontend-proxy -> flagd : gRPC
+frontend-proxy -> flagd-ui : HTTP
+frontend-proxy -> image-provider : HTTP
+frontend-proxy -> frontend : HTTP
+frontend-proxy -> chatbot : HTTP
+frontend <- mcp : HTTP
+payment -> flagd : gRPC
+queue -> fraud-detection : TCP
+recommendation -> product-catalog : gRPC
+recommendation -> flagd : gRPC
+product-catalog -> postgresql
+Internet -> frontend-proxy : HTTP
+load-generator -> frontend-proxy : HTTP
+react-native-app -> frontend-proxy : HTTP
+postgresql <- accounting
+queue -> accounting : TCP
+
+mark flagd "reads its feature flags from Flagd"

@@ -1,0 +1,18 @@
+# Full-feature version of ../k8s-ingress.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+title "Ingress: one service"
+direction down
+
+pill client [user]: client
+frame g0 "cluster" [blue kubernetes] {
+  ingress [route]: Ingress
+  service [span network]: Service
+  row {
+    pod1 [container]: Pod
+    pod2 [container]: Pod
+  }
+}
+
+client --> ingress : Ingress-managed load balancer
+ingress -> service : routing rule
+service -> pod1
+service -> pod2

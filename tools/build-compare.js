@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Builds dist/compare.html: every held-out diagram (examples/holdout) drawn by Trace and by Mermaid side by
-// side, both live in the page. Each <name>.trace has its Mermaid version in <name>.mmd: the original for the
+// side, both live in the page, with the same diagram written with Trace's full features (examples/holdout/full) between them. Each <name>.trace has its Mermaid version in <name>.mmd: the original for the
 // diagrams that came from Mermaid, a flowchart written from the same model for the C4 ones.
 const fs = require('fs');
 const path = require('path');
@@ -24,7 +24,10 @@ const cases = fs.readdirSync(dir).filter(f => f.endsWith('.trace')).sort().map(f
   const context = written
     ? `${from}. The Trace side is adapted by hand with no layout help; the Mermaid side is a flowchart written from the same nodes and links.`
     : `${from}. The Mermaid side is the original; ${traceSide}.`;
-  return { id, title, context, trace, mermaid };
+  // the same diagram written with Trace's full features (icons, rows and columns, span, mark, join...), when there is one
+  const fullPath = path.join(dir, 'full', id + '.trace');
+  const full = fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf8') : '';
+  return { id, title, context, trace, full, mermaid };
 });
 
 const nav = cases.map((c, i) => `<li><a href="#${c.id}"><span class="n">${String(i + 1).padStart(2, '0')}</span><span>${esc(c.title)}</span></a></li>`).join('');

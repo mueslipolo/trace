@@ -1,0 +1,31 @@
+# Full-feature version of ../message-bus.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+# Adapted from C4-PlantUML, samples/C4_Container Diagram Sample - message bus.puml (MIT)
+direction down
+title "Containers: customer information"
+
+pill customer [user]: Customer
+
+frame c1 "Customer Information" [blue] {
+  app [browser]: Customer Application | JavaScript, Angular
+  svc [springboot]: Customer Service | Java, Spring Boot
+  bus [span queue rabbitmq]: Message Bus | RabbitMQ
+  store customerdb [database]: Customer Database | Oracle 12c
+  row {
+    reporting [ruby]: Reporting Service | Ruby
+    audit [dotnet]: Audit Service | C#/.NET
+  }
+  row {
+    store reportingdb [database mysql]: Reporting Database | MySQL
+    store auditstore [database eventstore]: Audit Store | Event Store
+  }
+}
+
+customer -> app : uses, HTTPS
+app -> svc : updates customer information, async JSON/HTTPS
+app <- svc : sends events, WebSocket
+svc -> bus : sends customer update events
+svc -> customerdb : stores data, JDBC
+bus -> reporting : customer update events
+bus -> audit : customer update events
+reporting -> reportingdb : stores data
+audit -> auditstore : stores events

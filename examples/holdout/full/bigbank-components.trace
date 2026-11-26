@@ -1,0 +1,33 @@
+# Full-feature version of ../bigbank-components.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+direction down
+title "Components: API Application"
+
+row {
+  spa [app-window javascript]: Single Page Application | JavaScript, Angular
+  ma [mobile]: Mobile App | Xamarin
+}
+
+frame api "API Application" [blue] {
+  row {
+    sign [join log-in]: Sign In Controller | MVC Rest Controller
+    accounts [list]: Accounts Summary Controller | MVC Rest Controller
+  }
+  row {
+    security [lock spring]: Security Component | Spring Bean
+    facade [arrow-right-left spring]: Mainframe Banking System Facade | Spring Bean
+  }
+}
+
+row {
+  store db [database]: Database | relational schema
+  engine mbs [server]: Mainframe Banking System | core banking information
+}
+
+sign -> security : uses
+accounts -> facade : uses
+security -> db : read and write, JDBC
+facade -> mbs : uses, XML/HTTPS
+spa -> sign : uses, JSON/HTTPS
+spa -> accounts : uses, JSON/HTTPS
+ma -> sign : uses, JSON/HTTPS
+ma -> accounts : uses, JSON/HTTPS

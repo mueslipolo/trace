@@ -1,0 +1,27 @@
+# Full-feature version of ../enterprise-context.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+direction down
+title "System landscape: Widgets Limited"
+
+pill customer [span user]: Customer | of Widgets Limited
+
+frame c0 "Widgets Limited" [grey] {
+  row {
+    pill csa [headset]: Customer Service Agent | deals with enquiries
+    ecommerce [shopping-cart]: E-commerce System | widgets.com
+    fulfillment [package]: Fulfillment System | processing and shipping
+  }
+}
+
+column {
+  engine taxamo [receipt]: Taxamo | local tax, front-end for Braintree
+  engine braintree [credit-card]: Braintree Payments | credit card payments
+}
+engine post [truck]: Jersey Post | shipping costs
+
+customer -> csa : asks questions, telephone
+customer -> ecommerce : places orders using
+csa -> ecommerce : looks up order information
+ecommerce -> fulfillment : sends order information
+fulfillment -> post : gets shipping charges
+ecommerce -> taxamo : delegates card processing
+taxamo -> braintree : credit card processing

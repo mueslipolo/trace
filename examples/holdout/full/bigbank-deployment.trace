@@ -1,0 +1,39 @@
+# Full-feature version of ../bigbank-deployment.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+direction down
+title "Deployment: Internet Banking System, live"
+
+row {
+  frame comp "Customer's computer, web browser" [grey] {
+    spa [browser javascript]: Single Page Application | JavaScript, Angular
+  }
+  frame mob "Customer's mobile device" [grey] {
+    mobile [mobile]: Mobile App | Xamarin
+  }
+}
+frame plc "Big Bank plc data center" [grey] {
+  row {
+    frame bb2 "bigbank-web x4, Ubuntu 16.04" [blue ubuntu] {
+      web [server]: Web Application | Java, Spring MVC, Tomcat 8
+    }
+    frame dn "bigbank-api x8, Ubuntu 16.04" [blue ubuntu] {
+      api [api]: API Application | Java, Spring MVC, Tomcat 8
+    }
+  }
+  row {
+    frame db01 "bigbank-db01, Oracle primary" [purple] {
+      store db [database]: Database | relational schema
+    }
+    frame db02 "bigbank-db02, Oracle secondary" [purple dashed] {
+      store db2 [muted database]: Database | relational schema
+    }
+  }
+}
+
+mobile -> api : API calls, json/HTTPS
+spa -> api : API calls, json/HTTPS
+spa <- web : delivers to the browser
+api -> db : reads and writes, JDBC
+api --> db2 [muted] : reads and writes, JDBC
+db -> db2 : replicates data to
+
+same-width db01 db02

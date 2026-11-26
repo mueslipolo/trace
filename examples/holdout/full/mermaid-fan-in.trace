@@ -1,0 +1,16 @@
+# Full-feature version of ../mermaid-fan-in.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+# Converted with tools/mermaid-to-trace.js from the Mermaid documentation, syntax/architecture.md (MIT); original in mermaid-fan-in.mmd
+title "Databases into one server"
+
+frame api "API" {
+  column {
+    store db1 [database]: DB1
+    store db2 [database]: DB2
+    store db3 [database]: DB3
+  }
+  mcp [server join]: MCP
+}
+
+db1 -> mcp
+db2 -> mcp
+db3 -> mcp

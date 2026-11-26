@@ -8,6 +8,11 @@ Every `<name>.trace` has a `<name>.mmd` next to it, its Mermaid version: the ori
 from Mermaid (converted with `tools/mermaid-to-trace.js`, untouched since), a flowchart written from the same
 nodes and links for the C4 ones. `npm run build:compare` draws both side by side in `dist/compare.html`.
 
+`full/<name>.trace` is the same diagram written the way a skilled user would, with every feature that helps (icons,
+rows and columns, span, mark, join...): same nodes, links and labels. The comparison page shows it between the plain
+version and Mermaid. It is never measured (`npm run metrics` reads only this folder's top level) and may be
+reworked freely; the plain version may not.
+
 When adding one: take a real diagram from a public source with a permissive licence, keep its nodes, links and
 labels, note the source and licence on the first line, and do not change it afterwards to suit the engine.
 
