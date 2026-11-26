@@ -70,6 +70,7 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | Topics, consumers and similar stacks are ordered to minimise crossings. | Kafka | usage: declaration order (found by trying every order) | crossings between two stacks |
 | A zone's title never sits on a link; a zone with no free corner grows by a title band, or sideways, to make one. | zero-trust mockup, network boundaries, simple DMZ (titles under links through narrow zones) | engine: `roomForTitles` | a zone title crossed by a link |
 | Zones written the same width line up on the left too, also when a side zone stands beside them. | office mockup with the security services as a side zone (edge zone shifted right, side zone dropped below the tiers) | engine: the main flow's lane aligns same-width zones | same-width zones with different left edges |
+| Zones that stand side by side in one layer share their top (their left edge in a flow to the right), not only in a written row. | OTel telemetry held-out (OpAMP, Prometheus, OpenSearch and Jaeger at four heights) | engine: `alignLayerTops`, in the per-zone layout only (not yet when the compound layout wins, as it does for that diagram) | zones of one layer at different heights |
 
 ## Reading
 

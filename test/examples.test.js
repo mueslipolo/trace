@@ -1059,3 +1059,13 @@ test('side zones: zones written the same width in the main flow keep a common le
   assert.ok(sec.y < access.y + access.h && sec.y + sec.h > edge.y, 'the side zone is beside the tiers, not below them');
   assert.ok(sec.x + sec.w < Math.min(...xs), 'and on their left');
 });
+
+test('zones that ELK puts side by side in one layer share their top (per-zone layout; OTel telemetry backends)', async () => {
+  const was = process.env.TRACE_LAYOUT;
+  process.env.TRACE_LAYOUT = 'hier';
+  try {
+    const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/otel-telemetry.trace'), 'utf8'), measure, ELK, {});
+    const tops = ['op', 'pr', 'ja', 'os'].map(id => res.rm.frames.find(f => f.f.id === id).y);
+    assert.ok(Math.max(...tops) - Math.min(...tops) < 1, `the four backends share their top (${tops.map(Math.round)})`);
+  } finally { if (was === undefined) delete process.env.TRACE_LAYOUT; else process.env.TRACE_LAYOUT = was; }
+});
