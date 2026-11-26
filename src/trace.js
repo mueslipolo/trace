@@ -902,6 +902,12 @@ function placeLabels(rm, measure) {
     }
     for (const nd of rm.nodes) if (nd.x !== undefined && b.x < nd.x + nd.w && nd.x < b.x + b.w && b.y < nd.y + nd.h && nd.y < b.y + b.h) n += 2;
     for (const q of placed) if (b.x < q.x + q.w + 2 && q.x < b.x + b.w + 2 && b.y < q.y + q.h + 1 && q.y < b.y + b.h + 1) n += 2;
+    // a label straddling a zone's border reads as belonging to neither side
+    for (const f of rm.frames) {
+      const inY = b.y < f.y + f.h && f.y < b.y + b.h, inX = b.x < f.x + f.w && f.x < b.x + b.w;
+      if (inY && [f.x, f.x + f.w].some(v => b.x + 2 < v && v < b.x + b.w - 2)) n += 1;
+      if (inX && [f.y, f.y + f.h].some(v => b.y + 2 < v && v < b.y + b.h - 2)) n += 1;
+    }
     // a label belongs next to its own link: far from every stretch of it counts as a collision
     let near = Infinity;
     for (let i = 1; i < r.pts.length; i++) {
@@ -1409,7 +1415,8 @@ function mergeHubs(rm, MIN = 4) {
         const path = [...head, mk(busM, c), mk(busM, trunkC), mk(endM, trunkC)];
         for (let i = Math.max(1, head.length); i < path.length; i++) if (hits(path[i - 1], path[i], skip)) return null;
         // nor on another link (the links of this group share the bus, that is the point)
-        if (overlapsLinks(rm, path, new Set(ok.map(x => x.r)))) return null;
+        // (7px: two links side by side closer than that read as one; another bus's line included)
+        if (overlapsLinks(rm, path, new Set(ok.map(x => x.r)), 7)) return null;
         return { it, path, c };
       };
       const lane = (c, m1, m2) => !taken.some(t => Math.abs(t.c - c) < 14 && Math.min(t.m1, t.m2) < Math.max(m1, m2) && Math.min(m1, m2) < Math.max(t.m1, t.m2));
@@ -2114,6 +2121,11 @@ function centreParents(rm, flowH) {
     if (Math.abs(d) < 0.5) continue;
     const moved = { ...p, [A]: p[A] + d };
     if (rm.nodes.some(m => m !== p && m.x !== undefined && moved.x < m.x + m.w + 8 && m.x - 8 < moved.x + moved.w && moved.y < m.y + m.h + 8 && m.y - 8 < moved.y + moved.h)) continue;
+    // a parent stays inside the zones that hold it, 10px from their border, and out of every other zone
+    const holds = fr => { for (let q = p.parent; q; q = q.parent) if (q === fr.f) return true; return false; };
+    if ((rm.frames || []).some(fr => holds(fr)
+      ? !(moved.x >= fr.x + 10 && moved.x + moved.w <= fr.x + fr.w - 10 && moved.y >= fr.y + 10 && moved.y + moved.h <= fr.y + fr.h - 10)
+      : moved.x < fr.x + fr.w + 8 && fr.x - 8 < moved.x + moved.w && moved.y < fr.y + fr.h + 8 && fr.y - 8 < moved.y + moved.h)) continue;
     p[A] += d;
   }
   for (const p of parents) {
@@ -3639,10 +3651,10 @@ function crossingsWith(rm, path, self) {
   }
   return n;
 }
-function overlapsLinks(rm, path, skip) {
+function overlapsLinks(rm, path, skip, near = 4) {
   for (const o of rm.edges) {
     if (skip.has(o) || !o.pts || o.e.rail || o.e.lifeline || o.e.divider) continue;
-    for (let i = 1; i < path.length; i++) for (let j = 1; j < o.pts.length; j++) if (overlapSeg(path[i - 1], path[i], o.pts[j - 1], o.pts[j])) return true;
+    for (let i = 1; i < path.length; i++) for (let j = 1; j < o.pts.length; j++) if (overlapSeg(path[i - 1], path[i], o.pts[j - 1], o.pts[j], near)) return true;
   }
   return false;
 }

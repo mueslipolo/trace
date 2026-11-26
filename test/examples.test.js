@@ -998,7 +998,7 @@ test('no two links lie on top of each other, in any example (links merged into o
     const E = res.rm.edges.filter(r => r.pts && !r.e.rail && !r.e.lifeline && !r.e.divider);
     for (let i = 0; i < E.length; i++) for (let j = i + 1; j < E.length; j++) {
       const A = E[i], B = E[j];
-      if (A.merged && B.merged) continue;            // a bus is shared on purpose
+      if (A.merged && B.merged && A.mergeHub === B.mergeHub) continue;   // a bus is shared on purpose (two buses are not)
       // links into the same row of a table converge there (the ER convention), and two links between the same
       // two nodes run side by side by nature
       const tab = id => res.rm.nodes.find(n => n.id === id && n.cols);
@@ -1081,4 +1081,15 @@ test('arrowheads at the start of a link use their own marker with orient="auto" 
   const res = await compile('a -> b\nc <- d\n', measure, ELK, {});
   assert.ok(!/auto-start-reverse/.test(res.svg));
   assert.match(res.svg, /marker-start="url\(#[^)]*s\)"/);
+});
+
+test('no link label straddles a zone border where it has another place (techtribes, full)', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/full/techtribes.trace'), 'utf8'), measure, ELK, {});
+  for (const r of res.rm.edges.filter(r => r.lab && r.e.lab)) {
+    const w = r.e.lab.w, x0 = r.lab.anchor === 'middle' ? r.lab.x - w / 2 : r.lab.anchor === 'end' ? r.lab.x - w : r.lab.x;
+    for (const f of res.rm.frames) {
+      const inY = r.lab.y < f.y + f.h && f.y < r.lab.y + r.e.lab.h;
+      assert.ok(!(inY && [f.x, f.x + f.w].some(v => x0 + 2 < v && v < x0 + w - 2)), `"${r.e.label}" crosses the border of ${f.f.id}`);
+    }
+  }
 });
