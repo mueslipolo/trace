@@ -1880,7 +1880,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); roomForTitles(rm); return rm; };
+  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); roomForTitles(rm); sameSizeFrames(rm, model); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -3400,7 +3400,9 @@ function sameSizeFrames(rm, model) {
         if (rm.nodes.some(n => n.x !== undefined && !owns(b.f, n) && !(n.tags && n.tags.includes('bridge')) && hit(c, n))) return false;
         return true;
       };
-      const pos = [b[A] - d / 2, b[A], b[A] - d].find(free);
+      // and stays inside the zones round it, and on the page
+      const inside = pos => { const c = { ...b, [A]: pos, [S]: target }; return c.x >= 8 && c.y >= 0 && rm.frames.every(o => !within(b.f, o.f) || o === b || (c.x >= o.x + 10 && c.y >= o.y + 10 && c.x + c.w <= o.x + o.w - 10 && c.y + c.h <= o.y + o.h - 10)); };
+      const pos = [b[A] - d / 2, b[A], b[A] - d].find(p => free(p) && inside(p));
       if (pos === undefined) { (rm.notes = rm.notes || []).push(`same-${ss.axis === 'w' ? 'width' : 'height'}: the frame "${b.f.id}" cannot grow to match without covering something, so it keeps its size`); continue; }
       b[A] = pos; b[S] = target;
     }
@@ -3918,7 +3920,7 @@ function diagramCSS(p, scope) {
     `${s}.ico{fill:none;stroke:${p.line};stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}` +
     `${s}.logo{fill:${p.line};stroke:none}${s}.logo-soft{fill:${p.muted};stroke:none}` +
     `${s}.mki{fill:none;stroke:${p.muted};stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}` +
-    `${s}.zone{stroke-width:1}${z}` +
+    `${s}.zone{stroke-width:1}${z}${s}.zground{stroke:none}` +
     `${s}.arrow{fill:none;stroke:${p.line};stroke-width:1.2}${s}.arrow.ok{stroke:${p.ok}}${s}.arrow.bad{stroke:${p.bad}}${s}.arrow.muted{stroke:${p.soft}}` +
     `${s}.head{fill:${p.line}}${s}.head-ok{fill:${p.ok}}${s}.head-bad{fill:${p.bad}}${s}.head-muted{fill:${p.soft}}`;
 }
@@ -4094,6 +4096,7 @@ function measureHead(model, rm, measure) {
   return head;
 }
 
+// (zones written the same size are evened up again afterwards: sameSizeFrames runs after this)
 // A zone whose title has no free place (a narrow zone with a link through its middle) grows, when the room it
 // grows into is empty (no node, no other zone, no label, no link running along it): by a title band below its
 // contents, else above them, else wide enough to hold the title beside the links that cross its top, to the right
@@ -4133,9 +4136,32 @@ function roomForTitles(rm) {
           return ov(band, { x: Math.min(q.x, a.x), y: Math.min(q.y, a.y), w: Math.abs(q.x - a.x), h: Math.abs(q.y - a.y) }, 2);
         }));
       if (!free) continue;
-      const all = [fr, ...anc], was = all.map(g => [g.x, g.y, g.w, g.h]);
       const R = { x: Math.min(fr.x, band.x), y: Math.min(fr.y, band.y), x2: Math.max(fr.x + fr.w, band.x + band.w), y2: Math.max(fr.y + fr.h, band.y + band.h) };
+      // zones written the same size as this one grow by as much, or this one does not grow
+      const grow = { w: R.x2 - R.x - fr.w, h: R.y2 - R.y - fr.h };
+      const partners = [];
+      for (const ss of (rm.model && rm.model.sameSize) || []) {
+        if (ss.kind !== 'frame' || !ss.ids.includes(fr.f.id) || grow[ss.axis] < 0.5) continue;
+        for (const id of ss.ids) { const g = rm.frames.find(o => o.f.id === id); if (g && g !== fr && !partners.some(q => q.g === g)) partners.push({ g, axis: ss.axis }); }
+      }
+      const plans = partners.map(({ g, axis }) => {
+        const A = axis === 'w' ? 'x' : 'y', d = grow[axis];
+        const ancG = rm.frames.filter(o => contains(o, g));
+        for (const pos of [g[A] - d / 2, g[A], g[A] - d]) {
+          const c = { ...g, [A]: pos, [axis]: g[axis] + d };
+          if (c.x < 8 || c.y < 0) continue;
+          if (ancG.some(o => !(c.x >= o.x + 10 && c.y >= o.y + 10 && c.x + c.w <= o.x + o.w - 10 && c.y + c.h <= o.y + o.h - 10))) continue;
+          if (rm.frames.some(o => o !== g && o !== fr && !ancG.includes(o) && !contains(g, o) && ov(c, o, 10))) continue;
+          if (ov(c, R.x !== undefined ? { x: R.x, y: R.y, w: R.x2 - R.x, h: R.y2 - R.y } : fr, 10)) continue;
+          if (rm.nodes.some(n => n.x !== undefined && !contains(g, { x: n.x, y: n.y, w: n.w, h: n.h }) && ov(c, n, 4))) continue;
+          return { g, A, axis, pos, size: g[axis] + d };
+        }
+        return null;
+      });
+      if (plans.some(q => !q)) continue;
+      const all = [fr, ...anc, ...partners.map(q => q.g)], was = all.map(g => [g.x, g.y, g.w, g.h]);
       fr.x = R.x; fr.y = R.y; fr.w = R.x2 - R.x; fr.h = R.y2 - R.y;
+      for (const q of plans) { q.g[q.A] = q.pos; q.g[q.axis] = q.size; }
       for (const g of anc) {
         const x = Math.min(g.x, fr.x - 10), y = Math.min(g.y, fr.y - 10);
         const x2 = Math.max(g.x + g.w, fr.x + fr.w + 10), y2 = Math.max(g.y + g.h, fr.y + fr.h + 10);
@@ -4188,20 +4214,30 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
   let W = Math.ceil(rm.width), H = Math.ceil(rm.height);
   const body = [];
 
+  const late = [];       // zone titles with no free place: drawn over the links
   for (const fr of rm.frames) {
     const t = fr.f.tags;
     const color = (t.find(x => PALETTE.light.zones[x === 'gray' ? 'grey' : x]) || 'green').replace('gray', 'grey');
     body.push(`<rect class="zone zone-${color}${t.includes('dashed') ? ' dashed' : ''}" x="${r1(fr.x)}" y="${r1(fr.y)}" width="${r1(fr.w)}" height="${r1(fr.h)}" rx="10"/>`);
     if (fr.f.title) {
       const tw = fr.f.titleW || fr.f.title.length * 6.5;
-      const sp = titleSpot(rm, fr) || { x: fr.x + fr.w - 12, y: fr.y + 20, a: 'end' };
+      let sp = titleSpot(rm, fr), out = body;
+      if (!sp) {
+        // no free place at all: the corner that the fewest links cross, and the title drawn over the links on a
+        // ground of the zone's colour, so they pass under it instead of through its words
+        const crossing = c => { const x0 = c.a === 'end' ? c.x - tw : c.x; return rm.edges.reduce((k, r) => k + (r.pts && !r.e.lifeline ? r.pts.filter((q, i) => i && Math.min(r.pts[i - 1].x, q.x) < x0 + tw && x0 < Math.max(r.pts[i - 1].x, q.x) && Math.min(r.pts[i - 1].y, q.y) < c.y + 3 && c.y - 11 < Math.max(r.pts[i - 1].y, q.y)).length : 0), 0); };
+        const corners = [{ x: fr.x + fr.w - 12, y: fr.y + 20, a: 'end' }, { x: fr.x + 12, y: fr.y + 20, a: 'start' }, { x: fr.x + fr.w - 12, y: fr.y + fr.h - 10, a: 'end' }, { x: fr.x + 12, y: fr.y + fr.h - 10, a: 'start' }];
+        sp = corners.reduce((m, c) => crossing(c) < crossing(m) ? c : m, corners[0]);
+        out = late;
+        out.push(`<rect class="zone zone-${color} zground" x="${r1((sp.a === 'end' ? sp.x - tw : sp.x) - 4)}" y="${r1(sp.y - 13)}" width="${r1(tw + 8)}" height="17" rx="3"/>`);
+      }
       const zl = fr.f.logo && logoData(fr.f.logo);
       if (zl) {
         // the logo before the title, both in the title's grey
         const tx0 = sp.a === 'end' ? sp.x - (fr.f.textW || tw - 16) : sp.x + 16;
-        body.push(`<g class="logo-soft" transform="translate(${r1(tx0 - 16)} ${r1(sp.y - 10)}) scale(${r1(12 / 24 * 1000) / 1000})"><path d="${zl.d}"/></g>`);
-        body.push(`<text class="ztitle muted" x="${r1(tx0)}" y="${r1(sp.y)}">${esc(fr.f.title)}</text>`);
-      } else body.push(`<text class="ztitle muted" x="${r1(sp.x)}" y="${r1(sp.y)}" text-anchor="${sp.a}">${esc(fr.f.title)}</text>`);
+        out.push(`<g class="logo-soft" transform="translate(${r1(tx0 - 16)} ${r1(sp.y - 10)}) scale(${r1(12 / 24 * 1000) / 1000})"><path d="${zl.d}"/></g>`);
+        out.push(`<text class="ztitle muted" x="${r1(tx0)}" y="${r1(sp.y)}">${esc(fr.f.title)}</text>`);
+      } else out.push(`<text class="ztitle muted" x="${r1(sp.x)}" y="${r1(sp.y)}" text-anchor="${sp.a}">${esc(fr.f.title)}</text>`);
     }
   }
   for (const rl of rm.rails || []) {
@@ -4284,7 +4320,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
   for (const rl of rm.rails || []) for (const d of rl.dots || []) body.push(`<circle class="dot" cx="${r1(d.x)}" cy="${r1(d.y)}" r="2.6"/>`);
   for (const d of rm.joins || []) body.push(`<circle class="dot" cx="${r1(d.x)}" cy="${r1(d.y)}" r="2.6"/>`);
   for (const n of rm.nodes) body.push(nodeSVG(n));
-  body.push(...labels);
+  body.push(...late, ...labels);
 
   // legend
   const marks = model.marks || [];

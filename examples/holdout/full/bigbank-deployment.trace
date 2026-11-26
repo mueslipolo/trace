@@ -37,3 +37,4 @@ api --> db2 [muted] : reads and writes, JDBC
 db -> db2 : replicates data to
 
 same-width db01 db02
+same-width dn bb2

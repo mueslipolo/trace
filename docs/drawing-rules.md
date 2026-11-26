@@ -71,6 +71,10 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | A zone's title never sits on a link; a zone with no free corner grows by a title band, or sideways, to make one. | zero-trust mockup, network boundaries, simple DMZ (titles under links through narrow zones) | engine: `roomForTitles` | a zone title crossed by a link |
 | Zones written the same width line up on the left too, also when a side zone stands beside them. | office mockup with the security services as a side zone (edge zone shifted right, side zone dropped below the tiers) | engine: the main flow's lane aligns same-width zones | same-width zones with different left edges |
 | Zones that stand side by side in one layer share their top (their left edge in a flow to the right), not only in a written row. | OTel telemetry held-out (OpAMP, Prometheus, OpenSearch and Jaeger at four heights) | engine: `alignLayerTops`, in the per-zone layout only (not yet when the compound layout wins, as it does for that diagram) | zones of one layer at different heights |
+| A zone title with no free place at all (links cross every edge it could sit on) is drawn over the links, on a ground of the zone's colour. | Deployment, full (two API links cross the top and the bottom of the API zone) | engine: zone title fallback in `render` | a zone title with a line through its words |
+| Zones written the same size stay so when one grows for its title: its partners grow with it, inside their own zone, or it does not grow. | Deployment, full (`same-width dn bb2` silently lost) | engine: `roomForTitles`, then `sameSizeFrames` | same-width zones of different widths |
+| A link label does not straddle a zone border when it has another place. | techtribes, full (two labels across the zone's right border) | engine: `placeLabels` | a label cut by a zone border |
+| A sequence message label hides the lifelines behind it. | GitLab fetch over SSH | engine: label ground in `render` | a lifeline through a label |
 
 ## Reading
 

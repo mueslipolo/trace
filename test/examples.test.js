@@ -1093,3 +1093,11 @@ test('no link label straddles a zone border where it has another place (techtrib
     }
   }
 });
+
+test('same-width holds after a zone grows for its title: its partners grow with it, inside their zone (Deployment, full)', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/full/bigbank-deployment.trace'), 'utf8'), measure, ELK, {});
+  const f = id => res.rm.frames.find(x => x.f.id === id);
+  assert.ok(Math.abs(f('dn').w - f('bb2').w) < 1, 'dn and bb2 are as wide');
+  const dc = res.rm.frames.find(x => f('dn').x > x.x && f('dn').x + f('dn').w < x.x + x.w && x !== f('dn') && x.w > f('dn').w + f('bb2').w);
+  assert.ok(dc && f('bb2').x >= dc.x, 'bb2 stays inside the data center');
+});
