@@ -127,6 +127,16 @@ routes through the middle are shorter but cross many more links (staff to the NA
 802.1X check: 5 instead of 3), so the long clean way round stays. What helps is placement: the NAS on its own
 line under the backup server lets the SMB link run under the VLAN row and in from the side.
 
+## Centring the head of a drawing (tried, not kept)
+
+Tried on the head office network: a pass that slides everything above the widest row (ISPs, firewall, DMZ, core)
+across to the middle of the drawing, its links rerouted. ELK already places that block over the middle of what it
+feeds (the core's heaviest links go to the server room), so centring it costs those links: one more crossing and the
+core's links cutting into the server room on the head office, a straight link bent on the Kubernetes platform, +4
+bends on the held-out set and +28 on the examples. With rules strict enough to keep the counts (no added crossing or
+bend, no straight link bent) the moves left still read worse (a log link looping back on zero trust). Writing the
+server room under the core does not centre it either: the floors and Wi-Fi beside it keep the core to one side.
+
 ## 7. Layout recommendations (later)
 
 Analyse a diagram and suggest the layout features that would improve it (rows or columns across the flow,
