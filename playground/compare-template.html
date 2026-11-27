@@ -44,7 +44,8 @@ code { font: 0.85em "JetBrains Mono", ui-monospace, Menlo, monospace; }
 .seg button[aria-pressed="true"] { background: var(--bg); color: var(--fg); font-weight: 600; }
 .seg button + button { border-left: 1px solid var(--line); }
 .context { margin: 0; color: var(--muted); font-size: 0.9rem; max-width: 110ch; }
-.stages { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; min-height: 0; }
+.stages { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
+.stages .pane[hidden], .srcs .src[hidden] { display: none; }
 .pane { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; min-height: 0; }
 .pane h3 { margin: 0; font-size: 0.8125rem; color: var(--muted); font-weight: 600; }
 .stage { position: relative; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -59,7 +60,7 @@ body.actual .canvas svg { max-width: none; max-height: none; }
 .src summary { cursor: pointer; color: var(--accent); font-size: 0.875rem; }
 .src pre { margin: 6px 0 0; padding: 10px 12px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; font: 12px/18px "JetBrains Mono", ui-monospace, Menlo, monospace; overflow-x: auto; max-height: 40vh; }
 .dgw { background: var(--panel); }
-.srcs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.srcs { display: grid; grid-template-columns: minmax(0, 1fr); }
 .mm svg { background: transparent; }
 
 /* narrow screens: the list becomes a menu above the case, and the page scrolls */
@@ -78,7 +79,7 @@ body.actual .canvas svg { max-width: none; max-height: none; }
 <div class="app">
   <nav class="side" aria-label="Diagrams">
     <h1>Trace and Mermaid</h1>
-    <p class="lede">The held-out diagrams: real C4 and Mermaid diagrams from public sources, written in Trace with no layout help and never used to tune the engine. Each is drawn three times from the same nodes and links: by Trace as a user would first write it, by Trace with its full features (icons, rows and columns, span, mark, join), and by Mermaid. Keys <kbd>←</kbd> <kbd>→</kbd> go to the previous and next diagram.</p>
+    <p class="lede">The held-out diagrams: real C4 and Mermaid diagrams from public sources, written in Trace with no layout help and never used to tune the engine. Each is drawn three times from the same nodes and links: by Trace as a user would first write it, by Trace with its full features (icons, rows and columns, span, mark, join), and by Mermaid. The toggle (or the keys 1, 2, 3) switches between them. Keys <kbd>←</kbd> <kbd>→</kbd> go to the previous and next diagram.</p>
     <ol class="toc" id="toc">@@NAV@@</ol>
   </nav>
   <main class="view">
@@ -86,6 +87,11 @@ body.actual .canvas svg { max-width: none; max-height: none; }
     <div class="bar">
       <span class="num" id="num"></span>
       <h2 id="title"></h2>
+      <span class="seg" role="group" aria-label="Which drawing (keys 1, 2, 3)">
+        <button data-view="plain" aria-pressed="true" title="Trace, as first written, with no layout help (key 1)">As written</button>
+        <button data-view="full" aria-pressed="false" title="Trace with its full features (key 2)">Full features</button>
+        <button data-view="mermaid" aria-pressed="false" title="Mermaid (key 3)">Mermaid</button>
+      </span>
       <span class="seg" role="group" aria-label="Drawing size">
         <button data-size="fit" aria-pressed="true">Fit</button>
         <button data-size="actual" aria-pressed="false">Actual size</button>
@@ -97,14 +103,14 @@ body.actual .canvas svg { max-width: none; max-height: none; }
     </div>
     <p class="context" id="context"></p>
     <div class="stages">
-      <div class="pane"><h3>Trace, as first written (no layout help)</h3><div class="stage"><div class="canvas tr dgw" id="canvas"></div></div></div>
-      <div class="pane"><h3>Trace, full features</h3><div class="stage"><div class="canvas tr dgw" id="fcanvas"><div class="wait">Drawing…</div></div></div></div>
-      <div class="pane"><h3>Mermaid</h3><div class="stage"><div class="canvas mm" id="mcanvas"><div class="wait">Drawing…</div></div></div></div>
+      <div class="pane" data-pane="plain"><h3>Trace, as first written (no layout help)</h3><div class="stage"><div class="canvas tr dgw" id="canvas"></div></div></div>
+      <div class="pane" data-pane="full" hidden><h3>Trace, full features</h3><div class="stage"><div class="canvas tr dgw" id="fcanvas"><div class="wait">Drawing…</div></div></div></div>
+      <div class="pane" data-pane="mermaid" hidden><h3>Mermaid</h3><div class="stage"><div class="canvas mm" id="mcanvas"><div class="wait">Drawing…</div></div></div></div>
     </div>
     <div class="srcs">
-      <details class="src"><summary>Trace source, as first written</summary><pre id="source"></pre></details>
-      <details class="src"><summary>Trace source, full features</summary><pre id="fsource"></pre></details>
-      <details class="src"><summary>Mermaid source</summary><pre id="msource"></pre></details>
+      <details class="src" data-pane="plain"><summary>Trace source, as first written</summary><pre id="source"></pre></details>
+      <details class="src" data-pane="full" hidden><summary>Trace source, full features</summary><pre id="fsource"></pre></details>
+      <details class="src" data-pane="mermaid" hidden><summary>Mermaid source</summary><pre id="msource"></pre></details>
     </div>
   </main>
 </div>
@@ -160,13 +166,26 @@ body.actual .canvas svg { max-width: none; max-height: none; }
   $('pick').addEventListener('change', e => show(CASES.findIndex(c => c.id === e.target.value), true));
   $('prev').addEventListener('click', () => show(cur - 1, true));
   $('next').addEventListener('click', () => show(cur + 1, true));
+  // one drawing at a time, full width: As written, Full features or Mermaid (keys 1, 2, 3); remembered in this browser
+  const VIEWS = ['plain', 'full', 'mermaid'];
+  function setView(v) {
+    if (!VIEWS.includes(v)) v = 'plain';
+    document.querySelectorAll('[data-pane]').forEach(el => { el.hidden = el.dataset.pane !== v; });
+    document.querySelectorAll('button[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+    try { localStorage.setItem('compare-view', v); } catch (e) {}
+  }
+  document.querySelectorAll('button[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+  let saved = 'plain';
+  try { saved = localStorage.getItem('compare-view') || 'plain'; } catch (e) {}
+  setView(saved);
   document.querySelectorAll('button[data-size]').forEach(b => b.addEventListener('click', () => {
     document.body.classList.toggle('actual', b.dataset.size === 'actual');
     document.querySelectorAll('button[data-size]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   }));
   document.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, select, textarea')) return;
-    if (e.key === 'ArrowRight' || e.key === 'j') show(cur + 1, true);
+    if (e.key === '1' || e.key === '2' || e.key === '3') setView(VIEWS[+e.key - 1]);
+    else if (e.key === 'ArrowRight' || e.key === 'j') show(cur + 1, true);
     else if (e.key === 'ArrowLeft' || e.key === 'k') show(cur - 1, true);
   });
   window.addEventListener('hashchange', showFromHash);
