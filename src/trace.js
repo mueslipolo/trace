@@ -1126,6 +1126,62 @@ function clearFrames(rm) {
 // A link that runs through a node that is not one of its ends is routed again: an orthogonal route on the
 // grid of lines just outside every node, the shortest with the fewest bends, from where it leaves its source to
 // the side of its target that its route reaches first. Links that are clear are not touched.
+// Things with a box, filed in square cells, so a question about one place looks only at what is near it.
+// near(x0, y0, x1, y1) returns every item whose box touches the cells that rectangle covers (each once, in the order
+// they were given): a superset of what actually touches it, for the caller's own exact test.
+function cellIndex(items, C = 96) {
+  const cells = new Map();
+  const cell = (cx, cy) => cx * 100003 + cy;
+  const always = [];     // an item with no finite box is in every answer (the caller's test decides)
+  items.forEach((it, n) => {
+    if (![it.x0, it.y0, it.x1, it.y1].every(Number.isFinite)) { always.push(n); return; }
+    for (let cx = Math.floor(it.x0 / C); cx <= Math.floor(it.x1 / C); cx++) for (let cy = Math.floor(it.y0 / C); cy <= Math.floor(it.y1 / C); cy++) {
+      const k = cell(cx, cy); let a = cells.get(k); if (!a) cells.set(k, a = []); a.push(n);
+    }
+  });
+  const seen = new Uint32Array(items.length); let stamp = 0;
+  return {
+    near(x0, y0, x1, y1) {
+      stamp++;
+      const hit = [];
+      for (const n of always) { seen[n] = stamp; hit.push(n); }
+      for (let cx = Math.floor(x0 / C); cx <= Math.floor(x1 / C); cx++) for (let cy = Math.floor(y0 / C); cy <= Math.floor(y1 / C); cy++) {
+        const a = cells.get(cell(cx, cy)); if (!a) continue;
+        for (const n of a) if (seen[n] !== stamp) { seen[n] = stamp; hit.push(n); }
+      }
+      return hit.sort((p, q) => p - q).map(n => items[n].v);
+    },
+  };
+}
+
+// A priority queue of [cost, id], the cheapest first; between equal costs the one pushed first, as a list scanned
+// from the front would give.
+function minHeap() {
+  const h = []; let seq = 0;
+  const less = (a, b) => a[0] < b[0] || (a[0] === b[0] && a[2] < b[2]);
+  return {
+    size: () => h.length,
+    push(c, id) {
+      const it = [c, id, seq++]; h.push(it);
+      for (let i = h.length - 1; i > 0;) { const p = (i - 1) >> 1; if (!less(h[i], h[p])) break; [h[i], h[p]] = [h[p], h[i]]; i = p; }
+    },
+    pop() {
+      const top = h[0], last = h.pop();
+      if (h.length) {
+        h[0] = last;
+        for (let i = 0; ;) {
+          const l = 2 * i + 1, r = l + 1; let m = i;
+          if (l < h.length && less(h[l], h[m])) m = l;
+          if (r < h.length && less(h[r], h[m])) m = r;
+          if (m === i) break;
+          [h[i], h[m]] = [h[m], h[i]]; i = m;
+        }
+      }
+      return [top[0], top[1]];
+    },
+  };
+}
+
 function rerouteBlocked(rm, force, siblingsOnly) {
   const M = 8;                                             // the route keeps this far from every node
   const boxes = rm.nodes.filter(n => n.x !== undefined && n.kind !== 'start');
@@ -1239,15 +1295,37 @@ function rerouteBlocked(rm, force, siblingsOnly) {
     const nearX = v => rm.frames.some(f => Math.abs(v - f.x) < 8 || Math.abs(v - f.x - f.w) < 8), nearY = v => rm.frames.some(f => Math.abs(v - f.y) < 8 || Math.abs(v - f.y - f.h) < 8);
     const X = [...xs].filter(v => keep.has(v) || !nearX(v)).sort((a, b) => a - b), Y = [...ys].filter(v => keep.has(v) || !nearY(v)).sort((a, b) => a - b);
     const all = others.concat([S, T]);
-    const free = (x, y) => !all.some(b => inside(b, x, y, M - 1));
+    // nodes and the other links in a coarse grid of cells, so each test below looks only at what is near (the
+    // tests are the same; a box or segment far from a move can neither block it nor cross it)
+    const boxIx = cellIndex(all.map(b => ({ x0: b.x - M - 1, y0: b.y - M - 1, x1: b.x + b.w + M + 1, y1: b.y + b.h + M + 1, v: b })));
+    const free = (x, y) => !boxIx.near(x, y, x, y).some(b => inside(b, x, y, M - 1));
     const key = (i, j) => i * Y.length + j;
     const ix = new Map(X.map((v, i) => [v, i])), iy = new Map(Y.map((v, j) => [v, j]));
     const startAt = new Map(starts.map(o => [key(ix.get(o.s.x), iy.get(o.s.y)), o]));
     const goals = new Map(ports.map(o => [key(ix.get(o.q.x), iy.get(o.q.y)), o]));
     // Dijkstra over (grid point, direction): length plus a price per bend
-    const BEND = 60, dist = new Map(), prev = new Map(), heap = [];
+    const BEND = 60, dist = new Map(), prev = new Map(), heap = minHeap();
     const occupied = rm.edges.filter(o => o !== r && o.pts && !o.e.rail && !o.e.lifeline).flatMap(o => o.pts.slice(1).map((p, i) => [o.pts[i], p]));
-    const push = (k, d, c) => { const id = k * 4 + d; if (c < (dist.get(id) ?? Infinity)) { dist.set(id, c); heap.push([c, id]); } };
+    const segIx = cellIndex(occupied.map(sg => ({ x0: Math.min(sg[0].x, sg[1].x) - 9, y0: Math.min(sg[0].y, sg[1].y) - 9, x1: Math.max(sg[0].x, sg[1].x) + 9, y1: Math.max(sg[0].y, sg[1].y) + 9, v: sg })));
+    const push = (k, d, c) => { const id = k * 4 + d; if (c < (dist.get(id) ?? Infinity)) { dist.set(id, c); heap.push(c, id); } };
+    // what a move from one grid point to the next costs, beyond its length (Infinity when a node is in the way);
+    // the same whatever direction the route arrived from, so it is worked out once per move
+    const moveCost = new Map();
+    const costOf = (i, j, ni, nj) => {
+      const mk = Math.min(key(i, j), key(ni, nj)) * 2 + (i === ni ? 1 : 0);
+      let v = moveCost.get(mk);
+      if (v !== undefined) return v;
+      const P = { x: X[i], y: Y[j] }, Q = { x: X[ni], y: Y[nj] };
+      const x0 = Math.min(P.x, Q.x), y0 = Math.min(P.y, Q.y), x1 = Math.max(P.x, Q.x), y1 = Math.max(P.y, Q.y);
+      if (boxIx.near(x0, y0, x1, y1).some(bx => segHits(P, Q, bx, M - 2))) v = Infinity;
+      else {
+        // running on top of another link is never wanted: it costs as much as a long detour
+        const segs = segIx.near(x0, y0, x1, y1);
+        v = (segs.some(([u, w]) => overlapSeg(P, Q, u, w, 8)) ? 600 : 0) + 40 * segs.filter(([u, w]) => crossSeg(P, Q, u, w)).length;
+      }
+      moveCost.set(mk, v);
+      return v;
+    };
     const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     // a start whose first stub already lies on another link (the trunk of a bus) is as dear as running on one
     // (closer than 8px counts, as everywhere: two lines that near read as one)
@@ -1255,9 +1333,8 @@ function rerouteBlocked(rm, force, siblingsOnly) {
     for (const o of ports) if (occupied.some(([u, w]) => overlapSeg(o.q, o.p, u, w, 8))) o.extra = (o.extra || 0) + 600;
     for (const [k, o] of startAt) { const d0 = DIRS.findIndex(([a, b]) => a === o.d[0] && b === o.d[1]); push(k, d0 < 0 ? 0 : d0, o.extra); }
     let best = null;
-    while (heap.length) {
-      let m = 0; for (let k = 1; k < heap.length; k++) if (heap[k][0] < heap[m][0]) m = k;
-      const [c, id] = heap.splice(m, 1)[0];
+    while (heap.size()) {
+      const [c, id] = heap.pop();
       if (c > (dist.get(id) ?? Infinity)) continue;
       const k = Math.floor(id / 4), d = id % 4, i = Math.floor(k / Y.length), j = k % Y.length;
       if (goals.has(k)) {
@@ -1274,9 +1351,8 @@ function rerouteBlocked(rm, force, siblingsOnly) {
         if (ni < 0 || nj < 0 || ni >= X.length || nj >= Y.length) continue;
         const P = { x: X[i], y: Y[j] }, Q = { x: X[ni], y: Y[nj] };
         if (!free(Q.x, Q.y) && !goals.has(key(ni, nj))) continue;
-        if (all.some(bx => segHits(P, Q, bx, M - 2))) continue;
-        // running on top of another link is never wanted: it costs as much as a long detour
-        const onLink = (occupied.some(([u, w]) => overlapSeg(P, Q, u, w, 8)) ? 600 : 0) + 40 * occupied.filter(([u, w]) => crossSeg(P, Q, u, w)).length;
+        const onLink = costOf(i, j, ni, nj);
+        if (onLink === Infinity) continue;
         push(key(ni, nj), nd, c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND) + onLink);
         if (!prev.has(key(ni, nj) * 4 + nd) || dist.get(key(ni, nj) * 4 + nd) === c + Math.abs(Q.x - P.x) + Math.abs(Q.y - P.y) + (nd === d ? 0 : BEND) + onLink) prev.set(key(ni, nj) * 4 + nd, id);
       }
