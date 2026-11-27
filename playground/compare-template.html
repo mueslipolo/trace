@@ -72,7 +72,7 @@ body.actual .canvas svg { max-width: none; max-height: none; }
   .pane { height: 60vh; }
 }
 </style>
-<style id="dgcss"></style>
+<style id="dgcss">/*DGCSS*/</style>
 </head>
 <body>
 <div class="app">
@@ -97,7 +97,7 @@ body.actual .canvas svg { max-width: none; max-height: none; }
     </div>
     <p class="context" id="context"></p>
     <div class="stages">
-      <div class="pane"><h3>Trace, as first written (no layout help)</h3><div class="stage"><div class="canvas tr dgw" id="canvas"><div class="wait">Drawing…</div></div></div></div>
+      <div class="pane"><h3>Trace, as first written (no layout help)</h3><div class="stage"><div class="canvas tr dgw" id="canvas"></div></div></div>
       <div class="pane"><h3>Trace, full features</h3><div class="stage"><div class="canvas tr dgw" id="fcanvas"><div class="wait">Drawing…</div></div></div></div>
       <div class="pane"><h3>Mermaid</h3><div class="stage"><div class="canvas mm" id="mcanvas"><div class="wait">Drawing…</div></div></div></div>
     </div>
@@ -108,57 +108,31 @@ body.actual .canvas svg { max-width: none; max-height: none; }
     </div>
   </main>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js"></script>
-<script>
-/*CORE*/
-</script>
 <script>
 /*CASES*/
 (function () {
-  const L = PALETTE.light, D = PALETTE.dark;
-  document.getElementById('dgcss').textContent =
-    diagramCSS(L, '.dg') +
-    `@media (prefers-color-scheme: dark){${diagramCSS(D, ':root:not([data-theme="light"]) .dg')}}` +
-    diagramCSS(D, ':root[data-theme="dark"] .dg');
-  const ctx = document.createElement('canvas').getContext('2d');
-  const widths = new Map();
-  function measure(text, font) {
-    const k = font + '\u0000' + text;
-    let v = widths.get(k);
-    if (v === undefined) { ctx.font = font; v = ctx.measureText(text).width; widths.set(k, v); }
-    return v;
-  }
+  // The two Trace columns are drawn when the page is built (tools/build-compare.js) and come as SVG in CASES; only
+  // the Mermaid column is drawn here, in the browser.
   const $ = id => document.getElementById(id);
-  const drawn = new Map(), fdrawn = new Map(), mdrawn = new Map();   // diagram index -> svg, drawn once
+  const mdrawn = new Map();   // diagram index -> Mermaid svg, drawn once
   let cur = 0, token = 0;
   const dark = () => document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
   if (typeof mermaid !== 'undefined') mermaid.initialize({ startOnLoad: false, theme: dark() ? 'dark' : 'default', securityLevel: 'strict', flowchart: { useMaxWidth: false }, sequence: { useMaxWidth: false } });
+  const wait = t => `<div class="wait">${t}</div>`;
 
   async function draw() {
     const c = CASES[cur], i = cur, mine = ++token;
-    const slot = $('canvas'), fslot = $('fcanvas'), mslot = $('mcanvas');
-    if (!drawn.has(i)) slot.innerHTML = '<div class="wait">Drawing…</div>';
-    if (!fdrawn.has(i)) fslot.innerHTML = '<div class="wait">Drawing…</div>';
-    if (!mdrawn.has(i)) mslot.innerHTML = '<div class="wait">Drawing…</div>';
-    const one = (src, store, out, pre) => (async () => {
-      if (store.has(i)) return;
-      if (!src) { store.set(i, '<div class="wait">Not written yet.</div>'); return; }
-      if (typeof ELK === 'undefined') { store.set(i, '<div class="wait">The layout engine didn’t load. Reload the page to try again.</div>'); return; }
-      try {
-        const r = await compile(src, measure, ELK, { idPrefix: pre + i });
-        store.set(i, r.errors.length ? `<div class="wait">Line ${r.errors[0].line}: ${r.errors[0].msg}</div>` : r.svg);
-      } catch (e) { store.set(i, '<div class="wait">The layout engine couldn’t place this one.</div>'); }
-    })().then(() => { if (mine === token) out.innerHTML = store.get(i); });
-    const trace = one(c.trace, drawn, slot, 'h');
-    const full = one(c.full, fdrawn, fslot, 'f');
-    const merm = (async () => {
-      if (mdrawn.has(i)) return;
-      if (typeof mermaid === 'undefined') { mdrawn.set(i, '<div class="wait">Mermaid didn’t load. Reload the page to try again.</div>'); return; }
-      try { const r = await mermaid.render('mm' + i, c.mermaid); mdrawn.set(i, r.svg); }
-      catch (e) { mdrawn.set(i, '<div class="wait">Mermaid couldn’t draw this one.</div>'); }
-    })().then(() => { if (mine === token) mslot.innerHTML = mdrawn.get(i); });
-    await Promise.all([trace, full, merm]);
+    $('canvas').innerHTML = c.svg || wait(c.error || 'Not drawn.');
+    $('fcanvas').innerHTML = c.fsvg || wait(c.full ? (c.ferror || 'Not drawn.') : 'Not written yet.');
+    const mslot = $('mcanvas');
+    if (!mdrawn.has(i)) mslot.innerHTML = wait('Drawing…');
+    if (!mdrawn.has(i)) {
+      if (typeof mermaid === 'undefined') mdrawn.set(i, wait('Mermaid didn’t load (it needs the network). Reload the page to try again.'));
+      else try { const r = await mermaid.render('mm' + i, c.mermaid); mdrawn.set(i, r.svg); }
+      catch (e) { mdrawn.set(i, wait('Mermaid couldn’t draw this one.')); }
+    }
+    if (mine === token) mslot.innerHTML = mdrawn.get(i);
   }
   function show(i, push) {
     cur = (i + CASES.length) % CASES.length;
@@ -196,10 +170,7 @@ body.actual .canvas svg { max-width: none; max-height: none; }
     else if (e.key === 'ArrowLeft' || e.key === 'k') show(cur - 1, true);
   });
   window.addEventListener('hashchange', showFromHash);
-  const ready = document.fonts
-    ? Promise.all([document.fonts.load(FONT_NAME), document.fonts.load(FONT_NOTE), document.fonts.load('600 11.5px Inter')]).catch(() => {})
-    : Promise.resolve();
-  Promise.race([ready, new Promise(r => setTimeout(r, 2500))]).then(showFromHash);
+  showFromHash();
 })();
 </script>
 </body>

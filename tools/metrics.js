@@ -8,6 +8,8 @@
 //   npm run metrics -- --save             ... and make this run the new baseline
 //   npm run metrics -- --only holdout     one set
 //   npm run metrics -- --worst crossings  the diagrams that score worst on one metric
+//   npm run metrics -- --json out.json    ... and write every count as JSON (totals, difference from the baseline, each diagram)
+//   npm run metrics -- --check            exit 1 when the held-out set is worse than the baseline (for a pipeline)
 //
 // Every metric counts something bad, so lower is better.
 const fs = require('fs');
@@ -139,6 +141,23 @@ const holdout = () => fs.readdirSync(path.join(root, 'examples', 'holdout')).fil
       const top = [...set.rows].sort((a, c) => (c.m[worst] || 0) - (a.m[worst] || 0)).filter(r => r.m[worst]).slice(0, 8);
       console.log(`  worst for ${NAMES[worst]}: ${top.map(r => `${r.name} (${r.m[worst]})`).join(', ') || 'none'}`);
     }
+  }
+  // for a pipeline: everything as JSON (totals, the difference from the baseline, each diagram's counts)
+  const jsonAt = opt('--json', null);
+  const report = {};
+  for (const [k, set] of Object.entries(sets)) {
+    const b = base && base.sets && base.sets[k] && base.sets[k].n === set.n ? base.sets[k] : null;
+    const delta = b ? Object.fromEntries(Object.keys(NAMES).map(key => [key, set.total[key] - (b.total[key] || 0)])) : null;
+    report[k] = { n: set.n, total: set.total, baseline: b ? b.total : null, delta, worse: delta ? Object.keys(delta).filter(key => delta[key] > 0) : null,
+      diagrams: set.rows.map(r => ({ name: r.name, ...r.m })) };
+  }
+  if (jsonAt) { fs.mkdirSync(path.dirname(path.resolve(jsonAt)), { recursive: true }); fs.writeFileSync(path.resolve(jsonAt), JSON.stringify(report, null, 2) + '\n'); console.log(`\nmetrics written to ${jsonAt}`); }
+  // the rule for a layout change: the held-out set does not get worse than the baseline
+  if (args.includes('--check')) {
+    const h = report.holdout;
+    if (!h || !h.delta) { console.log('\ncheck: no held-out baseline with the same number of diagrams to compare with'); process.exitCode = 1; }
+    else if (h.worse.length) { console.log(`\ncheck failed: the held-out set is worse on ${h.worse.map(k => NAMES[k]).join(', ')}`); process.exitCode = 1; }
+    else console.log('\ncheck passed: the held-out set is no worse than the baseline');
   }
   if (args.includes('--save')) {
     fs.mkdirSync(path.dirname(basePath), { recursive: true });

@@ -223,5 +223,7 @@ judge looks: run `npm run snapshots` and look at the PNGs.
 `npm run metrics` (`tools/metrics.js`) counts what makes a drawing worse (links through or brushing nodes,
 overlaps, crossings, bends, links along borders, crossed labels...) over the examples and over
 `examples/holdout/`, real C4 and Mermaid diagrams never tuned on, and compares with `metrics/baseline.json`.
-A layout change is kept only if the held-out set does not get worse. `dist/compare.html` draws each held-out
-diagram with Trace and with Mermaid side by side.
+A layout change is kept only if the held-out set does not get worse (`--check` makes that an exit code, `--json`
+writes the counts for a pipeline). `dist/compare.html` shows each held-out diagram drawn by Trace as first written,
+by Trace with its full features, and by Mermaid; the Trace drawings are rendered at build time, so the page can be
+built and archived by a pipeline, and only the Mermaid column needs a browser and the network.

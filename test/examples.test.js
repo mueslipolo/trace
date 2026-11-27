@@ -518,6 +518,19 @@ test('a label moves off a link that crosses it, and may wrap to two lines to fit
   assert.deepStrictEqual(wide.errors, []);
 });
 
+test('the comparison page is built with every Trace drawing already in it (no engine in the page), Mermaid drawn live', () => {
+  const { execFileSync } = require('child_process');
+  const out = path.join(require('os').tmpdir(), 'trace-compare-test.html');
+  execFileSync('node', [path.join(root, 'tools/build-compare.js'), '--out', out], { stdio: 'pipe' });
+  const html = fs.readFileSync(out, 'utf8');
+  const CASES = JSON.parse(html.match(/const CASES = (\[.*?\]);\n/s)[1]);
+  const ids = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace'));
+  assert.strictEqual(CASES.length, ids.length);
+  for (const c of CASES) { assert.match(c.svg, /^<svg/, `${c.id} drawn`); if (c.full) assert.match(c.fsvg, /^<svg/, `${c.id} full drawn`); }
+  assert.ok(!/elkjs|function compile/.test(html), 'no layout engine in the page');
+  assert.match(html, /mermaid@11\.17\.2/);
+});
+
 test('the showcase page shows one case at a time, with a list of every case, a menu, and simple and full', () => {
   const { execFileSync } = require('child_process');
   execFileSync('node', [path.join(root, 'tools/build-showcase.js')], { stdio: 'pipe' });

@@ -30,14 +30,18 @@ before changing layout, and `docs/roadmap.md` before picking up work. `docs/draw
   out of date. Together they are the regression suite and the showcase.
 - `examples/holdout/`: real diagrams from public C4 and Mermaid sources, adapted to Trace with no layout help;
   the held-out check for layout rules (`npm run metrics`, `tools/metrics.js`). Each has its Mermaid version
-  (`.mmd`); `npm run build:compare` draws both in `dist/compare.html`. Mermaid sources are converted with
-  `tools/mermaid-to-trace.js`. Sources and licences in its README.
+  (`.mmd`), and `full/<name>.trace` is the same diagram written with every feature (never measured).
+  `npm run build:compare` writes `dist/compare.html`: the plain and full Trace drawings rendered in Node and written
+  into the page as SVG, the Mermaid one drawn live in the browser (`-- --out <file>` to write it elsewhere; exits 1
+  when a diagram cannot be drawn). Mermaid sources are converted with `tools/mermaid-to-trace.js`. Sources and
+  licences in its README.
 - `examples/features/`: one small before/after pair per language feature (`<id>.before.trace`, `<id>.after.trace`) and the text
   in `features.json`; `npm run build:features` draws them in `dist/features.html`. A feature can switch an automatic tidy-up off
   for its "before" (`beforeOff`: `fold`, `merge`, `tidy`), which is what `compile(..., { off: [...] })` does.
 - `playground/template.html`: the live editor page. `playground/showcase-template.html`: the page that draws the cases
   with their notes. `playground/features-template.html`, `playground/compare-template.html`: the features and
-  comparison pages. All get the icon and logo data and `src/trace.js` inlined by the build.
+  comparison pages. All but the comparison page get the icon and logo data and `src/trace.js` inlined by the build
+  (the comparison page gets its Trace drawings already rendered).
 - `tools/`: `build-playground.js`, `build-showcase.js`, `build-features.js`, `build-compare.js` (the pages, to `dist/`),
   `build-icons.js` (icon and logo data), `render.js` (one file to SVG or PNG), `snapshots.js` (all examples to `out/`),
   `simplify.js` (the simple forms), `metrics.js` (layout quality), `mermaid-to-trace.js` (Mermaid to Trace, plainly),
@@ -56,6 +60,7 @@ npm run snapshots        # out/**/*.svg, plus .png if @resvg/resvg-js installed
 npm run build            # dist/: playground, showcase, features and compare pages
 npm run build:icons      # src/lucide-*.js and src/logo-*.js from the dev dependencies
 npm run metrics          # layout quality, compared with metrics/baseline.json (-- --save to update it)
+                         # -- --json out.json writes every count; -- --check exits 1 if the held-out set got worse
 node tools/render.js examples/cases/dmz.trace out.svg     # also out.png, --dark, --zoom 2, --watch
 ```
 
