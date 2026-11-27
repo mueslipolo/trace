@@ -16,7 +16,8 @@
     "test": "node --test",
     "build:icons": "node tools/build-icons.js",
     "simplify": "node tools/simplify.js",
-    "metrics": "node tools/metrics.js"
+    "metrics": "node tools/metrics.js",
+    "build:docs": "node tools/build-docs-images.js"
   },
   "dependencies": {
     "elkjs": "0.9.3"

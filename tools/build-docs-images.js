@@ -1,0 +1,59 @@
+#!/usr/bin/env node
+// Draws the pictures in README.md and docs/layout-guide.md into docs/images/, as PNGs with the Inter font.
+// The README pictures also get a dark version (<name>.dark.png) for a <picture> element; the guide's
+// before/after pairs come from examples/features (the "before" with the tidy-ups its feature switches off).
+// Run it after a layout change: npm run build:docs
+const fs = require('fs');
+const path = require('path');
+const ELK = require('elkjs/lib/elk.bundled.js');
+const { compile } = require('../src/trace.js');
+const { measure } = require('./measure.js');
+const { toPng, available } = require('./png.js');
+
+const root = path.join(__dirname, '..');
+const outDir = path.join(root, 'docs/images');
+
+// README: [name, source]
+const readme = [
+  ['dmz', 'examples/cases/dmz.trace'],
+  ['bigbank-plain', 'examples/holdout/bigbank-container.trace'],
+  ['bigbank-full', 'examples/holdout/full/bigbank-container.trace'],
+  ['cicd', 'examples/cases/cicd.trace'],
+  ['hybrid', 'examples/cases/hybrid.trace'],
+  ['payment', 'examples/cases/payment.trace'],
+  ['shop-model', 'examples/cases/shop-model.trace'],
+  ['job-sequence', 'examples/playground/job-sequence.trace'],
+  ['orgchart', 'examples/cases/orgchart.trace'],
+  ['bridge.before', 'examples/features/bridge.before.trace'],
+  ['bridge.after', 'examples/features/bridge.after.trace'],
+];
+// layout guide: feature pairs, plus the plain DMZ (the full one is the README's)
+const guidePairs = ['direction', 'across', 'lanes', 'bridge', 'span', 'samewidth', 'side', 'rail',
+  'reverse', 'bus', 'junction', 'join', 'mark', 'fold'];
+const meta = JSON.parse(fs.readFileSync(path.join(root, 'examples/features/features.json'), 'utf8'));
+// [name, source, tidy-ups off, lines to leave out]; k8s shows align on a case where it still matters
+const guide = [['dmz-plain', 'examples/cases/simple/dmz.trace'],
+  ['align.before', 'examples/cases/k8s.trace', [], /^align .*\n/gm], ['align.after', 'examples/cases/k8s.trace']];
+for (const id of guidePairs) {
+  const m = meta.find(f => f.id === id);
+  if (!m) throw new Error(`no feature ${id} in examples/features/features.json`);
+  for (const k of ['before', 'after'])
+    if (!readme.some(r => r[0] === `${id}.${k}`)) guide.push([`${id}.${k}`, `examples/features/${id}.${k}.trace`, k === 'before' ? m.beforeOff || [] : []]);
+}
+
+async function draw(name, file, off = [], theme, drop) {
+  let src = fs.readFileSync(path.join(root, file), 'utf8');
+  if (drop) src = src.replace(drop, '');
+  const res = await compile(src, measure, ELK, { off });
+  if (res.errors.length) throw new Error(`${file}:${res.errors[0].line}: ${res.errors[0].msg}`);
+  const png = toPng(res.standalone(theme), { zoom: 1.5, dark: theme === 'dark' });
+  fs.writeFileSync(path.join(outDir, `${name}${theme === 'dark' ? '.dark' : ''}.png`), png);
+}
+
+(async () => {
+  if (!available()) { console.error('Needs @resvg/resvg-js: run npm install'); process.exit(2); }
+  fs.mkdirSync(outDir, { recursive: true });
+  for (const [name, file] of readme) { await draw(name, file, [], 'light'); await draw(name, file, [], 'dark'); }
+  for (const [name, file, off, drop] of guide) await draw(name, file, off, 'light', drop);
+  console.log(`docs/images: ${readme.length * 2 + guide.length} pictures`);
+})().catch(e => { console.error(e.message); process.exit(1); });

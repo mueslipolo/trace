@@ -53,6 +53,8 @@ before changing layout, and `docs/roadmap.md` before picking up work. `docs/draw
   with their notes. `playground/features-template.html`, `playground/compare-template.html`: the features and
   comparison pages. All but the comparison page get the icon and logo data and `src/trace.js` inlined by the build
   (the comparison page gets its Trace drawings already rendered).
+- `docs/images/`: the pictures in `README.md` and `docs/layout-guide.md`, PNGs drawn by `npm run build:docs`
+  (`tools/build-docs-images.js`, which lists them; the README ones also in dark). Never edit by hand.
 - `tools/`: `build-playground.js`, `build-showcase.js`, `build-features.js`, `build-compare.js` (the pages, to `dist/`),
   `build-icons.js` (icon and logo data), `render.js` (one file to SVG or PNG), `snapshots.js` (all examples to `out/`),
   `simplify.js` (the simple forms), `metrics.js` (layout quality), `mermaid-to-trace.js` (Mermaid to Trace, plainly),
@@ -70,6 +72,7 @@ npm run simplify         # regenerate examples/cases/simple/ from the full cases
 npm run snapshots        # out/**/*.svg, plus .png if @resvg/resvg-js installed
 npm run build            # dist/: playground, showcase, features and compare pages
 npm run build:icons      # src/lucide-*.js and src/logo-*.js from the dev dependencies
+npm run build:docs       # docs/images/: the README and layout guide pictures
 npm run metrics          # layout quality, compared with metrics/baseline.json (-- --save to update it)
                          # -- --json out.json writes every count; -- --check exits 1 if the held-out set got worse
 node tools/render.js examples/cases/dmz.trace out.svg     # also out.png, --dark, --zoom 2, --watch
@@ -83,7 +86,8 @@ you were fixing. Most bugs found so far were only visible in a picture (a frame 
 node, a title under a box, a jog in a link). If you add a feature, add or extend an example that
 uses it.
 
-Then run `npm run metrics`. It measures the examples (where the rules are tuned) and `examples/holdout/`
+Then run `npm run metrics`. When you commit a layout change, run `npm run build:docs` too, so the README and
+the layout guide show what the engine draws today (check that each before/after pair in the guide still differs). It measures the examples (where the rules are tuned) and `examples/holdout/`
 (real C4 and Mermaid diagrams adapted to Trace, never tuned on) and compares with `metrics/baseline.json`: links
 through or brushing nodes, overlapping links, crossings, bends, links along borders, crossed labels, overlaps. A
 layout change is kept only if it does not make the held-out set worse; save a new baseline with

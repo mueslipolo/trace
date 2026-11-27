@@ -1,184 +1,367 @@
 # Laying out a diagram
 
-Trace lays diagrams out by itself. This guide is for the moment it does not look right: what to try,
-in what order, and why. Every rule below comes from a real diagram, the three-tier network behind a
-DMZ (`examples/cases/dmz.trace`, with its plain version in `examples/cases/simple/`).
+Trace lays diagrams out by itself, and most diagrams need nothing more. This guide is for the moment a
+drawing does not look right: the rules a good diagram follows, why each one matters, what to write to get
+it, and what changes. Every picture pair is drawn from the same text with and without that one change
+(the sources are in `examples/features/`; `npm run build:features` shows them all in `dist/features.html`).
 
-The aim is a diagram that reads as one picture: the main flow in one direction, links that go
-straight, zones that touch where the real network touches, roughly page-shaped.
+What we aim for: a diagram that reads as one picture. The main flow goes one way, links are straight, zones
+touch where the real things touch, and the whole is roughly the shape of a page.
 
-## 1. Start with the plain version
+Two principles sit above the rules:
 
-Write nodes, links, labels and frames. Nothing else. Look at it before adding anything.
+- **Start plain.** Write nodes, links, labels and frames, nothing else, and look at the result before adding
+  anything. Every hint is something to maintain; do not add one to a drawing that is already good.
+- **A hint says what the engine cannot guess.** That a firewall belongs to two zones, that a log collector is
+  not the last tier, that two nodes should be level. The engine does not guess these, so it never draws them
+  without being told.
+
+## 1. Choose the direction from the shape of the story
+
+**Rule:** layers that something crosses in order go **down**; a sequence of steps goes **right** (the default).
+
+**Why:** tiers behind firewalls, or a request crossing zones, are read top to bottom like a building's floors.
+Drawn left to right they become a long strip, and when the page is fitted to the screen the text gets tiny.
+A pipeline or a lifecycle reads like a sentence, left to right.
+
+**Write:** `direction down`
+
+<table>
+<tr><th align="left">The default, to the right</th></tr>
+<tr><td><img src="images/direction.before.png" alt="A request path drawn as one long horizontal strip" width="880"></td></tr>
+<tr><th align="left"><code>direction down</code></th></tr>
+<tr><td><img src="images/direction.after.png" alt="The same request path drawn top to bottom" width="182"></td></tr>
+</table>
+
+**Result:** the same six steps fit a page. A strip more than about four times wider than tall is folded into
+rows by the engine anyway (rule 4), but for layered things choosing the direction yourself is the better move:
+the tiers stay whole instead of being cut where the fold happens to fall.
+
+## 2. Put siblings across the flow, not along it
+
+**Rule:** nodes that are reached from the same place go side by side **across** the flow: in a **row** when
+the diagram goes down, in a **column** when it goes right.
+
+**Why:** nodes stacked *along* the flow stand in each other's way. The link to the one behind cannot go
+straight, so it leaves its source sideways, runs round the first ones and comes back in. Across the flow
+every node has a clear line from what feeds it and to what it feeds.
+
+**Write:** change `column { … }` to `row { … }` (or the other way round).
+
+<table>
+<tr><th>A column, along a downward flow</th><th>A row, across it</th></tr>
+<tr>
+<td valign="top"><img src="images/across.before.png" alt="Three nodes stacked under a firewall; the links to the lower ones run round the upper ones" width="100%"></td>
+<td valign="top"><img src="images/across.after.png" alt="The three nodes side by side under the firewall; every link drops straight" width="100%"></td>
+</tr>
+</table>
+
+**Result:** every link leaves its node on the side facing its target, one bend at most. This is the rule most
+likely to apply to your next diagram.
+
+**Symptom:** a link that leaves a box by the side, runs a long way, and turns back in.
+
+## 3. Let the flow place the zones; write rows and columns of zones only to decide
+
+**Rule:** zones are placed in the order the flow crosses them, so a chain of zones needs no block around it.
+Put zones in a `row` or `column` only when you want something the flow would not give you: two zones next to
+each other, a grid, or a particular order.
+
+**Why:** a block that repeats what the flow already does adds nothing but lines to maintain, and it fixes an
+order the engine could otherwise choose to save crossings. A block that decides something is worth its lines:
+here a chain of four zones becomes a two-by-two grid.
+
+**Write:**
 
 ```
-frame dmz "DMZ" { lb: Load balancer
-                  rp: Reverse proxy }
+column {
+  row { frame edge "edge" { … }  frame dmz "DMZ" { … } }
+  row { frame app "app zone" { … }  frame data "data zone" { … } }
+}
 ```
 
-Most diagrams are fine at this point. The rest of this guide is for the ones that are not.
-Do not add a command to a diagram that is already good: every command is something to maintain.
+<table>
+<tr><th align="left">The flow decides</th></tr>
+<tr><td><img src="images/lanes.before.png" alt="Four zones in one long chain" width="592"></td></tr>
+<tr><th align="left">Rows of zones</th></tr>
+<tr><td><img src="images/lanes.after.png" alt="The four zones as a two by two grid" width="508"></td></tr>
+</table>
 
-## 2. Choose the direction by the shape of the story
+**Result:** you decide who is next to whom; links still decide the details inside each zone. The price is
+paid by links between zones that end up in different rows: keep zones that talk most one after the other.
 
-| The diagram is | Use |
-|---|---|
-| a pipeline, a lifecycle, a chain of steps (CI/CD, order processing, payment states) | `direction right` (the default) |
-| layers or tiers that traffic crosses in order (a network behind firewalls, a request path through zones) | `direction down` |
+**Symptom:** long links between two zones that sit in different rows or columns. Put those two zones one after
+the other along the flow instead.
 
-If the plain version is a strip more than about 4 times wider than tall, the engine already folds it
-into rows by itself. If you would rather decide, `direction down` is usually the better move for
-layered things: the plain DMZ went from 2,872 by 281 px to 641 by 1,397 with this one line.
+## 4. Keep the drawing roughly the shape of a page
 
-## 3. Put sibling nodes across the flow, not along it
+**Rule:** a long chain is folded into rows rather than drawn as a strip.
 
-This is the rule that fixed the DMZ, and the one most likely to apply to your next diagram.
+**Why:** a drawing many times wider than tall is shrunk to fit the screen, and its text becomes unreadable.
 
-A `column` stacks nodes top to bottom, a `row` side by side. When several nodes sit next to a zone's
-entry point and all link on to the same place, they should be laid **across** the flow:
+**Write:** nothing: the engine folds a chain much wider than tall. Write rows yourself (rule 3) to choose
+where it folds, for instance one row per stage of a pipeline.
 
-- in a `direction down` diagram, siblings go in a **row**;
-- in a `direction right` diagram, siblings go in a **column**.
+<table>
+<tr><th align="left">Folding off</th></tr>
+<tr><td><img src="images/fold.before.png" alt="A long pipeline in one line" width="880"></td></tr>
+<tr><th align="left">Folding on (automatic)</th></tr>
+<tr><td><img src="images/fold.after.png" alt="The same pipeline wrapped into rows" width="626"></td></tr>
+</table>
 
-Why: nodes stacked *along* the flow stand in each other's way. The link from the first one cannot go
-straight to what is beyond, so it leaves sideways, runs round the zone and comes back: the long,
-jogging links you see when a left-to-right diagram is turned top-down without changing its stacks.
-Across the flow, every node has a clear line.
+**Result:** each wrap costs one link that comes back to the start of the next row. With frames the same idea
+is tried on the zones and refused when it adds crossings, or when that link would cross much of the page.
 
-Symptom: a link that leaves a box by the side, runs a long way, and turns back in.
-Fix: change that `column` to a `row` (or the other way round).
+## 5. Put a gateway on the border it guards
 
-## 4. Let zones follow the flow; draw the border with `[bridge]`
+**Rule:** a node that belongs to two zones (a firewall, a gateway, a transit router) sits on their shared
+border, half in each.
 
-Frames are placed in the order the traffic crosses them, so with the direction right, four zones in a
-chain come out as four bands one after the other. You do not need a `row` or `column` around them:
-the DMZ with an outer `column` had 54 link bends, without it 25.
+**Why:** that is how network engineers draw it, and it says at a glance “this is the only way in”. Inside one
+zone, the firewall looks like one more server, and the gap between the zones means nothing.
 
-Where a firewall or gateway belongs to two zones, tag it `[bridge]`. It is drawn on the border,
-half in each zone, and the two frames are made to touch. `[span]` makes a node as wide (or tall) as
-the stack it links to, so the links fan out on straight lines.
+**Write:** `fw [bridge]: Internal firewall` (often with `span`, rule 6)
 
-`[span]` also fixes links that squeeze together. Two sources side by side feeding one node (the Internet
-users and Partner APIs feeding DDoS scrubbing) are further apart than the node is wide, so their
-links slide inward and bunch up at its edge. Tag the node `[span]` and it grows as wide as the row of
-sources, with one attachment point under each: both links drop straight. A span node is sized to the
-stack it *feeds*; a wider stack on the other side attaches in proportion and its links may jog.
+<table>
+<tr><th>Without</th><th><code>[bridge span]</code></th></tr>
+<tr>
+<td valign="top"><img src="images/bridge.before.png" alt="Two zones apart; each firewall is a box inside its zone" width="100%"></td>
+<td valign="top"><img src="images/bridge.after.png" alt="The zones touch and each firewall sits on the border" width="100%"></td>
+</tr>
+</table>
 
-Some links will still have one step. That is fine: what matters is that the steps are minimal (one
-each) and aligned (links into the same node step at the same height), and the engine does both.
+**Result:** the two zones are made to touch, the firewall straddles the line. It needs the zones one after the
+other along the flow: zones placed beside each other by a block have no shared border, and the bridge is drawn
+as an ordinary node.
 
-Both need the zones to be next to each other along the flow. If the two zones end up beside each
-other in a row or column block, a bridge between them has no shared border and is drawn as an
-ordinary node.
+## 6. Let a fan land straight
 
-## 5. Use rows and columns of frames to decide, not to repeat
+**Rule:** links between one node and several side by side arrive straight, one attachment point each.
 
-A `row` or `column` that holds frames places them side by side or one above the other, in the order
-you write them. Use it when you want something the flow would not give you: two zones next to each
-other (a grid), or a particular order.
+**Why:** two sources further apart than the node they feed is wide have nowhere straight to land: their links
+slide inward and bunch up at its edge, each with a bend.
 
-- To **centre** things over what they feed (two sources either side of the first node, say), put them
-  and the thing they feed in a `column` block. A column centres its children on each other; without
-  it the layout may let one source drop straight and shift the other, since either is equally short
-  for it. The price is a bend in each link where the sources are further apart than the node.
-- A block that repeats what the flow already does (a `column` of zones in a top-down diagram) adds
-  nothing and can make the result worse. Take it out and compare.
-- Links that cross between blocks pay for it: the app zone beside the DMZ instead of below it turned
-  two straight links into two long detours.
+**Write:** `ddos [span]: DDoS scrubbing`
 
-Symptom: long links between two zones that sit in different rows or columns.
-Fix: put those two zones one after the other along the flow instead.
+<table>
+<tr><th>Without</th><th><code>[span]</code></th></tr>
+<tr>
+<td valign="top"><img src="images/span.before.png" alt="Two sources whose links bend inward to a narrow node" width="100%"></td>
+<td valign="top"><img src="images/span.after.png" alt="The node is as wide as the two sources and both links drop straight" width="100%"></td>
+</tr>
+</table>
 
-- To keep one pair level across two stacks of different lengths (an order and its invoice, a topic
-  and its main consumer), write `align a b`. The stacks are slid into line on that pair and the link
-  between them is one straight line. It costs a few bends in the other links between the two stacks,
-  and it does not remove crossings, so use it for neatness of a pair, not as a fix for a tangle.
+**Result:** the node grows as wide (or tall) as the stack it feeds, with one attachment point under each
+member. A wider stack on its other side attaches in proportion, and those links may keep a step.
 
-- To make zones or nodes line up, write `same-width zoneA zoneB zoneC` (or `same-height`). It is a
-  statement about relations, not a number: it keeps working when a label changes, and the frames
-  share their edges as well as their size. Use it when the tiers of a diagram have ragged sides.
-- For links that touch many nodes and carry no part of the main story (logs to a SIEM, metrics to
-  monitoring, a scheduler's triggers), use a `rail` on the side of the diagram those nodes are on. The
-  links leave the layout, so the diagram looks as it did before they were added. Choose the side so the
-  nodes that tap on are near it: a firewall at the right edge of a top-down diagram suits `[right]`; a
-  node in the middle would have to cross its neighbours (the result tells you).
+## 7. Give tiers straight sides
 
-- For zones that watch or administer the rest (observability, admin access, security tooling), tag the frame
-  `[side]` (and `span` to make it as tall as the zones it talks to): it stands beside the flow instead of
-  becoming the last tier. Plain frames cannot tell a logging sink from a data tier, because both are the end of
-  some links.
+**Rule:** zones stacked as tiers share their edges.
 
-## 6. Reading a result
+**Why:** ragged sides read as a meaning that is not there (this zone is smaller, that one is off to the side).
+Straight sides read as one stack of layers.
+
+**Write:** `same-width edge app data` (or `same-height` for zones side by side)
+
+<table>
+<tr><th>Without</th><th><code>same-width a b c</code></th></tr>
+<tr>
+<td valign="top"><img src="images/samewidth.before.png" alt="Three stacked zones of different widths" width="100%"></td>
+<td valign="top"><img src="images/samewidth.after.png" alt="The three zones share their left and right edges" width="100%"></td>
+</tr>
+</table>
+
+**Result:** it is a statement about relations, not a number, so it keeps working when a label changes.
+
+## 8. Keep linked pairs level across stacks
+
+**Rule:** when links run between two stacks of different lengths, the pairs they link are level and the links
+straight.
+
+**Why:** each stack is centred on its own, so a node in the middle of a long stack and one at the end of a short
+stack sit at different heights, and the link between them takes a step.
+
+**Write:** usually nothing: the engine slides stacks and zones in one layer into line on their links. When it
+picks a different pair from the one you care about, name yours: `align podcart redis`.
+
+<table>
+<tr><th>Without <code>align</code>: the cart pods' link to Redis takes a small step</th></tr>
+<tr><td><img src="images/align.before.png" alt="Kubernetes diagram where the link from the cart pods to Redis has a small step" width="100%"></td></tr>
+<tr><th><code>align podcart redis</code>: the data zone slides down and the link is one straight line</th></tr>
+<tr><td><img src="images/align.after.png" alt="The same diagram with the cart pods level with Redis" width="100%"></td></tr>
+</table>
+
+**Result:** the stacks (and their zones) slide into line on those nodes; a node in a zone moves with its whole
+zone. It can cost a bend in other links between the two stacks, and it does not remove crossings: use it for
+the neatness of a pair, not to untangle.
+
+## 9. Put what watches the diagram beside it, not after it
+
+**Rule:** logging, monitoring, administration and security tooling stand beside the main flow.
+
+**Why:** a zone that only receives links looks, to the engine, like the end of the flow, so it becomes the
+last tier, and every link to it runs the length of the drawing. Beside the flow, each link crosses one gutter.
+
+**Write:** `frame obs "observability" [side] { … }`, with `span` to make it as tall as the zones it serves
+
+<table>
+<tr><th>Stacked after the last tier</th><th><code>[side]</code></th></tr>
+<tr>
+<td valign="top"><img src="images/side.before.png" alt="An observability zone placed under the data zone, links running down the whole drawing" width="100%"></td>
+<td valign="top"><img src="images/side.after.png" alt="The observability zone beside the tiers, each link crossing the gutter" width="100%"></td>
+</tr>
+</table>
+
+When those links touch many nodes and are no part of the story at all (logs to a SIEM, a scheduler's triggers),
+take them out of the layout with a **rail**: each runs straight to a bus on the edge, and the drawing looks as
+it did before they were added. Put the rail on the side the nodes are near.
+
+<table>
+<tr><th>Links in the layout</th><th><code>rail logs "management" [right] { siem: SIEM }</code></th></tr>
+<tr>
+<td valign="top"><img src="images/rail.before.png" alt="Three firewalls with log links pulling the SIEM into the layout" width="100%"></td>
+<td valign="top"><img src="images/rail.after.png" alt="The same chain with the log links running straight to a rail on the right" width="100%"></td>
+</tr>
+</table>
+
+## 10. Write links in the order of the story; point the arrow with `<-`
+
+**Rule:** the layout follows the order of the story, and the arrow points at what is acted on. When they
+disagree, write the link in story order and turn the arrow round with `<-`.
+
+**Why:** links set the flow. A worker that polls the database comes after it in the story, but the arrow
+points into the database; written `worker -> pg`, it would pull the worker in front of the database and turn
+that part of the drawing round. A link written against the flow loops round the whole diagram.
+
+**Write:** `pg <- worker : claim a job`
+
+<table>
+<tr><th align="left"><code>pg -> worker</code></th></tr>
+<tr><td><img src="images/reverse.before.png" alt="The worker after Postgres, the arrow pointing at the worker" width="610"></td></tr>
+<tr><th align="left"><code>pg &lt;- worker</code></th></tr>
+<tr><td><img src="images/reverse.after.png" alt="The same layout, the arrow pointing into Postgres" width="610"></td></tr>
+</table>
+
+**Result:** the same layout with the arrow the right way. The same trick keeps a loop back (“dispute won”, “no,
+PR blocked”) from turning a state machine or a pipeline round.
+
+## 11. Many links into one node: one line, not a fan
+
+**Rule:** links that carry the same thing to one node are drawn as one line that gathers them.
+
+**Why:** ten links into one node read as a tangle, and say the same thing ten times. One line with one label
+says it once.
+
+Four answers, from the least written to the most:
+
+**Same label, nothing to write.** Four or more links with the same label and style to or from one node become
+one bus: a trunk at the node, a line past the sources, a branch from each, the label once. Links with different
+labels stay apart.
+
+<table>
+<tr><th>Different labels</th><th>The same label (automatic)</th></tr>
+<tr>
+<td valign="top"><img src="images/bus.before.png" alt="Several links into one node, each with its own label" width="100%"></td>
+<td valign="top"><img src="images/bus.after.png" alt="The links merged into one bus with one label" width="100%"></td>
+</tr>
+</table>
+
+**Put the senders in a zone.** When five or more of them stand in one zone the node is not in, they meet a bar
+inside the zone, and only one link crosses its edge.
+
+<table>
+<tr><th>Merging off</th><th>A bar inside the zone (automatic)</th></tr>
+<tr>
+<td valign="top"><img src="images/junction.before.png" alt="Five services each with a link to the identity provider" width="100%"></td>
+<td valign="top"><img src="images/junction.after.png" alt="The five links meet a bar inside the services zone; one link leaves it" width="100%"></td>
+</tr>
+</table>
+
+**Fewer than four, written.** Tag the node `[join]` (a gate after a parallel stage, a log collector): two or three
+alike links meet a line with a dot, and one arrow reaches the node.
+
+<table>
+<tr><th>Three links</th><th><code>[join]</code> on the gate</th></tr>
+<tr>
+<td valign="top"><img src="images/join.before.png" alt="Three checks with three arrows squeezed into one gate" width="100%"></td>
+<td valign="top"><img src="images/join.after.png" alt="The three links meet a line with a dot; one arrow reaches the gate" width="100%"></td>
+</tr>
+</table>
+
+**Mark the node.** When the links say no more than “uses it” and the node is not what the diagram is about
+(feature flags, a config service), `mark flagd "reads its feature flags from Flagd"` stops drawing them: each user
+carries the node's icon, and a legend line explains it. Not for the subject of the diagram, nor for links that
+carry their own labels.
+
+<table>
+<tr><th>Links drawn</th><th><code>mark</code></th></tr>
+<tr>
+<td valign="top"><img src="images/mark.before.png" alt="Every service with a link to the feature flag service" width="100%"></td>
+<td valign="top"><img src="images/mark.after.png" alt="Each service carries a small flag icon; a legend explains it" width="100%"></td>
+</tr>
+</table>
+
+## 12. Say what things are
+
+Not layout, and always worth doing:
+
+- **Ports and protocols on the links**: `lb -> app : 443/tcp`. They cost nothing and make a network diagram worth
+  reading.
+- **Icons** for recognisable elements (`[database]`, `[firewall]`, `[user]`), left of the text; `top` for tall,
+  narrow nodes. Not on decisions or states.
+- **Technology logos** when the reader cares what a part is built with: `[database postgresql]` keeps the role icon
+  and writes “PostgreSQL” with its logo under the name.
+- **Zones named for what they are**, with the address range or owner in the title.
+
+## Reading a result
 
 | What you see | What it means | Try |
 |---|---|---|
-| A strip many times wider than tall, text tiny at page width | too many steps in a row | `direction down`, or let it fold; or rows of frames |
-| A link that leaves a box sideways and comes back | siblings stacked along the flow | swap `column` and `row` (section 3) |
-| A long link looping round the whole diagram | a link written against the order of the nodes | declare the nodes in flow order, or use `<-` |
-| Two links that slide inward and bunch up at a node | the sources are further apart than the node is wide | tag the node `[span]` |
-| A firewall floating between two zones | the zones do not touch | `[bridge]`, and make them follow each other along the flow |
-| Four or more links with the same label to one node (token checks, health pings) | merged by the engine into one bus with the label once; nothing to do. Different labels stay separate links |
-| Many links to one monitoring or logging node spoil the picture | control-plane links mixed with the main flow | put that node in a `rail` |
-| Zones beside each other that should be stacked | a layout block you do not need | remove it |
-| Nodes that all look the same | nothing marks what they are | an icon, `[firewall]`, `[database]` |
+| A strip many times wider than tall, text tiny at page width | too many steps in one line | `direction down` (1), or rows of zones (3) |
+| A link that leaves a box sideways and comes back | siblings stacked along the flow | swap `column` and `row` (2) |
+| Long links between zones in different rows | a block splits zones that talk | put them one after the other along the flow (3) |
+| A block around zones the flow already stacks | it repeats the flow | remove it and compare (3) |
+| A firewall floating inside one zone | it belongs to two | `[bridge]`, with the zones one after the other (5) |
+| Two links that slide inward and bunch up at a node | the sources are wider apart than the node | `[span]` on the node (6) |
+| Tiers with ragged sides | each zone sized on its own | `same-width` (7) |
+| A step in every link between two stacks | the stacks are centred apart | `align` on the pair (8) |
+| A monitoring zone stacked as the last tier | it only receives links | `[side]`, or a `rail` (9) |
+| A long link looping round the whole diagram | a link written against the flow | write it in story order with `<-` (10) |
+| A fan of links into one node | the same thing said many times | one label, a zone round the senders, `[join]` or `mark` (11) |
+| Nodes that all look the same | nothing says what they are | icons, logos, ports (12) |
 
-Links keep clear of frame borders by themselves (a stretch within 8px of a border moves to 12px). Two
-cases stay: a link that leaves its node already running along a border, and a link between two nodes that
-both sit on the same border.
+Links keep clear of frame borders by themselves (a stretch within 8 px of a border moves to 12 px). Two cases stay:
+a link that leaves its node already running along a border, and a link between two nodes on the same border.
 
-## 7. Many links into one node
-
-Ten links into one node read as a tangle. Four answers, from the least to the most written:
-
-- **Same label, nothing to write:** four or more links with the same label and style to or from one node are
-  drawn as one bus, the label written once.
-- **Put the senders in a zone:** when five or more of them stand in one zone the node is not in (the services
-  that all validate a token, the devices behind one switch), the engine gathers them on a bar inside the zone,
-  and only one link crosses its edge. A zone round the group, and a `row` or `column` so the members line up
-  along the bar, is often all it takes (the home network case).
-- **Fewer than four, written:** tag the node `[join]` (a gate after a parallel stage, a log collector) and two or
-  three links that look the same meet a line with a dot, then one arrow reaches it.
-- **`mark` the node** when the links say no more than “uses it” and it is not what the diagram is about
-  (feature flags, a shared library): the links are no longer drawn, each sender carries the node's icon, and
-  a legend line explains it. Not for a node whose links carry their own labels, nor for the subject of the
-  diagram.
-
-## 8. Things that are not layout, and are always worth doing
-
-- **Ports and protocols on the links**: `lb -> fw2 : 443/tcp`. They cost nothing and make a network
-  diagram worth reading.
-- **Icons** for recognisable elements, left of the text; `top` for tall, narrow nodes. Not on
-  decisions or states.
-- **Technology logos** when the reader cares what a part is built with: `[database postgresql]` keeps the
-  role icon and writes “PostgreSQL” with its logo under the name; `[kubernetes]` on a zone. A logo alone
-  (`[go]`) when the technology is the point.
-- **Frames named for what they are**, with the address range or owner in the title.
-
-## 9. Checklist
+## Checklist
 
 1. Write the plain version and look at it.
-2. Pick the direction (down for tiers, right for pipelines).
-3. Stack siblings across the flow.
-4. Let zones follow the flow; tag borders with `[bridge]`.
-5. Only then add layout blocks, and only for what the flow cannot do.
-6. Check the shape: roughly page-shaped, links straight, no detours.
-7. Many links into one node: give them one label, gather the senders in a zone, or `mark` the node.
-8. Add labels, ports, icons and logos.
+2. Pick the direction: down for tiers, right for pipelines.
+3. Put siblings across the flow.
+4. Let the flow place the zones; add rows and columns of zones only to decide something.
+5. Tag borders with `[bridge]`, fans with `[span]`; give tiers `same-width`.
+6. Put what watches the diagram beside it.
+7. Gather many links into one node.
+8. Add ports, icons and logos.
 
-## The DMZ, step by step
+## The rules together
 
-| Step | Size | Link bends |
-|---|---|---|
-| Icons and zones, direction right, no layout blocks | 2,872 x 281 | 25 |
-| Plain version, `direction down` only | 641 x 1,397 | 18 |
-| Zones as a 2 x 2 grid (rows and columns) | 1,688 x 626 | 58 |
-| Top-down, app and data side by side | 910 x 1,316 | 69 |
-| Top-down, app and data side by side, stacks as rows | 1,602 x 1,080 | 56 |
-| Top-down, stacks as rows, one column of zones (layout block) | 786 x 1,282 | 54 |
-| The same without the layout block around the zones | 786 x 1,168 | 25 |
-| Sources centred over the first zone (a column block holding them and that zone) | 795 x 1,220 | 44 |
-| The node they feed is a `[span]`, so both links drop straight | 830 x 1,224 | 30 |
+The three-tier network behind a DMZ, first written plainly (nodes, links, zones, `direction down`), then with
+the rules above: rows across the flow inside each zone (2), firewalls on the borders (5) as wide as what they
+feed (6), the two sources centred over the first node (a `column` holding them and the edge zone, 3), the SIEM in
+a `[side span]` zone with its three log links joined (9, 11), icons (12).
 
-The last two versions are the plain top-down diagram with rows inside the zones, icons, `[bridge]` and
-`[span]`, the last with the sources centred. They are the best looking. (The plain version has fewer bends but its firewalls are
-ordinary boxes inside the zones, and its nodes are stacked along the flow.)
+<table>
+<tr><th>Plain</th><th>With the rules</th></tr>
+<tr>
+<td valign="top"><img src="images/dmz-plain.png" alt="The DMZ diagram drawn plainly: a tall stack with the SIEM as the last tier" width="100%"></td>
+<td valign="top"><img src="images/dmz.png" alt="The DMZ diagram with bridges, spans, a side zone and icons" width="100%"></td>
+</tr>
+<tr>
+<td valign="top"><a href="../examples/cases/simple/dmz.trace">source</a></td>
+<td valign="top"><a href="../examples/cases/dmz.trace">source</a></td>
+</tr>
+</table>
+
+The plain drawing is already correct: every link is clear, nothing overlaps. What the rules add is what a reader
+sees first: where the borders are, what crosses them, and what only watches.
