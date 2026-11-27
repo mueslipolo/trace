@@ -158,6 +158,10 @@ style says something (no free colours or `classDef`), and none of it changes the
 - **Text formatting.** `**bold**`, `*italic*` and `` `code` `` inside labels, notes and link labels (Mermaid's
   markdown strings). The width measure has to know the bold and monospace runs, in Node and in the browser.
 
+Out of scope (owner, November 2026): Mermaid's diagram types that are not boxes and links (class, Gantt, pie,
+quadrant, XY chart, sankey, radar, git graph, timeline, user journey, requirement, kanban, packet, block,
+treemap). Trace is for diagrams of things and the links between them.
+
 Decided against: Mermaid's thirty node shapes (owner, November 2026). Kinds and icons say what a node is.
 The gaps in sequence diagrams (activation bars, `autonumber`, `critical`, `break`) and state diagrams
 (composite states, fork and join) are not picked for now.
