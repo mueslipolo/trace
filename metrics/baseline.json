@@ -6,9 +6,9 @@
         "crash": 0,
         "through": 0,
         "near": 0,
-        "overlap": 0,
-        "crossings": 36,
-        "bends": 701,
+        "overlap": 1,
+        "crossings": 41,
+        "bends": 694,
         "border": 1,
         "labels": 0,
         "nodeOverlap": 0,
@@ -25,13 +25,13 @@
         "near": 1,
         "overlap": 4,
         "crossings": 152,
-        "bends": 601,
+        "bends": 597,
         "border": 1,
         "labels": 0,
         "nodeOverlap": 0,
         "frameCover": 0,
         "wide": 4,
-        "hug": 1
+        "hug": 2
       }
     }
   }

@@ -773,7 +773,7 @@ says it once.
 
 Four answers, from the least written to the most:
 
-**Same label, nothing to write.** Four or more links with the same label and style to or from one node become
+**Same label, nothing to write.** Five or more links with the same label and style to or from one node become
 one bus: a trunk at the node, a line past the sources, a branch from each, the label once. Links with different
 labels stay apart.
 
@@ -830,14 +830,14 @@ f -> idp : validate token
 </details>
 <!-- /source -->
 
-**Put the senders in a zone.** When five or more of them stand in one zone the node is not in, they meet a bar
+**Put the senders in a zone.** When five or more of them stand in one zone the node is not in, they meet one line
 inside the zone, and only one link crosses its edge.
 
 <table>
-<tr><th>Merging off</th><th>A bar inside the zone (automatic)</th></tr>
+<tr><th>Merging off</th><th>A junction inside the zone (automatic)</th></tr>
 <tr>
 <td valign="top"><img src="images/junction.before.png" alt="Five services each with a link to the identity provider" width="100%"></td>
-<td valign="top"><img src="images/junction.after.png" alt="The five links meet a bar inside the services zone; one link leaves it" width="100%"></td>
+<td valign="top"><img src="images/junction.after.png" alt="The five links meet one line inside the services zone; one link leaves it" width="100%"></td>
 </tr>
 </table>
 
@@ -845,7 +845,7 @@ inside the zone, and only one link crosses its edge.
 <details><summary>Trace source, before</summary>
 
 ```
-title "a bar inside a zone"
+title "a junction inside a zone"
 gw [arrow-right-left]: API gateway
 frame services "services" [blue] {
   orders [package]: Orders
@@ -873,7 +873,7 @@ search -> idp : validate token
 <details><summary>Trace source, after</summary>
 
 ```
-title "a bar inside a zone"
+title "a junction inside a zone"
 gw [arrow-right-left]: API gateway
 frame services "services" [blue] {
   orders [package]: Orders
@@ -898,7 +898,7 @@ search -> idp : validate token
 </details>
 <!-- /source -->
 
-**Fewer than four, written.** Tag the node `[join]` (a gate after a parallel stage, a log collector): two or three
+**Fewer than five, written.** Tag the node `[join]` (a gate after a parallel stage, a log collector): two or three
 alike links meet a line with a dot, and one arrow reaches the node.
 
 <table>

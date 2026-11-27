@@ -8,7 +8,8 @@
 //   - rails (the nodes in the rail become plain nodes; links to the rail go to its first node),
 //   - the reversed links <- and <-- (written the natural way round, source first),
 //   - mark lines (the links they hid are drawn again),
-//   - the line tree (the hierarchy is drawn as any diagram).
+//   - the line tree (the hierarchy is drawn as any diagram),
+//   - the line gather N (links are gathered from the default number).
 // Usage: node tools/simplify.js          writes examples/cases/simple/*.trace from examples/cases/*.trace
 const fs = require('fs');
 const path = require('path');
@@ -44,6 +45,7 @@ function simplify(src) {
     }
     if (/^same-(width|height)\b/i.test(t)) { stats.sizing++; continue; }
     if (/^tree$/i.test(t)) { stats.tree = (stats.tree || 0) + 1; continue; }
+    if (/^gather\s+\S+$/i.test(t)) { stats.gather = (stats.gather || 0) + 1; continue; }
     if (/^mark\s+[A-Za-z0-9_][\w.-]*\s*(\[|"|:|$)/i.test(t)) { stats.marks++; continue; }
     // a node line: tags in the brackets before the colon
     const nm = raw.match(/^\s*((?:store |engine |state |pill |ask |final |box )?[A-Za-z0-9_][\w.-]*)(\s*\[([^\]]*)\])?(\s*:.*)$/);

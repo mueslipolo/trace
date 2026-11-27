@@ -173,7 +173,7 @@ author, or tried automatically and compared with the same cost the engine uses. 
   with it but in another row. Rejected: placement statements (`place proxy beside fw`: a design question, written
   with rows), an opener mark for “dials out, then traffic flows in” (the label says it), a grid of tables (zones
   by domain are already possible and none of the arrangements beat the automatic layout).
-- Done: links that go to or leave one node with the same label and style, four or more, are merged into a bus
+- Done: links that go to or leave one node with the same label and style, five or more (`gather N`), are merged into a bus
   (`mergeHubs`); a bus never crosses another bus's line. Five or more between one node and members of one zone it
   is not in meet at a bar inside that zone (`addJunctions`, `placeOnConcentrators`; cases `hub` and `home`). Left:
   an escape hatch to switch merging off or force it on fewer links; merging links with different labels; members

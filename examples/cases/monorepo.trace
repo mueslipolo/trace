@@ -1,4 +1,5 @@
 title "Build graph of a monorepo"
+gather 4
 
 app-web [globe]: app-web
 app-mobile [smartphone]: app-mobile

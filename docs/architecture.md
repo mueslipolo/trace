@@ -34,7 +34,7 @@ drawings a model needs and does not have (`loadIcons`) before it lays anything o
 - A node with a logo and a role icon has the technology's name in front of its note (sized here); a node
   marked by `mark` is widened for the mark's icon after its name.
 
-Before any of this, `addJunctions` (unless merging is off) finds five or more links with the same label and
+Before any of this, `addJunctions` (unless merging is off) finds five or more links (`gather N`) with the same label and
 style between one node and members of a zone that node is not in, and routes them through a concentrator: a
 node of kind `junction` inside that zone (the members' links go to it, one trunk carries the label to the
 node outside). It is sized as a bar across the flow and gets FIXED_SIDE ports, one side for the members, the
@@ -176,11 +176,11 @@ Steps 1 to 4 belong to each candidate layout; `finish` (below the list) runs on 
    clear), then `placeRails`.
 
 `finish`, on the chosen layout, in this order (each is a general rule recorded in `docs/drawing-rules.md`):
-- `placeOnConcentrators`: the bar reaches along its members; each link meets it at its member's level
+- `placeOnConcentrators` (the concentrator is drawn as a thin bus line with dots): the line reaches along its members; each link meets it at its member's level
   (straight when nothing is in the way, else the layout's route to a free place 10px from the others); the
   trunk meets it between two members' links.
 - `spanSides` (side zones that span), `clearFrames` (links off frame borders), `alignJogs`, `simplifySnakes`.
-- `mergeHubs`: four or more links with one label and style to or from one node become a bus (not for
+- `mergeHubs`: five or more links (`gather N`) with one label and style to or from one node become a bus (not for
   concentrators); a bus never crosses another bus's line.
 - `rerouteBlocked`: a Dijkstra router on a grid round the nodes, for links that run through or brush a node,
   hug it, run along a frame border, or make a detour; it pays for bends, crossings and running beside another

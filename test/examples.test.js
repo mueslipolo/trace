@@ -1238,3 +1238,14 @@ test('every diagram in the docs shows its Trace source, up to date', () => {
     if (pics.length) assert.ok(/<!-- source /.test(md), `${f}: pictures without a source block`);
   }
 });
+
+test('gather: five alike links make a bus by default, gather N changes the number, gather off stops it', async () => {
+  const src = n => ['direction right', 'idp: Identity provider', ...Array.from({ length: n }, (_, i) => `s${i} -> idp : validate token`)].join('\n');
+  const merged = async s => (await compile(s, measure, ELK, {})).rm.edges.filter(r => r.merged).length;
+  assert.strictEqual(await merged(src(4)), 0, 'four links stay apart by default');
+  assert.strictEqual(await merged(src(5)), 5, 'five links make a bus');
+  assert.strictEqual(await merged('gather 4\n' + src(4)), 4, 'gather 4 makes a bus of four');
+  assert.strictEqual(await merged('gather off\n' + src(6)), 0, 'gather off keeps them apart');
+  const bad = await compile('gather 1\n' + src(3), measure, ELK, {});
+  assert.ok(bad.errors.some(e => /gather takes/.test(e.msg) && e.line === 1));
+});

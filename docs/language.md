@@ -7,6 +7,7 @@ One statement per line. `#` starts a comment (outside quotes, at line start or a
 ```
 direction down        # right (default, also lr) or down (also td, tb)
 spacing 1.3           # multiplies layout spacing, 0.5 to 3
+gather 4              # alike links into one node drawn as one bus: 5 by default, 2 up, or off
 title "Job states"    # drawn above the diagram; also the SVG's aria-label and the download file name
 caption "Production, eu-west-1. Dashed links are optional."   # a muted line under the title, wrapped
 cartouche {           # a small table at the bottom right: free key: value lines
@@ -16,7 +17,11 @@ cartouche {           # a small table at the bottom right: free key: value lines
 }
 ```
 
-All three are optional. The title and the caption sit above the drawing, which moves down to make room; a
+All of these are optional. `gather` sets how many links with the same label and style, into or out of one
+node, are drawn as one bus (or meet one line inside a zone when they come from its members): five by default,
+`gather 3` for fewer, `gather off` for never. `[join]` on a node asks for it from two links whatever the setting.
+
+The title and the caption sit above the drawing, which moves down to make room; a
 long caption wraps to the drawing's width, and several `caption` lines make several paragraphs. The
 cartouche is the title block of an engineering drawing: any keys you like, in the order you write them.
 
@@ -123,7 +128,7 @@ Tags (in brackets, before the colon or at the end of the label):
 | `dashed` | dashed border (planned, optional, retired) |
 | `muted` | soft grey border |
 | `span` | grows to the full height (direction right) or width (down) of the column or row it links to; one connection point per member, so each link runs straight |
-| `join` | links into (or out of) it that look the same meet a line with a dot first, then one arrow reaches it, label written once; done by itself from four such links, the tag asks for it from two. For a parallel stage closing on a gate, or log links into one collector |
+| `join` | links into (or out of) it that look the same meet a line with a dot first, then one arrow reaches it, label written once; done by itself from five such links (see `gather`), the tag asks for it from two. For a parallel stage closing on a gate, or log links into one collector |
 | `bridge` | sits on the border between its frame and the frame of a node linking into it, with the two frames widened into bands; for firewalls, gateways, anything on two networks |
 
 ## Links

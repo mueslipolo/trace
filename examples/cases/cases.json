@@ -136,7 +136,7 @@
     "id": "monorepo",
     "title": "Build graph of a monorepo",
     "context": "Three apps, three feature packages and seven libraries, with who depends on whom.",
-    "uses": "Two marks: utils and types, which almost every package depends on, are shown as an icon after each name that uses them instead of seven links, and stand at the end of the flow with config. The simple form draws those links, and the links into utils merge into one bus.",
+    "uses": "Two marks: utils and types, which almost every package depends on, are shown as an icon after each name that uses them instead of seven links, and stand at the end of the flow with config. The simple form draws those links, and the links into utils merge into one bus. `gather 4` gathers the apps' four alike dependencies into one bus each (five links by default).",
     "gap": "The apps on the left still fan out to five packages through one busy column of links; with the marks it has 6 crossings instead of 12 and 31 bends instead of 55."
   }
 ]

@@ -52,7 +52,7 @@ async function loadIcon(name, loader) {
 // Returns null when the line is not a node line (links, blocks, keys), so the caller can say so.
 function withIcon(line, name) {
   const c = firstColon(line);
-  if (c < 0 || ARROWS.test(line.slice(0, c)) || /^\s*(frame|column|row|key|title|caption|cartouche|direction|spacing)\b/.test(line)) return null;
+  if (c < 0 || ARROWS.test(line.slice(0, c)) || /^\s*(frame|column|row|key|title|caption|cartouche|direction|spacing|gather)\b/.test(line)) return null;
   const lhs = line.slice(0, c), rest = line.slice(c);
   const m = lhs.match(/^(.*?)\s*\[([^\]]*)\]\s*$/);
   if (!m) return lhs.trimEnd() + ` [${name}]` + rest;
@@ -198,7 +198,7 @@ function splitLabel(text) {
 
 function parse(src) {
   const model = {
-    direction: 'RIGHT', spacing: 1, title: '', caption: [], cartouche: [], marks: [],
+    direction: 'RIGHT', spacing: 1, gather: 5, title: '', caption: [], cartouche: [], marks: [],
     nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], sameSize: [], events: [], mode: 'flow', errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
@@ -283,6 +283,15 @@ function parse(src) {
       if (['right', 'lr'].includes(d)) model.direction = 'RIGHT';
       else if (['down', 'td', 'tb'].includes(d)) model.direction = 'DOWN';
       else throw new TraceError('direction is right or down');
+      return;
+    }
+    // gather 4: how many alike links into one node are drawn as one bus (or meet one line inside a zone);
+    // 5 by default, gather off for never ([join] on a node still asks for it)
+    if ((m = line.match(/^gather\s+(\S+)$/i))) {
+      const v = m[1].toLowerCase();
+      if (v === 'off') model.gather = Infinity;
+      else if (/^\d+$/.test(v) && +v >= 2 && +v <= 50) model.gather = +v;
+      else throw new TraceError('gather takes a number of links from 2 up, or off: gather 4');
       return;
     }
     if ((m = line.match(/^spacing\s+([\d.]+)$/i))) {
@@ -1387,7 +1396,7 @@ function straightenSmallJogs(rm) {
 // where a branch meets the line in the middle of it). The text is written once. A hand would draw it so;
 // ten parallel lines into one box are hard to follow. Needs MIN links; a link that cannot reach the bus
 // without crossing a node stays as it was.
-function mergeHubs(rm, MIN = 4) {
+function mergeHubs(rm, MIN = 5) {
   const eq = (a, b) => Math.abs(a - b) < 0.5;
   const T = 8, TRUNK = 36;
   rm.joins = [];
@@ -1591,9 +1600,10 @@ function mergeHubs(rm, MIN = 4) {
 }
 
 // Where a bus's trunk meets its hub. A trunk a few pixels beside a branch reads as a slip, so when one is that
-// close the trunk goes midway between two branches on the hub's side; if no such place is on the side, the hub
-// slides across to one (only when all its links are in this bus and the room is free); failing that, the trunk
-// lines up with the branch. Returns { t: the trunk's coordinate across, d: how far the hub moves }.
+// close the trunk goes midway between two branches, preferring the gap nearest the middle of all the branches,
+// on the hub's side; if no such place is on the side, the hub slides across to one (only when all its links are
+// in this bus and the room is free); failing that, the trunk lines up with the branch. Returns { t: the trunk's
+// coordinate across, d: how far the hub moves }.
 function placeTrunk(rm, hub, cs, trunkC, vert, planRs) {
   const NEAR = 14, R = 10, MAXMOVE = 60;
   if (!cs.some(c => Math.abs(c - trunkC) > 0.5 && Math.abs(c - trunkC) < NEAR)) return { t: trunkC, d: 0 };
@@ -1602,22 +1612,24 @@ function placeTrunk(rm, hub, cs, trunkC, vert, planRs) {
   for (let i = 1; i < sorted.length; i++) if (sorted[i] - sorted[i - 1] >= 2 * NEAR) mids.push((sorted[i] + sorted[i - 1]) / 2);
   const lo = (vert ? hub.x : hub.y) + R, hi = (vert ? hub.x + hub.w : hub.y + hub.h) - R;
   const byNear = a => [...a].sort((x, y) => Math.abs(x - trunkC) - Math.abs(y - trunkC));
-  const inSide = byNear(mids.filter(m => m >= lo && m <= hi));
-  if (inSide.length) return { t: inSide[0], d: 0 };
-  // the hub may slide when nothing else is tied to it
+  // the gap nearest the middle of the branches first (the bus then reads as balanced on its trunk)
+  const mid = (sorted[0] + sorted[sorted.length - 1]) / 2;
+  const byMid = a => [...a].sort((x, y) => Math.abs(x - mid) - Math.abs(y - mid) || Math.abs(x - trunkC) - Math.abs(y - trunkC));
+  // the hub may slide to a gap off its side when nothing else is tied to it and the room is free
   const own = rm.edges.filter(r => r.e.a === hub.id || r.e.b === hub.id);
-  if (own.every(r => planRs.has(r))) {
-    const box = d => vert ? { x: hub.x + d, y: hub.y, w: hub.w, h: hub.h } : { x: hub.x, y: hub.y + d, w: hub.w, h: hub.h };
-    const near = (a, b, g) => a.x < b.x + b.w + g && b.x < a.x + a.w + g && a.y < b.y + b.h + g && b.y < a.y + a.h + g;
-    const inside = (a, f, g) => a.x >= f.x + g && a.y >= f.y + g && a.x + a.w <= f.x + f.w - g && a.y + a.h <= f.y + f.h - g;
-    const free = nb => rm.nodes.every(n => n === hub || n.x === undefined || !near(n, nb, 12)) &&
-      (rm.frames || []).every(f => inside(hub, f, 0) ? inside(nb, f, 10) : !near(nb, f, 6)) &&
-      rm.edges.every(r => planRs.has(r) || !r.pts || r.e.rail || r.e.lifeline || r.e.divider ||
-        !r.pts.some((p, j) => j && near({ x: Math.min(p.x, r.pts[j - 1].x), y: Math.min(p.y, r.pts[j - 1].y), w: Math.abs(p.x - r.pts[j - 1].x), h: Math.abs(p.y - r.pts[j - 1].y) }, nb, 6)));
-    for (const m of byNear(mids)) {
-      const d = m - trunkC;
-      if (Math.abs(d) <= MAXMOVE && free(box(d))) return { t: m, d };
-    }
+  const canSlide = own.every(r => planRs.has(r));
+  const box = d => vert ? { x: hub.x + d, y: hub.y, w: hub.w, h: hub.h } : { x: hub.x, y: hub.y + d, w: hub.w, h: hub.h };
+  const near = (a, b, g) => a.x < b.x + b.w + g && b.x < a.x + a.w + g && a.y < b.y + b.h + g && b.y < a.y + a.h + g;
+  const inside = (a, f, g) => a.x >= f.x + g && a.y >= f.y + g && a.x + a.w <= f.x + f.w - g && a.y + a.h <= f.y + f.h - g;
+  const free = nb => rm.nodes.every(n => n === hub || n.x === undefined || !near(n, nb, 12)) &&
+    (rm.frames || []).every(f => inside(hub, f, 0) ? inside(nb, f, 10) : !near(nb, f, 6)) &&
+    rm.edges.every(r => planRs.has(r) || !r.pts || r.e.rail || r.e.lifeline || r.e.divider ||
+      !r.pts.some((p, j) => j && near({ x: Math.min(p.x, r.pts[j - 1].x), y: Math.min(p.y, r.pts[j - 1].y), w: Math.abs(p.x - r.pts[j - 1].x), h: Math.abs(p.y - r.pts[j - 1].y) }, nb, 6)));
+  // the gaps in order, the most central first: taken on the hub's side as it stands, or by sliding the hub
+  for (const m of byMid(mids)) {
+    if (m >= lo && m <= hi) return { t: m, d: 0 };
+    const d = m - trunkC;
+    if (canSlide && Math.abs(d) <= MAXMOVE && free(box(d))) return { t: m, d };
   }
   const on = byNear(sorted.filter(c => c >= lo && c <= hi));
   return on.length ? { t: on[0], d: 0 } : { t: trunkC, d: 0 };
@@ -2118,7 +2130,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } uncrossSteps(rm); resolveOverlaps(rm); slideToStraighten(rm, model.direction === 'RIGHT'); rerouteBlocked(rm, null, true); squareUp(rm); placeLabels(rm, measure); roomForTitles(rm); alignTitleEdges(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
+  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm, model.gather); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } uncrossSteps(rm); resolveOverlaps(rm); slideToStraighten(rm, model.direction === 'RIGHT'); rerouteBlocked(rm, null, true); squareUp(rm); placeLabels(rm, measure); roomForTitles(rm); alignTitleEdges(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -2139,7 +2151,7 @@ async function layout(model, measure, ELK, opts) {
 // The junction is a point the layout places like a node, so the members line up beside it; the branches
 // between it and the members are then merged into a bus like any other.
 function addJunctions(model) {
-  const MIN = 5;                       // more than four links: below that, separate links read well enough
+  const MIN = model.gather ?? 5;       // five links by default (gather N): below that, separate links read well enough
   const frames = n => { const a = []; for (let p = n.parent; p; p = p.parent) if (p.type === 'frame') a.unshift(p); return a; };
   const groups = new Map();
   for (const e of model.edges) {
@@ -2255,16 +2267,21 @@ function placeOnConcentrators(rm) {
       j[A] = lo - 7; j[S] = hi - lo + 14;
     }
     if (one) {
-      // the bar's own link arrives at a free level: level with a member's link it would read as one line
-      // through the bar, so it takes the nearest gap between two of them (with a short step before the bar)
+      // the bar's own link arrives at a free level, as a bus's trunk does: level with a member's link it would
+      // read as one line through the bar, and a few pixels beside one as a slip, so it takes a gap between two
+      // of them, the one nearest the middle of all of them (with a short step before the bar)
       const P = (a, b) => vert ? { x: b, y: a } : { x: a, y: b };
       const lv = items.map(it => it.placed).sort((u, v) => u - v);
       let t = c;
-      if (lv.some(v => Math.abs(v - t) < 10)) {
+      if (lv.some(v => Math.abs(v - t) < 14)) {
+        const mid = lv.length ? (lv[0] + lv[lv.length - 1]) / 2 : c;
         const gaps = [];
-        for (let k = 1; k < lv.length; k++) if (lv[k] - lv[k - 1] >= 20) gaps.push((lv[k] + lv[k - 1]) / 2);
-        if (lv.length) gaps.push(lv[0] - 14, lv[lv.length - 1] + 14);
-        t = gaps.sort((u, v) => Math.abs(u - c) - Math.abs(v - c))[0];
+        for (let k = 1; k < lv.length; k++) if (lv[k] - lv[k - 1] >= 28) gaps.push((lv[k] + lv[k - 1]) / 2);
+        const order = g => g.sort((u, v) => Math.abs(u - mid) - Math.abs(v - mid) || Math.abs(u - c) - Math.abs(v - c));
+        // failing a gap wide enough, the nearest of the narrower ones, then a place past either end
+        if (!gaps.length) for (let k = 1; k < lv.length; k++) if (lv[k] - lv[k - 1] >= 20) gaps.push((lv[k] + lv[k - 1]) / 2);
+        if (!gaps.length && lv.length) gaps.push(lv[0] - 14, lv[lv.length - 1] + 14);
+        t = order(gaps)[0];
       }
       const q = one.pts.map(p => ({ ...p })), L = q.length;
       const step = narrow - dir * 12;            // just outside the narrow side, away from the members
@@ -4312,8 +4329,9 @@ const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(
 const r1 = v => Math.round(v * 10) / 10;
 
 // hops: for each stretch of the original points, the x positions where it hops over another link (in the order
-// it meets them); only horizontal stretches have any
-function roundPath(pts, r = 7, hops = null) {
+// it meets them); only horizontal stretches have any. sharp: points where a corner stays square (where links of a
+// bus split, so the line through the junction stays straight)
+function roundPath(pts, r = 7, hops = null, sharp = null) {
   const p = [], seg = [];
   pts.forEach((q, k) => {
     const l = p[p.length - 1];
@@ -4332,7 +4350,8 @@ function roundPath(pts, r = 7, hops = null) {
   for (let i = 1; i < p.length - 1; i++) {
     const a = p[i - 1], b = p[i], c = p[i + 1];
     const l1 = Math.hypot(b.x - a.x, b.y - a.y), l2 = Math.hypot(c.x - b.x, c.y - b.y);
-    const rr = Math.min(r, l1 / 2, l2 / 2);
+    const rr = sharp && sharp.some(q => Math.abs(q.x - b.x) < 0.6 && Math.abs(q.y - b.y) < 0.6) ? 0 : Math.min(r, l1 / 2, l2 / 2);
+    if (!rr) { d += run(i - 1, b.x, b.y); continue; }
     const p1 = { x: b.x - (b.x - a.x) / l1 * rr, y: b.y - (b.y - a.y) / l1 * rr };
     const p2 = { x: b.x + (c.x - b.x) / l2 * rr, y: b.y + (c.y - b.y) / l2 * rr };
     d += run(i - 1, p1.x, p1.y) + ` Q${r1(b.x)} ${r1(b.y)} ${r1(p2.x)} ${r1(p2.y)}`;
@@ -4387,7 +4406,15 @@ function nodeSVG(n) {
     out.push(`<circle class="dot" cx="${r1(n.x + 9)}" cy="${r1(n.y + 9)}" r="8"/>`);
     return out.join('');
   }
-  if (n.kind === 'junction') { out.push(`<rect class="dot" x="${r1(n.x)}" y="${r1(n.y)}" width="${r1(n.w)}" height="${r1(n.h)}" rx="3"/>`); return out.join(''); }
+  if (n.kind === 'junction') {
+    // drawn as a bus line with its dots (see render), not as a solid bar
+    if (n.barLine) {
+      const [a, b] = n.barLine;
+      out.push(`<path class="arrow" d="M${r1(a.x)} ${r1(a.y)} L${r1(b.x)} ${r1(b.y)}"/>`);
+      for (const d of n.barDots) out.push(`<circle class="dot" cx="${r1(d.x)}" cy="${r1(d.y)}" r="2.6"/>`);
+    }
+    return out.join('');
+  }
   let x = n.x, y = n.y, w = n.w, h = n.h;
   if (n.kind === 'final') {
     out.push(`<rect class="${c}" x="${r1(x)}" y="${r1(y)}" width="${w}" height="${h}" rx="10"/>`);
@@ -4628,7 +4655,22 @@ function titleSpot(rm, fr, edge) {
     for (const [y, base] of [[fr.y + 20, 0], [fr.y + fr.h - 10, 1]]) if (!edge || (edge === 'top') === !base) for (let x = fr.x + fr.w - 12; x >= fr.x + 12 + tw; x -= 6) out.push({ x, y, a: 'end', base });
     sp = out.find(clear);
   }
+  if (!sp && !edge) {
+    // nor any place along those edges (nodes on both borders, a bridge on each): down the right side, then the
+    // left, inside the zone, nearest a corner
+    const side = [];
+    for (let y = fr.y + 26; y <= fr.y + fr.h - 16; y += 6) side.push({ x: fr.x + fr.w - 12, y, a: 'end' }, { x: fr.x + 12, y, a: 'start' });
+    const toCorner = q => Math.min(q.y - fr.y, fr.y + fr.h - q.y);
+    sp = side.filter(clear).sort((u, v) => toCorner(u) - toCorner(v))[0];
+  }
   return sp || null;
+}
+
+// a title box over a node hides its words: the last resort for a zone title still keeps off every node
+function titleOnNode(rm, fr, sp) {
+  const tw = fr.titleFit || fr.f.titleW || fr.f.title.length * 6.5;
+  const x0 = sp.a === 'end' ? sp.x - tw : sp.x, y0 = sp.y - 13;
+  return rm.nodes.some(n => n.x !== undefined && n.x < x0 + tw + 4 && x0 - 4 < n.x + n.w && n.y < y0 + 17 && y0 < n.y + n.h);
 }
 
 function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) {
@@ -4649,7 +4691,12 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
         // no free place at all: the corner that the fewest links cross, and the title drawn over the links on a
         // ground of the zone's colour, so they pass under it instead of through its words
         const crossing = c => { const x0 = c.a === 'end' ? c.x - tw : c.x; return rm.edges.reduce((k, r) => k + (r.pts && !r.e.lifeline ? r.pts.filter((q, i) => i && Math.min(r.pts[i - 1].x, q.x) < x0 + tw && x0 < Math.max(r.pts[i - 1].x, q.x) && Math.min(r.pts[i - 1].y, q.y) < c.y + 3 && c.y - 11 < Math.max(r.pts[i - 1].y, q.y)).length : 0), 0); };
-        const corners = [{ x: fr.x + fr.w - 12, y: fr.y + 20, a: 'end' }, { x: fr.x + 12, y: fr.y + 20, a: 'start' }, { x: fr.x + fr.w - 12, y: fr.y + fr.h - 10, a: 'end' }, { x: fr.x + 12, y: fr.y + fr.h - 10, a: 'start' }];
+        let corners = [{ x: fr.x + fr.w - 12, y: fr.y + 20, a: 'end' }, { x: fr.x + 12, y: fr.y + 20, a: 'start' }, { x: fr.x + fr.w - 12, y: fr.y + fr.h - 10, a: 'end' }, { x: fr.x + 12, y: fr.y + fr.h - 10, a: 'start' }];
+        // links may run under it, nodes may not: places down either side too, when every corner holds a node
+        const side = [];
+        for (let y = fr.y + 26; y <= fr.y + fr.h - 16; y += 6) side.push({ x: fr.x + fr.w - 12, y, a: 'end' }, { x: fr.x + 12, y, a: 'start' });
+        const offNodes = corners.concat(side).filter(c => !titleOnNode(rm, fr, c));
+        if (offNodes.length) corners = offNodes;
         sp = corners.reduce((m, c) => crossing(c) < crossing(m) ? c : m, corners[0]);
         out = late;
         out.push(`<rect class="zone zone-${color} zground" x="${r1((sp.a === 'end' ? sp.x - tw : sp.x) - 4)}" y="${r1(sp.y - 13)}" width="${r1(tw + 8)}" height="17" rx="3"/>`);
@@ -4698,6 +4745,26 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     if (!spot) spot = { x: mid, y: g.y + 13 };
     body.push(`<text class="note muted" x="${r1(spot.x)}" y="${r1(spot.y)}" text-anchor="middle">${esc(g.title)}</text>`);
   }
+  // a concentrator (the bar inside a zone) is drawn like a bus: a thin line where its links meet, with a dot at
+  // every junction but the two ends. The links run on to the line's middle instead of stopping at the bar's side.
+  for (const j of rm.nodes) {
+    if (j.kind !== 'junction' || j.x === undefined) continue;
+    const v = j.w <= j.h, c = v ? j.x + j.w / 2 : j.y + j.h / 2;
+    const meets = [];
+    for (const r of rm.edges) {
+      if (!r.pts || r.pts.length < 2 || (r.e.a !== j.id && r.e.b !== j.id)) continue;
+      for (const i of [0, r.pts.length - 1]) {
+        const p = r.pts[i];
+        if (p.x < j.x - 1.5 || p.x > j.x + j.w + 1.5 || p.y < j.y - 1.5 || p.y > j.y + j.h + 1.5) continue;
+        if (v) p.x = c; else p.y = c;
+        meets.push(v ? p.y : p.x);
+      }
+    }
+    if (!meets.length) continue;
+    const lo = Math.min(...meets), hi = Math.max(...meets);
+    j.barLine = v ? [{ x: c, y: lo }, { x: c, y: hi }] : [{ x: lo, y: c }, { x: hi, y: c }];
+    j.barDots = [...new Set(meets.map(m => Math.round(m * 10) / 10))].filter(m => m > lo + 0.5 && m < hi - 0.5).map(m => v ? { x: c, y: m } : { x: m, y: c });
+  }
   const labels = [];
   // where two links cross, the horizontal one hops over the vertical one with a small arc, so a crossing never
   // reads as a junction. Sequence lifelines, rails and the links of one bus are left out.
@@ -4730,7 +4797,17 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     // a link with cardinalities has its ends drawn as crow's feet, bars and circles instead of arrowheads
     const hp = card ? pts : shorten(pts, e.start, e.end);
     const mk = card ? '' : (e.end ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.start ? ` marker-start="url(#${headId(e, pfx)}s)"` : '');
-    body.push(`<path class="${cls.join(' ')}" d="${roundPath(hp, 7, hopsFor(r))}"${mk}/>`);
+    // the links of a dashed bus share their trunk and stretches of the bus line: each is drawn from the hub out, so
+    // the dashes on the shared stretches fall in the same places (drawn from their own ends, the gaps of one
+    // would be filled by the dashes of another, and the trunk would look solid)
+    const hub = r.merged && e.dashed && !card && rm.nodes.find(n => n.id === r.mergeHub);
+    const z = hp[hp.length - 1];
+    if (hub && z.x >= hub.x - 3 && z.x <= hub.x + hub.w + 3 && z.y >= hub.y - 3 && z.y <= hub.y + hub.h + 3) {
+      const hops = hopsFor(r);
+      const rmk = (e.start ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.end ? ` marker-start="url(#${headId(e, pfx)}s)"` : '');
+      body.push(`<path class="${cls.join(' ')}" d="${roundPath([...hp].reverse(), 7, hops && hops.map(h => [...h].reverse()).reverse(), rm.joins)}"${rmk}/>`);
+    } else
+    body.push(`<path class="${cls.join(' ')}" d="${roundPath(hp, 7, hopsFor(r), r.merged ? rm.joins : null)}"${mk}/>`);
     if (card && pts.length > 1) { body.push(cardinalitySVG(pts[0], pts[1], card[1]), cardinalitySVG(pts[pts.length - 1], pts[pts.length - 2], card[2])); }
     if (lab && e.lab) {
       // in a sequence a message label usually spans lifelines: a halo is too thin to hide them, so the label
