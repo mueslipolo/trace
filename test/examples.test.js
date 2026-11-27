@@ -1212,3 +1212,18 @@ test('links to zones: rows and columns of zones still work, and a link to a zone
     assert.ok(onBorder, `cicd -> ${k} ends on the zone's border`);
   }
 });
+
+test('UniFi home network: zones in one layer share their top in every layout, and a span node lets a link leave past its stack (no hop)', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/full/unifi-home-vlans.trace'), 'utf8'), measure, ELK, {});
+  const f = id => res.rm.frames.find(x => x.f.id === id);
+  assert.ok(Math.abs(f('CORE').y - f('WIFI').y) < 1, 'Core switching and Wi-Fi share their top');
+  const hue = res.rm.edges.find(e => e.e.b === 'HUE');
+  const others = res.rm.edges.filter(e => e !== hue && e.pts);
+  const crossesAny = others.some(o => hue.pts.some((p, i) => i && o.pts.some((q, j) => j && (() => {
+    const a = hue.pts[i - 1], c = o.pts[j - 1], h1 = Math.abs(a.y - p.y) < 0.5, h2 = Math.abs(c.y - q.y) < 0.5;
+    if (h1 === h2) return false;
+    const [H0, H1, V0, V1] = h1 ? [a, p, c, q] : [c, q, a, p];
+    return Math.min(H0.x, H1.x) + 0.5 < V0.x && V0.x < Math.max(H0.x, H1.x) - 0.5 && Math.min(V0.y, V1.y) + 0.5 < H0.y && H0.y < Math.max(V0.y, V1.y) - 0.5;
+  })())));
+  assert.ok(!crossesAny, 'the link to the Hue bridge crosses nothing');
+});

@@ -1049,7 +1049,7 @@ function clearFrames(rm) {
 // A link that runs through a node that is not one of its ends is routed again: an orthogonal route on the
 // grid of lines just outside every node, the shortest with the fewest bends, from where it leaves its source to
 // the side of its target that its route reaches first. Links that are clear are not touched.
-function rerouteBlocked(rm, force) {
+function rerouteBlocked(rm, force, siblingsOnly) {
   const M = 8;                                             // the route keeps this far from every node
   const boxes = rm.nodes.filter(n => n.x !== undefined && n.kind !== 'start');
   const inside = (b, x, y, m) => x > b.x - m + 0.01 && x < b.x + b.w + m - 0.01 && y > b.y - m + 0.01 && y < b.y + b.h + m - 0.01;
@@ -1083,9 +1083,14 @@ function rerouteBlocked(rm, force) {
     // it catches the detours (out one way, round, and back) that a layout leaves behind
     const curCost = q0.reduce((t, p, i) => i ? t + len(q0[i - 1], p) : 0, 0) + 60 * Math.max(0, q0.length - 2);
     const detour = !force && !blocked && !hugs && !along && q0.length >= 5;
-    if (!force && !blocked && !hugs && !along && !detour) continue;
-    // first choice: one straight line, when the two nodes overlap across the gap between them
-    if (!S.cols && !S.span && !T.cols && !T.span) {
+    // a link that crosses another link leaving or reaching the same node: it may leave by another side (a pass of its
+    // own, last, once the links are spread and pulled apart, so the new route is judged as it will be drawn)
+    const sibling = !!siblingsOnly && !force && !blocked && !hugs && !along && !detour && rm.edges.some(o => o !== r && o.pts && (o.e.a === e.a || o.e.b === e.a || o.e.a === e.b || o.e.b === e.b) &&
+      r.pts.some((p, i) => i && o.pts.some((q, j) => j && crossSeg(r.pts[i - 1], p, o.pts[j - 1], q))));
+    if (siblingsOnly ? !sibling : (!force && !blocked && !hugs && !along && !detour)) continue;
+    // first choice: one straight line, when the two nodes overlap across the gap between them (not in the pass for
+    // links crossing their siblings: there a new route must prove it crosses less)
+    if (!siblingsOnly && !S.cols && !S.span && !T.cols && !T.span) {
       const ox0 = Math.max(S.x, T.x) + 10, ox1 = Math.min(S.x + S.w, T.x + T.w) - 10;
       const oy0 = Math.max(S.y, T.y) + 10, oy1 = Math.min(S.y + S.h, T.y + T.h) - 10;
       let st = null;
@@ -1108,6 +1113,13 @@ function rerouteBlocked(rm, force) {
     const s1 = stubOut(p0, dx0, dy0);
     // it may also leave from the middle of another side of its source (a little dearer than where it was)
     const starts = [{ p: p0, s: s1, d: [dx0, dy0], extra: 0 }];
+    // a [span] node keeps the side a link leaves from, but the link may leave near either end of it, past the links
+    // to its stack, instead of between them
+    if (S.span && !S.cols) for (const k of [0.04, 0.96]) {
+      const p = dy0 ? { x: S.x + S.w * k, y: p0.y } : { x: p0.x, y: S.y + S.h * k };
+      if (Math.abs((dy0 ? p.x - p0.x : p.y - p0.y)) < 12 || nearB(dy0 ? p.x : p.y, !!dy0)) continue;
+      starts.push({ p, s: stubOut(p, dx0, dy0), d: [dx0, dy0], extra: 20 });
+    }
     if (!S.cols && !S.span && S.kind !== 'junction') for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
       if (dx === dx0 && dy === dy0) continue;
       const p = { x: dx < 0 ? S.x : dx > 0 ? S.x + S.w : S.x + S.w / 2, y: dy < 0 ? S.y : dy > 0 ? S.y + S.h : S.y + S.h / 2 };
@@ -1206,6 +1218,18 @@ function rerouteBlocked(rm, force) {
     const newCost = pts.reduce((t, p, i) => i ? t + len(pts[i - 1], p) : 0, 0) + 60 * Math.max(0, pts.length - 2);
     const spare = force ? 2 : detour && newCost <= curCost * 0.5 ? 1 : 0;
     if (!blocked && crossingsWith(rm, pts, r) > crossingsWith(rm, r.pts, r) + spare) continue;
+    // (crossings with the links of its own two nodes count here: those are the ones a new side avoids)
+    const sibX = P => rm.edges.reduce((t, o) => t + (o !== r && o.pts && (o.e.a === e.a || o.e.b === e.a || o.e.a === e.b || o.e.b === e.b) ? P.reduce((u, p, i) => u + (i ? o.pts.filter((q, j) => j && crossSeg(P[i - 1], p, o.pts[j - 1], q)).length : 0), 0) : 0), 0);
+    if (sibling && !(crossingsWith(rm, pts, r) + sibX(pts) < crossingsWith(rm, r.pts, r) + sibX(r.pts) && newCost <= curCost && simplifyPts(pts).length <= simplifyPts(r.pts).length)) continue;
+    // nor beside another link (closer than 8px they read as one), nor along a zone border, nor over a zone's title
+    // band (a zone with a link on its title grows to free it)
+    if (sibling && overlapsLinks(rm, pts, new Set([r]), 8)) continue;
+    if (sibling && pts.some((p, i) => i && rm.frames.some(f => {
+      const a = pts[i - 1];
+      if (Math.abs(a.x - p.x) < 0.5) return Math.min(Math.max(a.y, p.y), f.y + f.h) - Math.max(Math.min(a.y, p.y), f.y) > 20 && (Math.abs(a.x - f.x) < 8 || Math.abs(a.x - f.x - f.w) < 8);
+      if (Math.abs(a.y - p.y) < 0.5) return (Math.min(Math.max(a.x, p.x), f.x + f.w) - Math.max(Math.min(a.x, p.x), f.x) > 20 && (Math.abs(a.y - f.y) < 8 || Math.abs(a.y - f.y - f.h) < 8)) || (a.y > f.y && a.y < f.y + 30 && Math.min(Math.max(a.x, p.x), f.x + f.w) - Math.max(Math.min(a.x, p.x), f.x) > 20);
+      return false;
+    }))) continue;
     if (detour && newCost > curCost * 0.8) continue;
     if (pts.some((p, i) => i && others.some(b => segHits(pts[i - 1], p, b, 0)))) continue;
     r.pts = pts;
@@ -1933,6 +1957,43 @@ function slideToStraighten(rm, flowH) {
   }
 }
 
+// Two links with one step each (out, across, in) that cross twice, each step at the height of the other's legs,
+// swap their step heights when that clears both crossings and touches no node.
+function uncrossSteps(rm) {
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  const steps = [];
+  for (const r of rm.edges) {
+    if (!r.pts || r.merged || r.e.rail || r.e.lifeline || r.e.divider) continue;
+    const q = simplifyPts(r.pts);
+    if (q.length !== 4) continue;
+    const v = eq(q[0].x, q[1].x) && eq(q[1].y, q[2].y) && eq(q[2].x, q[3].x);
+    const h = eq(q[0].y, q[1].y) && eq(q[1].x, q[2].x) && eq(q[2].y, q[3].y);
+    if (v || h) steps.push({ r, q, A: v ? 'y' : 'x' });
+  }
+  const cross = (P, Q) => { let k = 0; for (let i = 1; i < P.length; i++) for (let j = 1; j < Q.length; j++) if (crossSeg(P[i - 1], P[i], Q[j - 1], Q[j])) k++; return k; };
+  const hitsNode = (P, r) => P.some((p, i) => i && rm.nodes.some(n => n.x !== undefined && n.id !== r.e.a && n.id !== r.e.b &&
+    Math.min(P[i - 1].x, p.x) < n.x + n.w + 6 && n.x - 6 < Math.max(P[i - 1].x, p.x) && Math.min(P[i - 1].y, p.y) < n.y + n.h + 6 && n.y - 6 < Math.max(P[i - 1].y, p.y)));
+  for (let i = 0; i < steps.length; i++) for (let j = i + 1; j < steps.length; j++) {
+    const a = steps[i], b = steps[j];
+    if (a.A !== b.A || cross(a.q, b.q) < 2) continue;
+    const A = a.A, ca = a.q[1][A], cb = b.q[1][A];
+    const move = (q, c) => q.map((p, k) => k === 1 || k === 2 ? { ...p, [A]: c } : { ...p });
+    const na = move(a.q, cb), nb = move(b.q, ca);
+    // the legs must keep their direction (the new step between each link's two ends)
+    const okDir = (q, n) => Math.sign(n[1][A] - n[0][A]) === Math.sign(q[1][A] - q[0][A]) && Math.sign(n[3][A] - n[2][A]) === Math.sign(q[3][A] - q[2][A]) && Math.abs(n[1][A] - n[0][A]) >= 8 && Math.abs(n[3][A] - n[2][A]) >= 8;
+    if (!okDir(a.q, na) || !okDir(b.q, nb) || cross(na, nb) !== 0 || hitsNode(na, a.r) || hitsNode(nb, b.r)) continue;
+    // and add no crossing with the other links
+    const others = rm.edges.filter(o => o !== a.r && o !== b.r && o.pts);
+    const before = others.reduce((t, o) => t + cross(a.q, o.pts) + cross(b.q, o.pts), 0), after = others.reduce((t, o) => t + cross(na, o.pts) + cross(nb, o.pts), 0);
+    if (after > before) continue;
+    // nor lie on another link (closer than 8px they read as one)
+    if (overlapsLinks(rm, na, new Set([a.r, b.r]), 8) || overlapsLinks(rm, nb, new Set([a.r, b.r]), 8)) continue;
+    const lab = (s, c0, c1) => { if (s.r.lab && Math.abs((A === 'y' ? s.r.lab.y : s.r.lab.x) - c0) < 30) { if (A === 'y') s.r.lab.y += c1 - c0; else s.r.lab.x += c1 - c0; } };
+    lab(a, ca, cb); lab(b, cb, ca);
+    a.r.pts = na; b.r.pts = nb; a.q = na; b.q = nb;
+  }
+}
+
 // A stretch that is almost straight (up to 2px off, left by rounding in a tidy-up) is made straight: the end that
 // is on a node stays, and the run of points on the other side moves with it, so the stretches next to it keep their
 // direction.
@@ -2001,7 +2062,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); slideToStraighten(rm, model.direction === 'RIGHT'); squareUp(rm); placeLabels(rm, measure); roomForTitles(rm); alignTitleEdges(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
+  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } uncrossSteps(rm); resolveOverlaps(rm); slideToStraighten(rm, model.direction === 'RIGHT'); rerouteBlocked(rm, null, true); squareUp(rm); placeLabels(rm, measure); roomForTitles(rm); alignTitleEdges(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -2904,7 +2965,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   }
   compactBridges(rm, model, flowH);
   if (!HIER) straightenSpans(rm, model, flowH);
-  alignRows(rm, model);
+  alignRows(rm, model, HIER);
   fitFrames(rm, model, flowH);
   sameSizeFrames(rm, model);
   placeRails(rm, model, flowH);
@@ -3422,7 +3483,7 @@ function compactBridges(rm, model, flowH) {
 // the layers). Slide one stack the last bit, re-route the links that touch it with a small step, and
 // draw the link between the two nodes as a straight line. A pair that cannot be slid without touching
 // a node or crossing a link is left as it is, and said so.
-function alignRows(rm, model) {
+function alignRows(rm, model, HIER) {
   const within = (a, b) => { for (let q = a; q; q = q.parent) if (q === b) return true; return false; };
   // Slide a region along X by dd: its nodes, the stacks in it, the frames in it; the links with a point in its
   // box move with it and get a small step where they enter it. Refused (false) when the moved box would touch
@@ -3447,7 +3508,10 @@ function alignRows(rm, model) {
     for (const g of stacks) g[X] += dd;
     for (const f of frames) f[X] += dd;
     for (const r of rm.edges) {
-      const flags = r.pts.map(inside);
+      // a link with both ends in the region moves whole; one that leaves it gets a step where it does
+      const na = model.nodes.get(r.e.a), nb = model.nodes.get(r.e.b);
+      const whole = na && nb && na.x !== undefined && nb.x !== undefined && inRegion(na) && inRegion(nb);
+      const flags = whole ? r.pts.map(() => true) : r.pts.map(inside);
       if (!flags.some(Boolean)) continue;
       const out = [];
       r.pts.forEach((q, i) => {
@@ -3463,7 +3527,7 @@ function alignRows(rm, model) {
         out.push(n);
       });
       r.pts = out;
-      if (r.lab && inside({ x: r.lab.x, y: r.lab.y })) r.lab[X] += dd;
+      if (r.lab && (whole || inside({ x: r.lab.x, y: r.lab.y }))) r.lab[X] += dd;
     }
     return true;
   }
@@ -3539,6 +3603,58 @@ function alignRows(rm, model) {
       if (!done) { (model.alignNotes = model.alignNotes || []).push(`align ${A.id} ${B.id}: they could not be brought level without touching another node or link, so they are left as laid out`); continue; }
     }
     straighten(A, B, X, Y, W, L);
+  }
+
+  // Zones side by side in one layer share their top (their left edge in a flow to the right) in the layouts that are
+  // not per zone: a zone that starts later than a neighbour slides back, with everything in it, when the room is
+  // free. (The per-zone layout does this as it goes, on the zones themselves; side zones keep their place.)
+  if (!HIER) {
+    const flowH = model.direction === 'RIGHT';
+    const X = flowH ? 'x' : 'y', Y = flowH ? 'y' : 'x', W = flowH ? 'w' : 'h', L = flowH ? 'h' : 'w';
+    const boxOf = F => {
+      const ms = [...model.nodes.values()].filter(o => o.x !== undefined && within(o, F));
+      if (!ms.length) return null;
+      const x1 = Math.min(...ms.map(o => o.x)), y1 = Math.min(...ms.map(o => o.y)), x2 = Math.max(...ms.map(o => o.x + o.w)), y2 = Math.max(...ms.map(o => o.y + o.h));
+      return { F, ms, x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    };
+    const byParent = new Map();
+    for (const F of model.frames.values()) {
+      if (F.side || F.id.startsWith('_')) continue;
+      const b = boxOf(F);
+      if (!b) continue;
+      if (!byParent.has(F.parent)) byParent.set(F.parent, []);
+      byParent.get(F.parent).push(b);
+    }
+    for (const list of byParent.values()) {
+      if (list.length < 2) continue;
+      // groups: zones whose spans along the flow overlap (as drawn: the title band before the contents, a margin
+      // after) and that stand apart across it
+      const groups = [];
+      for (const b of [...list].sort((p, q) => p[X] - q[X])) {
+        const g = groups.find(g => g.some(o => b[X] - 34 < o[X] + o[W] + 8 && o[X] - 34 < b[X] + b[W] + 8 && (b[Y] + b[L] <= o[Y] || o[Y] + o[L] <= b[Y])));
+        if (g) g.push(b); else groups.push([b]);
+      }
+      for (const g of groups) {
+        if (g.length < 2) continue;
+        const top = Math.min(...g.map(b => b[X]));
+        for (const b of g) {
+          const dd = top - b[X];
+          if (Math.abs(dd) < 0.5) continue;
+          // the zone as drawn: its title above the contents (to the left when the flow runs right), a margin round them
+          const pad = 8, box = { x: b.x - (flowH ? 34 : pad), y: b.y - (flowH ? pad : 34), w: b.w + pad + (flowH ? 34 : pad), h: b.h + pad + (flowH ? pad : 34) };
+          const stacks = model.groups.filter(s2 => s2.x !== undefined && s2.items.length && b.ms.includes(s2.items[0]));
+          const frames = rm.frames.filter(f => within(f.f, b.F));
+          // kept only if it adds no crossing
+          const crossings = () => { let k = 0; const E = rm.edges.filter(r => r.pts); for (let i = 0; i < E.length; i++) for (let j = i + 1; j < E.length; j++) for (let a = 1; a < E[i].pts.length; a++) for (let c = 1; c < E[j].pts.length; c++) if (crossSeg(E[i].pts[a - 1], E[i].pts[a], E[j].pts[c - 1], E[j].pts[c])) k++; return k; };
+          const before = crossings();
+          const snap = { nodes: b.ms.map(o => [o, o.x, o.y]), stacks: stacks.map(o => [o, o.x, o.y]), frames: frames.map(o => [o, o.x, o.y]), links: rm.edges.map(r => [r, r.pts, r.lab && { ...r.lab }]) };
+          if (slide(o => within(o, b.F), box, X, Y, dd, stacks, frames) && crossings() > before) {
+            for (const [o, x, y] of [...snap.nodes, ...snap.stacks, ...snap.frames]) { o.x = x; o.y = y; }
+            for (const [r, pts, lab] of snap.links) { r.pts = pts; if (lab) r.lab = lab; }
+          }
+        }
+      }
+    }
   }
 }
 
