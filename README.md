@@ -831,7 +831,7 @@ npm run build:docs   # the pictures in this README and the layout guide
 ```
 
 Language: [`docs/language.md`](docs/language.md). Drawing a diagram well: [`docs/layout-guide.md`](docs/layout-guide.md).
-How it works: [`docs/architecture.md`](docs/architecture.md). The rules behind the layout:
+How it works, in pictures: [`docs/algorithm.md`](docs/algorithm.md); in words: [`docs/architecture.md`](docs/architecture.md). The rules behind the layout:
 [`docs/drawing-rules.md`](docs/drawing-rules.md). What's next: [`docs/roadmap.md`](docs/roadmap.md).
 
 Icons are Lucide's (ISC) and technology logos Simple Icons' (CC0; the logos are trademarks of their owners),

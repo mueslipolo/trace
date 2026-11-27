@@ -1,6 +1,6 @@
 title "Request path"
 caption "Production, eu-west-1. Every hop is TLS."
-cartouche {
+title-block {
   author: Yves
   date: 2026-11-25
   version: 1.2

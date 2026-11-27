@@ -52,7 +52,7 @@ async function loadIcon(name, loader) {
 // Returns null when the line is not a node line (links, blocks, keys), so the caller can say so.
 function withIcon(line, name) {
   const c = firstColon(line);
-  if (c < 0 || ARROWS.test(line.slice(0, c)) || /^\s*(frame|column|row|key|title|caption|cartouche|direction|spacing|gather)\b/.test(line)) return null;
+  if (c < 0 || ARROWS.test(line.slice(0, c)) || /^\s*(frame|column|row|key|title|caption|title-block|direction|spacing|gather)\b/.test(line)) return null;
   const lhs = line.slice(0, c), rest = line.slice(c);
   const m = lhs.match(/^(.*?)\s*\[([^\]]*)\]\s*$/);
   if (!m) return lhs.trimEnd() + ` [${name}]` + rest;
@@ -198,7 +198,7 @@ function splitLabel(text) {
 
 function parse(src) {
   const model = {
-    direction: 'RIGHT', spacing: 1, gather: 5, title: '', caption: [], cartouche: [], marks: [],
+    direction: 'RIGHT', spacing: 1, gather: 5, title: '', caption: [], titleBlock: [], marks: [],
     nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], sameSize: [], events: [], mode: 'flow', errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
@@ -227,19 +227,19 @@ function parse(src) {
     }
   }
 
-  let inCartouche = false;
+  let inTitleBlock = false;
   function handle(line, ln) {
-    if (inCartouche) {
-      // cartouche { author: Yves ... }: free key: value lines, drawn as a small table at the bottom right
-      if (line === '}') { inCartouche = false; return; }
+    if (inTitleBlock) {
+      // title-block { author: Yves ... }: free key: value lines, drawn as a small table at the bottom right
+      if (line === '}') { inTitleBlock = false; return; }
       const c = line.indexOf(':');
-      if (c <= 0) throw new TraceError('A cartouche line reads  key: value  (author: Yves, date: 2026-11-25, version: 1.2)');
-      model.cartouche.push({ key: line.slice(0, c).trim(), value: unquote(line.slice(c + 1).trim()) });
+      if (c <= 0) throw new TraceError('A title-block line reads  key: value  (author: Yves, date: 2026-11-25, version: 1.2)');
+      model.titleBlock.push({ key: line.slice(0, c).trim(), value: unquote(line.slice(c + 1).trim()) });
       return;
     }
-    if (/^cartouche\s*\{$/i.test(line)) {
-      if (stack.length > 1) throw new TraceError('A cartouche goes at the top level, outside every block');
-      inCartouche = true;
+    if (/^title-block\s*\{$/i.test(line)) {
+      if (stack.length > 1) throw new TraceError('A title-block goes at the top level, outside every block');
+      inTitleBlock = true;
       return;
     }
     if (line === '}') {
@@ -523,7 +523,7 @@ function parse(src) {
       else throw e;
     }
   });
-  if (inCartouche) model.errors.push({ line: src.split('\n').findIndex(l => /^\s*cartouche\s*\{\s*$/i.test(l)) + 1, msg: 'The cartouche is never closed with }' });
+  if (inTitleBlock) model.errors.push({ line: src.split('\n').findIndex(l => /^\s*title-block\s*\{\s*$/i.test(l)) + 1, msg: 'The title-block is never closed with }' });
   if (stack.length > 1) {
     const open = stack[stack.length - 1];
     model.errors.push({ line: open.line, msg: `This ${open.type === 'frame' ? 'frame' : open.axis === 'v' ? 'column' : 'row'} is never closed with }` });
@@ -2198,7 +2198,40 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm, model.gather); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } uncrossSteps(rm); resolveOverlaps(rm); slideToStraighten(rm, model.direction === 'RIGHT'); rerouteBlocked(rm, null, true); squareUp(rm); placeLabels(rm, measure); roomForTitles(rm); alignTitleEdges(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
+  // the tidy-up, step by step, in this order (docs/algorithm.md draws what each one does; opts.onStage, when
+  // given, is called after the layout and after every step with the step's name and the drawing so far)
+  const flowH = model.direction === 'RIGHT';
+  const steps = [
+    ['centreParents', rm => { if (isTree(model)) centreParents(rm, flowH); }],
+    ['placeOnConcentrators', rm => placeOnConcentrators(rm)],
+    ['splitDecisions', rm => splitDecisions(rm, flowH)],
+    ['spanSides', rm => spanSides(rm, model)],
+    ['clearFrames', rm => clearFrames(rm)],
+    ['alignJogs', rm => alignJogs(rm)],
+    ['simplifySnakes', rm => simplifySnakes(rm)],
+    ['mergeHubs', rm => { if (!off.has('merge')) mergeHubs(rm, model.gather); }],
+    ['rerouteBlocked', rm => rerouteBlocked(rm)],
+    ['straightenSmallJogs', rm => straightenSmallJogs(rm)],
+    ['reorderEnds', rm => reorderEnds(rm)],
+    ['spreadEnds', rm => { if (!off.has('tidy')) spreadEnds(rm); }],
+    ['separateParallels', rm => { if (!off.has('tidy')) separateParallels(rm); }],
+    ['uncrossSteps', rm => uncrossSteps(rm)],
+    ['resolveOverlaps', rm => resolveOverlaps(rm)],
+    ['slideToStraighten', rm => slideToStraighten(rm, flowH)],
+    ['rerouteSiblings', rm => rerouteBlocked(rm, null, true)],
+    ['squareUp', rm => squareUp(rm)],
+    ['placeLabels', rm => placeLabels(rm, measure)],
+    ['roomForTitles', rm => roomForTitles(rm)],
+    ['alignTitleEdges', rm => alignTitleEdges(rm)],
+    ['sameSizeFrames', rm => sameSizeFrames(rm, model)],
+    ['fitCanvas', rm => fitCanvas(rm)],
+  ];
+  const onStage = opts && opts.onStage;
+  const finish = rm => {
+    if (onStage) onStage('layout', rm);
+    for (const [name, step] of steps) { step(rm); if (onStage) onStage(name, rm); }
+    return rm;
+  };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -4566,7 +4599,7 @@ function headId(e, pfx) {
   return pfx + 'a';
 }
 
-// The title, the caption (wrapped to the drawing's width) and the cartouche, measured once for the renderer.
+// The title, the caption (wrapped to the drawing's width) and the title block, measured once for the renderer.
 function measureHead(model, rm, measure) {
   const head = { title: null, caption: [], cart: null };
   if (model.title) head.title = { text: model.title, w: measure(model.title, FONT_HEAD) };
@@ -4579,8 +4612,8 @@ function measureHead(model, rm, measure) {
     }
     if (line) head.caption.push({ text: line, w: measure(line, FONT_CAP) });
   }
-  if (model.cartouche.length) {
-    const rows = model.cartouche.map(r => ({ ...r, kw: measure(r.key, FONT_CK), vw: measure(r.value, FONT_CV) }));
+  if (model.titleBlock.length) {
+    const rows = model.titleBlock.map(r => ({ ...r, kw: measure(r.key, FONT_CK), vw: measure(r.value, FONT_CV) }));
     head.cart = { rows, kw: Math.max(...rows.map(r => r.kw)), vw: Math.max(...rows.map(r => r.vw)) };
   }
   return head;
@@ -4952,7 +4985,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     return `<marker id="${pfx}${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" class="${c}"/></marker>` +
       `<marker id="${pfx}${id}s" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0 L0 5 L10 10 Z" class="${c}"/></marker>`;
   }).join('');
-  // the title and caption above the drawing, the cartouche at the bottom right
+  // the title and caption above the drawing, the title block at the bottom right
   const head = rm.head || { title: null, caption: [], cart: null };
   let hh = 0;
   const top = [];

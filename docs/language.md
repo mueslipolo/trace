@@ -10,7 +10,7 @@ spacing 1.3           # multiplies layout spacing, 0.5 to 3
 gather 4              # alike links into one node drawn as one bus: 5 by default, 2 up, or off
 title "Job states"    # drawn above the diagram; also the SVG's aria-label and the download file name
 caption "Production, eu-west-1. Dashed links are optional."   # a muted line under the title, wrapped
-cartouche {           # a small table at the bottom right: free key: value lines
+title-block {         # a small table at the bottom right: free key: value lines
   author: Yves
   date: 2026-11-25
   version: 1.2
@@ -23,7 +23,8 @@ node, are drawn as one bus (or meet one line inside a zone when they come from i
 
 The title and the caption sit above the drawing, which moves down to make room; a
 long caption wraps to the drawing's width, and several `caption` lines make several paragraphs. The
-cartouche is the title block of an engineering drawing: any keys you like, in the order you write them.
+title block is the small table in the corner of an engineering drawing (who made it, when, which version): any keys
+you like, in the order you write them.
 
 ## Layout is automatic
 
