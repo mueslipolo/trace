@@ -1,56 +1,55 @@
 # Full-feature version of ../unifi-home-vlans.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
 title "Home network: UniFi, four VLANs"
-direction right
+direction down
 
 pill ISP [internet]: ISP Fiber Modem / ONT | WAN handoff
 UDM [router]: UniFi Dream Machine SE | Router · Firewall · IDS/IPS · Controller\nVLAN_TRUSTED · YOUR_TRUSTED_SUBNET
-
-    frame CORE "Core switching" [blue] {
-      USW [switch]: USW-24-G2 | 24-port · PoE+ · VLAN trunk
-      column {
-        FM1 [switch]: "Flex Mini #1" | 5-port cluster A
-        FM2 [switch]: "Flex Mini #2" | 5-port cluster B
-      }
-    }
-      frame VLAN65W2 "VLAN_IOT — IoT wired" [orange] {
-        HUE [lightbulb]: Philips Hue bridge
-      }
-      frame VLAN62 "VLAN_SERVERS — Secure Server Net · YOUR_SERVER_SUBNET" [green] {
-        NAS [hard-drive]: NAS / home server
-      }
-      frame VLAN1W2 "VLAN_TRUSTED — wired" [purple] {
-        column {
-          PC [monitor]: Desktop PC
-          ATV [tv]: Apple TV
-          CON [gamepad-2]: Gaming console
-          TV [tv]: Smart TV
-        }
-      }
-    frame WIFI "Wi-Fi — 2× U7 Pro (Wi-Fi 7 · 2.4 / 5 / 6 GHz)" [blue] {
-      column {
-        SSID4 [wifi]: Kids SSID | VLAN_KIDS · YOUR_KIDS_SUBNET
-        SSID1 [wifi]: Trusted 2.4 GHz | VLAN_TRUSTED · YOUR_TRUSTED_SUBNET
-        SSID2 [wifi]: Trusted 5 GHz | VLAN_TRUSTED · YOUR_TRUSTED_SUBNET
-        SSID3 [wifi]: IoT SSID | VLAN_IOT · YOUR_IOT_SUBNET
-      }
-    }
-      frame VLAN64W "VLAN_KIDS — Kids" [orange] {
-        KIDS [tablet]: Kids devices
-      }
-      frame VLAN1W "VLAN_TRUSTED — wireless" [purple] {
-        column {
-          PH [smartphone]: Phones
-          LAP [laptop]: Laptops
-        }
-      }
-      frame VLAN65W "VLAN_IOT — IoT wireless" [orange] {
-        column {
-          ECH [speaker]: Echo speakers
-          WLED [lightbulb]: WLED strips
-          CAM [camera]: IP cameras
-          PLUG [plug]: Smart plugs
-        }
-      }
+frame CORE "Core switching" [blue] {
+  USW [span switch]: USW-24-G2 | 24-port · PoE+ · VLAN trunk
+  row {
+    FM1 [switch]: "Flex Mini #1" | 5-port cluster A
+    FM2 [switch]: "Flex Mini #2" | 5-port cluster B
+  }
+}
+frame WIFI "Wi-Fi — 2× U7 Pro (Wi-Fi 7 · 2.4 / 5 / 6 GHz)" [blue] {
+  row {
+    SSID4 [wifi]: Kids SSID | VLAN_KIDS · YOUR_KIDS_SUBNET
+    SSID1 [wifi]: Trusted 2.4 GHz | VLAN_TRUSTED · YOUR_TRUSTED_SUBNET
+    SSID2 [wifi]: Trusted 5 GHz | VLAN_TRUSTED · YOUR_TRUSTED_SUBNET
+    SSID3 [span wifi]: IoT SSID | VLAN_IOT · YOUR_IOT_SUBNET
+  }
+}
+frame VLAN65W2 "VLAN_IOT — IoT wired" [orange] {
+  HUE [lightbulb]: Philips Hue bridge
+}
+frame VLAN62 "VLAN_SERVERS — Secure Server Net · YOUR_SERVER_SUBNET" [green] {
+  NAS [hard-drive]: NAS / home server
+}
+frame VLAN1W2 "VLAN_TRUSTED — wired" [purple] {
+  row {
+    PC [monitor]: Desktop PC
+    ATV [tv]: Apple TV
+    CON [gamepad-2]: Gaming console
+    TV [tv]: Smart TV
+  }
+}
+frame VLAN64W "VLAN_KIDS — Kids" [orange] {
+  KIDS [tablet]: Kids devices
+}
+frame VLAN1W "VLAN_TRUSTED — wireless" [purple] {
+  row {
+    PH [smartphone]: Phones
+    LAP [laptop]: Laptops
+  }
+}
+frame VLAN65W "VLAN_IOT — IoT wireless" [orange] {
+  row {
+    ECH [speaker]: Echo speakers
+    WLED [lightbulb]: WLED strips
+    CAM [camera]: IP cameras
+    PLUG [plug]: Smart plugs
+  }
+}
 
 ISP -> UDM : WAN
 USW -> FM1 : trunk
@@ -70,6 +69,3 @@ FM2 -> ATV
 FM2 -> CON
 FM2 -> TV
 USW -> HUE
-
-align UDM USW
-same-height SSID1 SSID2 SSID3 SSID4

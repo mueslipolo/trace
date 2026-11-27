@@ -77,6 +77,7 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | A sequence message label hides the lifelines behind it. | GitLab fetch over SSH | engine: label ground in `render` | a lifeline through a label |
 | Nothing sits past the drawing's edge and there is no blank band: the drawing is cut to what it holds, with its 16px margin, after every tidy-up. | System landscape with `align` (blank band at the bottom), Containers with `align` (Customer past the left edge), office simple (a label cut at the left) | engine: `fitCanvas` | content past an edge, or an empty band |
 | A zone moved by `align` takes the nodes that hang from it alone. | OTel telemetry, full, with `align os-http gr-srv` (the Grafana browser stayed behind) | engine: `alignRows` | a leaf left behind by its zone, with a step in its link |
+| Zones side by side in a row put their titles on the same edge; when some need the bottom, the others grow a title band so all titles and bottoms line up. | owner on the UniFi home network (bottom-row zones with titles at different edges) | engine: `alignTitleEdges` | a row of zones with titles at mixed edges |
 
 ## Reading
 

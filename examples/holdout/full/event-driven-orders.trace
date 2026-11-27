@@ -1,0 +1,77 @@
+# Full-feature version of ../event-driven-orders.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+title "Event-driven order processing"
+direction down
+
+row {
+  pill web [globe]: Web shop
+  pill mobile [smartphone]: Mobile app
+  pill partner [handshake]: Partner API clients
+}
+row {
+  gw [kong]: API gateway | Kong
+  idp [keycloak]: Identity provider | Keycloak, OIDC
+}
+
+row {
+  column {
+    frame data "Databases" [orange] {
+      store ordersdb [database postgresql]: Orders DB | with outbox table
+      store paydb [database postgresql]: Payments DB
+      store invdb [database]: Inventory DB
+    }
+    relay [refresh-cw]: Outbox relay | Debezium
+  }
+  frame services "Services" [blue] {
+    row {
+      orders [package]: Order service
+      payments [credit-card]: Payment service
+      inventory [boxes]: Inventory service
+      shipping [truck]: Shipping service
+      notify [bell]: Notification service
+    }
+  }
+}
+
+frame kafka "Kafka" [purple kafka] {
+  row {
+    store placed [list]: order.placed
+    store paid [list]: payment.completed
+    store reserved [list]: stock.reserved
+    store shipped [list]: shipment.created
+    store dlq [list]: dead letters
+  }
+}
+
+row {
+  psp [landmark]: Payment provider | Stripe
+  carrier [truck]: Carrier API
+  email [mail]: Email / SMS provider
+  connect [plug]: Kafka Connect
+  store dwh [warehouse]: Data warehouse
+}
+
+web -> gw : HTTPS
+mobile -> gw : HTTPS
+partner -> gw : HTTPS, API key
+gw -> idp : validate token
+gw -> orders : REST
+orders -> ordersdb : write order + outbox
+relay -> ordersdb : read outbox
+relay -> placed : publish
+payments -> placed [dashed] : consume
+payments -> psp : charge
+payments -> paydb
+payments -> paid : publish
+inventory -> paid [dashed] : consume
+inventory -> invdb
+inventory -> reserved : publish
+shipping -> reserved [dashed] : consume
+shipping -> carrier : book
+shipping -> shipped : publish
+notify -> shipped [dashed] : consume
+notify -> paid [dashed] : consume
+notify -> email : send
+payments -> dlq [dashed] : failed
+shipping -> dlq [dashed] : failed
+connect -> placed [dashed] : consume all
+connect -> dwh : load

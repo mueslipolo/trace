@@ -1,0 +1,56 @@
+# Full-feature version of ../file-backup.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+title "File services and backup, 3-2-1"
+direction down
+
+frame office "Main office" [blue] {
+  row {
+    users [users]: Staff PCs
+    admin [user]: IT admin
+  }
+  row {
+    store nas [hard-drive]: NAS | SMB shares, hourly snapshots
+    backup [span archive]: Backup server | jobs, catalogue
+    store repo [hard-drive]: Backup repository | local disks, 14 days
+  }
+  frame cluster "Hypervisor cluster" [grey] {
+    row {
+      hv1 [server]: Host 1
+      hv2 [server]: Host 2
+      hv3 [server]: Host 3
+    }
+  }
+  store san [span hard-drive]: Shared storage | iSCSI
+  router [router]: Office router | site-to-site VPN
+}
+
+frame cloud "Cloud" [orange side right] {
+  sync [refresh-cw]: File sync service | M365
+  store s3 [cloud]: Object storage | immutable, 90 days
+  monitor [bell]: Monitoring | backup alerts
+}
+
+frame dr "DR site" [purple] {
+  router2 [router]: DR router
+  row {
+    store drnas [hard-drive]: DR NAS | replica
+    drhost [server]: Standby host
+  }
+}
+
+users -> nas : SMB
+users -> sync : OneDrive
+hv1 -> san : iSCSI
+hv2 -> san : iSCSI
+hv3 -> san : iSCSI
+backup -> hv1 : VM snapshots
+backup -> hv2 : VM snapshots
+backup -> hv3 : VM snapshots
+backup -> nas : file backup
+backup -> repo : copy 1
+backup -> s3 : copy 2, nightly
+nas -> drnas : replication, hourly
+router -- router2 : IPsec VPN
+drnas -> drhost : restore target
+admin -> backup : restore tests
+backup -> monitor [dashed] : job status
+sync -> s3 [dashed] : retention copy

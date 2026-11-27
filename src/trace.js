@@ -1952,7 +1952,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); squareUp(rm); placeLabels(rm, measure); roomForTitles(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
+  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); squareUp(rm); placeLabels(rm, measure); roomForTitles(rm); alignTitleEdges(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -4277,17 +4277,63 @@ function roomForTitles(rm) {
   for (const f of rm.frames) { rm.width = Math.max(rm.width, f.x + f.w + 16); rm.height = Math.max(rm.height, f.y + f.h + 16); }
 }
 
+// Zones side by side in a row (same parent, same top) put their titles on the same edge: when some sit at the
+// bottom (a link crosses their top) the others go to the bottom too, growing by a title band below their contents
+// where that room is free, so the row's titles and bottoms line up; else all stay at the top when they can.
+function alignTitleEdges(rm) {
+  const B = 18;
+  const groups = new Map();
+  for (const fr of rm.frames) {
+    if (!fr.f.title) continue;
+    const k = [fr.f.parent && fr.f.parent.id, Math.round(fr.y / 2)].join('|');
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(fr);
+  }
+  const ov = (a, b, m) => a.x < b.x + b.w + m && b.x - m < a.x + a.w && a.y < b.y + b.h + m && b.y - m < a.y + a.h;
+  const contains = (g, f) => g !== f && g.x <= f.x + 0.5 && g.y <= f.y + 0.5 && g.x + g.w >= f.x + f.w - 0.5 && g.y + g.h >= f.y + f.h - 0.5;
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    const bottom = fr => { const sp = titleSpot(rm, fr); return sp && sp.y > fr.y + fr.h / 2; };
+    const nb = list.filter(bottom).length;
+    if (!nb || nb === list.length) continue;
+    if (list.every(fr => titleSpot(rm, fr, 'top'))) { list.forEach(fr => { fr.titleEdge = 'top'; }); continue; }
+    // the others grow by a band below their contents, when it is free
+    const was = list.map(fr => fr.h);
+    let ok = true;
+    for (const fr of list) {
+      if (titleSpot(rm, fr, 'bottom')) continue;
+      const band = { x: fr.x, y: fr.y + fr.h, w: fr.w, h: B };
+      const free = !rm.nodes.some(n => n.x !== undefined && ov(band, n, 4)) &&
+        !rm.frames.some(g => g !== fr && !contains(g, fr) && !contains(fr, g) && ov(band, g, 4)) &&
+        !rm.edges.some(r => r.pts && r.pts.some((q, i) => i && Math.abs(q.y - r.pts[i - 1].y) < 0.5 && ov(band, { x: Math.min(q.x, r.pts[i - 1].x), y: q.y, w: Math.abs(q.x - r.pts[i - 1].x), h: 0 }, 2)));
+      if (!free) { ok = false; break; }
+      fr.h += B;
+      if (!titleSpot(rm, fr, 'bottom')) { ok = false; break; }
+    }
+    if (!ok) { list.forEach((fr, i) => { fr.h = was[i]; }); continue; }
+    // the row's bottoms line up
+    const bot = Math.max(...list.map(fr => fr.y + fr.h));
+    for (const fr of list) {
+      const band = { x: fr.x, y: fr.y + fr.h, w: fr.w, h: bot - fr.y - fr.h };
+      if (band.h > 0.5 && !rm.nodes.some(n => n.x !== undefined && ov(band, n, 2))) fr.h = bot - fr.y;
+      fr.titleEdge = 'bottom';
+    }
+  }
+  for (const f of rm.frames) rm.height = Math.max(rm.height, f.y + f.h + 16);
+}
+
 // Where a zone's title goes: the first corner where it clears every node, link and label, then the first free
 // place along the top edge, then the bottom edge, nearest the right. null when there is none.
-function titleSpot(rm, fr) {
-  // first corner where the title clears every node
+function titleSpot(rm, fr, edge) {
+  // first corner where the title clears every node (edge 'top' or 'bottom' keeps to that edge)
   const tw = fr.titleFit || fr.f.titleW || fr.f.title.length * 6.5;
-  const spots = [
+  let spots = [
     { x: fr.x + fr.w - 12, y: fr.y + 20, a: 'end' }, { x: fr.x + 12, y: fr.y + 20, a: 'start' },
     { x: fr.x + fr.w - 12, y: fr.y + fr.h - 10, a: 'end' }, { x: fr.x + 12, y: fr.y + fr.h - 10, a: 'start' },
   ];
   if (fr.titleBottom) spots.push(...spots.splice(0, 2));
   if (fr.titleLeft) spots.unshift({ x: fr.x + 10, y: fr.y + 17, a: 'start' });
+  if (edge) spots = spots.filter(sp => edge === 'top' ? sp.y < fr.y + fr.h / 2 : sp.y > fr.y + fr.h / 2);
   const clear = sp => {
     const x0 = sp.a === 'end' ? sp.x - tw : sp.x, y0 = sp.y - 11;
     const onLabel = rm.edges.some(r => r.lab && r.e.lab && (() => {
@@ -4305,7 +4351,7 @@ function titleSpot(rm, fr) {
   if (!sp) {
     // every corner is taken: the free place along the top edge, then the bottom edge, nearest the right
     const out = [];
-    for (const [y, base] of [[fr.y + 20, 0], [fr.y + fr.h - 10, 1]]) for (let x = fr.x + fr.w - 12; x >= fr.x + 12 + tw; x -= 6) out.push({ x, y, a: 'end', base });
+    for (const [y, base] of [[fr.y + 20, 0], [fr.y + fr.h - 10, 1]]) if (!edge || (edge === 'top') === !base) for (let x = fr.x + fr.w - 12; x >= fr.x + 12 + tw; x -= 6) out.push({ x, y, a: 'end', base });
     sp = out.find(clear);
   }
   return sp || null;
@@ -4324,7 +4370,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     body.push(`<rect class="zone zone-${color}${t.includes('dashed') ? ' dashed' : ''}" x="${r1(fr.x)}" y="${r1(fr.y)}" width="${r1(fr.w)}" height="${r1(fr.h)}" rx="10"/>`);
     if (fr.f.title) {
       const tw = fr.titleFit || fr.f.titleW || fr.f.title.length * 6.5;
-      let sp = titleSpot(rm, fr), out = body;
+      let sp = (fr.titleEdge && titleSpot(rm, fr, fr.titleEdge)) || titleSpot(rm, fr), out = body;
       if (!sp) {
         // no free place at all: the corner that the fewest links cross, and the title drawn over the links on a
         // ground of the zone's colour, so they pass under it instead of through its words

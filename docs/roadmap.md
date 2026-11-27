@@ -112,6 +112,15 @@ workspace"). Today such a link:
   a column of zones.
 The fix is one attachment point per zone border in the per-zone layout, like a node's port.
 
+## Found while writing the full versions of the held-out diagrams (not yet fixed)
+
+- A link label can be crossed by a link that passes through a narrow gap (office network, full: the label of a
+  short backup -> NAS link, crossed by the core -> hypervisor links; worked round by placing the NAS below).
+- A link joined with `[join]` can run along a zone border (event-driven orders, full: shipping -> dead letters
+  along the Services zone; worked round by leaving the join out).
+- Dense publish/subscribe and log fan-ins (event-driven orders, security operations) stay tangled even with
+  rows: the services and topics form a staircase that no ordering of two rows fully untangles.
+
 ## 7. Layout recommendations (later)
 
 Analyse a diagram and suggest the layout features that would improve it (rows or columns across the flow,

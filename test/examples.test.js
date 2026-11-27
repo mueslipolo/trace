@@ -1181,3 +1181,11 @@ test('mermaid-to-trace: a link to a subgraph links the zone (no node of that nam
   assert.deepStrictEqual(res.errors, []);
   assert.strictEqual(res.model.nodes.get('sw').name, 'Flex Mini #1');
 });
+
+test('zones in a row put their titles on the same edge, with their bottoms lined up (UniFi home network)', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/unifi-home-vlans.trace'), 'utf8'), measure, ELK, {});
+  const row = ['VLAN65W2', 'VLAN62', 'VLAN1W2', 'VLAN64W', 'VLAN1W', 'VLAN65W'].map(id => res.rm.frames.find(f => f.f.id === id));
+  assert.ok(row.every(f => f.titleEdge === 'bottom'), 'every title at the bottom');
+  const bots = row.map(f => f.y + f.h);
+  assert.ok(Math.max(...bots) - Math.min(...bots) < 1, 'bottoms lined up');
+});

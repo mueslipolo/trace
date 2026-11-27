@@ -1,0 +1,84 @@
+# Full-feature version of ../k8s-platform.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+title "Production Kubernetes platform"
+direction down
+
+row {
+  column {
+    pill users [users]: Customers | web and mobile
+    cdn [cloud]: CDN + WAF | TLS, bot rules
+    lb [loadbalancer]: Cloud load balancer | L4, public IP
+  }
+  pill devs [user]: Developers
+}
+
+row {
+  frame cluster "Kubernetes cluster (prod)" [blue kubernetes] {
+    ingress [span nginx]: Ingress controller | NGINX
+    row {
+      frame web "namespace: web" [green] {
+        storefront [react]: Storefront | Next.js SSR
+      }
+      frame api "namespace: api" [green] {
+        gateway [span api]: API gateway | auth, rate limits
+        row {
+          orders [go]: Orders service
+          catalog [go]: Catalog service
+          payments [java]: Payments service
+        }
+      }
+      frame jobs "namespace: workers" [green] {
+        worker [cog]: Order worker | consumes events
+        cron [clock]: Nightly jobs | CronJobs
+      }
+      frame platform "namespace: platform" [grey] {
+        argocd [argocd]: Argo CD | GitOps sync
+        eso [key]: External Secrets operator
+        prom [prometheus]: Prometheus
+        loki [scroll-text]: Loki | logs
+      }
+    }
+  }
+  column {
+    git [github]: Git repository | manifests, Helm charts
+    registry [container]: Container registry
+    vault [hashicorp-vault]: Vault | secrets
+    grafana [grafana]: Grafana | dashboards, alerts
+    pagerduty [bell]: On-call paging
+  }
+}
+
+frame managed "Managed services" [orange] {
+  row {
+    store redis [redis]: Redis | sessions, cache
+    store pg [join database postgresql]: PostgreSQL | primary + replica
+    store queue [rabbitmq]: RabbitMQ | order events
+    store blob [package]: Object storage | images, exports
+  }
+}
+
+users -> cdn : HTTPS
+cdn -> lb : HTTPS
+lb -> ingress : 443
+ingress -> storefront : /
+ingress -> gateway : /api
+storefront -> gateway : REST
+gateway -> orders
+gateway -> catalog
+gateway -> payments
+orders -> pg : SQL
+catalog -> pg : SQL
+payments -> pg : SQL
+catalog -> redis : cache
+storefront -> redis : sessions
+orders -> queue : publish
+worker -> queue : consume
+worker -> blob : exports
+cron -> pg : cleanup
+catalog -> blob : images
+devs -> git : push
+argocd -> git : pull
+argocd -> registry : image tags
+eso -> vault : read secrets
+prom -> grafana [dashed] : metrics
+loki -> grafana [dashed] : logs
+grafana -> pagerduty : alerts

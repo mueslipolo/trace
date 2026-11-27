@@ -1,0 +1,80 @@
+# Full-feature version of ../security-operations.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+title "Zero trust and security operations"
+direction down
+
+frame endpoints "Endpoints" [blue] {
+  row {
+    laptops [laptop]: Staff laptops | MDM enrolled
+    phones [smartphone]: Mobile phones
+    edr [shield]: EDR agent | on every device
+  }
+}
+
+row {
+  ztna [span lock]: Zero-trust access proxy
+  frame identity "Identity" [purple] {
+    idp [key]: SSO / IdP | SAML, OIDC
+    row {
+      mfa [fingerprint]: MFA | push, FIDO2
+      mdm [tablet-smartphone]: MDM | device posture
+    }
+  }
+}
+
+row {
+  frame apps "Applications" [green] {
+    row {
+      hr [users]: HR system
+      crm [contact]: CRM
+      git [git-branch]: Git hosting
+      wiki [book-open]: Wiki
+    }
+  }
+  waf [shield]: WAF | public apps
+  frame admin "Privileged access" [orange] {
+    pam [vault]: PAM vault | session recording
+    bastion [terminal]: Jump host
+    prod [server]: Production servers
+  }
+}
+
+frame soc "Security operations" [grey] {
+  row {
+    collector [join funnel]: Log collector
+    siem [monitor]: SIEM | correlation, detections
+    soar [workflow]: SOAR | playbooks
+    tickets [ticket]: Ticketing
+  }
+  row {
+    ti [radar]: Threat intelligence feed
+    vuln [scan]: Vulnerability scanner
+  }
+}
+analysts [user]: SOC analysts
+
+laptops -> ztna : every request
+phones -> ztna : every request
+ztna -> idp : who is it?
+idp -> mfa : second factor
+ztna -> mdm : device healthy?
+ztna -> hr
+ztna -> crm
+ztna -> git
+ztna -> wiki
+waf -> crm
+pam -> bastion : brokered session
+bastion -> prod : SSH
+idp -> pam : SSO
+edr -> collector [dashed] : telemetry
+idp -> collector [dashed] : sign-in logs
+ztna -> collector [dashed] : access logs
+waf -> collector [dashed] : WAF logs
+pam -> collector [dashed] : session logs
+collector -> siem
+ti -> siem : indicators
+vuln -> prod : weekly scan
+vuln -> siem : findings
+siem -> soar : alerts
+soar -> tickets : cases
+edr <- soar : isolate device
+analysts -> tickets : triage

@@ -18,19 +18,19 @@
       }
     },
     "holdout": {
-      "n": 25,
+      "n": 29,
       "total": {
         "crash": 0,
         "through": 0,
-        "near": 0,
-        "overlap": 1,
-        "crossings": 47,
-        "bends": 397,
+        "near": 1,
+        "overlap": 4,
+        "crossings": 158,
+        "bends": 619,
         "border": 1,
-        "labels": 0,
+        "labels": 1,
         "nodeOverlap": 0,
         "frameCover": 0,
-        "wide": 3,
+        "wide": 4,
         "hug": 1
       }
     }
