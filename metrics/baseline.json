@@ -1,14 +1,14 @@
 {
   "sets": {
     "examples": {
-      "n": 51,
+      "n": 52,
       "total": {
         "crash": 0,
         "through": 0,
         "near": 0,
         "overlap": 1,
         "crossings": 41,
-        "bends": 694,
+        "bends": 700,
         "border": 1,
         "labels": 0,
         "nodeOverlap": 0,

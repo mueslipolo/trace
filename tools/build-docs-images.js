@@ -15,6 +15,7 @@ const outDir = path.join(root, 'docs/images');
 
 // README: [name, source]
 const readme = [
+  ['everything', 'examples/playground/everything.trace'],
   ['dmz', 'examples/cases/dmz.trace'],
   ['bigbank-plain', 'examples/holdout/bigbank-container.trace'],
   ['bigbank-full', 'examples/holdout/full/bigbank-container.trace'],

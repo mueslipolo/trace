@@ -1249,3 +1249,21 @@ test('gather: five alike links make a bus by default, gather N changes the numbe
   const bad = await compile('gather 1\n' + src(3), measure, ELK, {});
   assert.ok(bad.errors.some(e => /gather takes/.test(e.msg) && e.line === 1));
 });
+
+test('link labels: a tag puts the label near an end, three parts name both ends, a bad label says what to write', async () => {
+  const src = 'direction down\na: Source\nb: Target\na -> b : 443/tcp [label-end]\nb -> c : eth0 | uplink | port 24';
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const ab = res.rm.edges.find(r => r.e.a === 'a' && r.e.b === 'b'), B = res.rm.nodes.find(n => n.id === 'b');
+  const end = ab.pts[ab.pts.length - 1], labMid = ab.lab.y + ab.e.lab.h / 2;
+  assert.ok(Math.abs(labMid - end.y) < Math.abs(labMid - ab.pts[0].y), 'the label is nearer the target');
+  assert.ok(labMid < B.y, 'and above it');
+  const bc = res.rm.edges.find(r => r.e.a === 'b');
+  assert.strictEqual(bc.e.label, 'uplink');
+  assert.deepStrictEqual(bc.endLabs.map(x => x.size.lines[0]), ['eth0', 'port 24']);
+  assert.ok(res.svg.includes('>eth0<') && res.svg.includes('>port 24<'));
+  const bad = await compile('a -> b : one | two', measure, ELK, {});
+  assert.ok(bad.errors.some(e => /three parts/.test(e.msg) && e.line === 1));
+  const quoted = await compile('a -> b : "one | two"', measure, ELK, {});
+  assert.deepStrictEqual(quoted.errors, []);
+});

@@ -3,7 +3,7 @@
 
 const KINDS = new Set(['box', 'store', 'engine', 'state', 'pill', 'ask', 'start', 'final', 'end']);
 const NODE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'span', 'bridge', 'join']);
-const EDGE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted']);
+const EDGE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'label-start', 'label-end', 'label-above', 'label-below', 'label-left', 'label-right']);
 const CARD_RE = /^(1|n|01|0n)-(1|n|01|0n)$/;
 // the tags a link accepts: the fixed ones, and a cardinality for its two ends (n-1, 1-1, 0n-1, n-01 ...)
 const EDGE_TAG_SET = {
@@ -462,9 +462,17 @@ function parse(src) {
         throw new TraceError('A link reads: a -> b : label   (also -->, <-, <->, --)');
       }
       for (let i = 0; i < parts.length; i += 2) ensure(parts[i], ln);
+      // a label in three parts names the two ends too: start | middle | end (a label in quotes keeps its |)
+      let ends = ['', ''];
+      if (label && !/^"[^"]*"$/.test(label) && label.includes('|')) {
+        const p3 = label.split('|').map(x => x.trim());
+        if (p3.length !== 3) throw new TraceError('A link label with ends has three parts, the ends around the middle: a -> b : eth0 | uplink | port 24   (leave a part empty for none: eth0 | | port 24)');
+        ends = [p3[0], p3[2]]; label = p3[1];
+      }
       for (let i = 1; i < parts.length; i += 2) {
         const op = parts[i], a = parts[i - 1], b = parts[i + 1];
         const edge = {
+          labelStart: ends[0].replace(/\\n/g, '\n'), labelEnd: ends[1].replace(/\\n/g, '\n'),
           a, b, op, label: label ? (/^"[^"]*"$/.test(label) ? label.slice(1, -1) : label).replace(/\\n/g, '\n') : '',
           tags: tags.slice(),
           dashed: op === '-->' || op === '<--' || tags.includes('dashed'),
@@ -936,8 +944,53 @@ function placeLabels(rm, measure) {
     if (near > 16) n += 1;
     return n;
   };
+  // places for a label of the given size beside the link, in the order a hint asks for: where 'start' or 'end'
+  // (just past the source, just before the target, on the first or last stretch), else anywhere along it; side
+  // 'above' / 'below' on a horizontal stretch, 'left' / 'right' on a vertical one (a side that does not fit the
+  // stretch leaves both sides open)
+  const spotsNear = (r, size, where, side) => {
+    const out = [], q = r.pts, n = q.length;
+    const idx = where === 'start' ? [1] : where === 'end' ? [n - 1] : q.map((_, i) => i).slice(1);
+    for (const i of idx) {
+      const a = q[i - 1], p = q[i], horiz = Math.abs(a.y - p.y) < 0.5, len = Math.hypot(p.x - a.x, p.y - a.y);
+      if (len < 1) continue;
+      const ux = (p.x - a.x) / len, uy = (p.y - a.y) / len;
+      let at;
+      if (where) {
+        // measured from the end the label belongs to; past an arrowhead it keeps a little further off
+        const head = where === 'end' ? r.e.end : r.e.start;
+        const gap = (horiz ? size.w / 2 : size.h / 2) + 8 + (head ? 8 : 0);
+        at = [0, 10, 20, 40].map(k => gap + k).filter(d => d <= len - 4).map(d => where === 'start' ? d : len - d);
+        if (!at.length) at = [len / 2];
+      } else at = [0.5, 0.3, 0.7, 0.15, 0.85].map(f => f * len);
+      const sides = horiz ? (side === 'above' || side === 'below' ? [side] : ['above', 'below']) : (side === 'left' || side === 'right' ? [side] : ['right', 'left']);
+      for (const d of at) {
+        const mx = a.x + ux * d, my = a.y + uy * d;
+        for (const sd of sides) {
+          if (sd === 'above') out.push({ x: mx, y: my - 4 - size.h, anchor: 'middle' });
+          else if (sd === 'below') out.push({ x: mx, y: my + 4, anchor: 'middle' });
+          else if (sd === 'right') out.push({ x: mx + 6, y: my - size.h / 2, anchor: 'start' });
+          else out.push({ x: mx - 6, y: my - size.h / 2, anchor: 'end' });
+        }
+      }
+    }
+    return out;
+  };
+  const hintOf = e => {
+    const t = e.tags || [];
+    return { where: t.includes('label-start') ? 'start' : t.includes('label-end') ? 'end' : null,
+      side: ['above', 'below', 'left', 'right'].find(sd => t.includes('label-' + sd)) || null };
+  };
+  const linkName = e => `${e.a} ${e.op} ${e.b}`;
   for (const r of labelled) {
     const w = r.e.lab.w, h = r.e.lab.h;
+    // a link that says where its label goes: the first free place there; otherwise placed as any other label
+    const hint = hintOf(r.e);
+    if (hint.where || hint.side) {
+      const c = spotsNear(r, r.e.lab, hint.where, hint.side).map(lab => ({ lab, b: boxOf(lab, r.e) })).find(x => collisions(r, x.b) === 0);
+      if (c) { r.lab = c.lab; placed.push(c.b); continue; }
+      (rm.notes = rm.notes || []).push(`The label of ${linkName(r.e)} has no free place where its tags ask (${(r.e.tags || []).filter(t => t.startsWith('label-')).join(' ')}): it is placed where there is room.`);
+    }
     const cur = boxOf(r.lab, r.e);
     if (collisions(r, cur) === 0) {
       // clear already; but a label below a horizontal stretch reads better above it, when that is clear too
@@ -989,6 +1042,21 @@ function placeLabels(rm, measure) {
       r.lab = best.lab; placed.push(best.b);
       if (best.shape) r.e.lab = { ...r.e.lab, lines: best.shape.lines, w: best.shape.w, h: best.shape.h };
     } else placed.push(cur);
+  }
+  // labels at the ends of a link (a -> b : eth0 | uplink | port 24): beside its first and last stretch, just
+  // past the source and just before the target, on whichever side is free
+  for (const r of rm.edges) {
+    if (!r.pts || r.pts.length < 2 || r.e.lifeline || r.e.divider || (!r.e.labS && !r.e.labE)) continue;
+    r.endLabs = [];
+    for (const [where, size] of [['start', r.e.labS], ['end', r.e.labE]]) {
+      if (!size) continue;
+      const cands = spotsNear(r, size, where, null).map(lab => { const b = boxOf(lab, r.e, size); return { lab, b, n: collisions(r, b) }; });
+      if (!cands.length) continue;
+      const best = cands.find(c => c.n === 0) || cands.reduce((m, c) => c.n < m.n ? c : m);
+      if (best.n) (rm.notes = rm.notes || []).push(`The label at the ${where} of ${linkName(r.e)} has no free place: it is drawn over what is there.`);
+      r.endLabs.push({ lab: best.lab, size });
+      placed.push(best.b);
+    }
   }
 }
 
@@ -2294,6 +2362,23 @@ function placeOnConcentrators(rm) {
         else q[L - 1] = P(t, narrow);
       }
       one.pts = simplifyPts(q);
+      // the node at the other end, when nothing else is tied to it and the room is free, slides level with the
+      // place the link leaves the line, so the link is one straight line
+      const O = rm.nodes.find(n => n.id === (one.e.a === j.id ? one.e.b : one.e.a));
+      if (O && O.x !== undefined && !O.cols && !O.span && rm.edges.filter(r => r.e.a === O.id || r.e.b === O.id).length === 1) {
+        const d = t - (O[A] + O[S] / 2);
+        const nb = { x: O.x, y: O.y, w: O.w, h: O.h }; nb[A] += d;
+        const near = (a, b, g) => a.x < b.x + b.w + g && b.x < a.x + a.w + g && a.y < b.y + b.h + g && b.y < a.y + a.h + g;
+        const inside = (a, f, g) => a.x >= f.x + g && a.y >= f.y + g && a.x + a.w <= f.x + f.w - g && a.y + a.h <= f.y + f.h - g;
+        const free = Math.abs(d) > 0.5 && rm.nodes.every(n => n === O || n === j || n.x === undefined || !near(n, nb, 12)) &&
+          (rm.frames || []).every(f => inside(O, f, 0) ? inside(nb, f, 10) : !near(nb, f, 6)) &&
+          rm.edges.every(r => r === one || !r.pts || r.e.rail || r.e.lifeline || !r.pts.some((p, k) => k && near({ x: Math.min(p.x, r.pts[k - 1].x), y: Math.min(p.y, r.pts[k - 1].y), w: Math.abs(p.x - r.pts[k - 1].x), h: Math.abs(p.y - r.pts[k - 1].y) }, nb, 6)));
+        if (free) {
+          O[A] += d;
+          const far = O[B] > j[B] ? O[B] : O[B] + O[Bs];        // the side of O facing the line
+          one.pts = fanIn ? [P(t, narrow), P(t, far)] : [P(t, far), P(t, narrow)];   // as the link runs: out of the line, or into it
+        }
+      }
       const lo = Math.min(t, ...lv), hi = Math.max(t, ...lv);
       j[A] = lo - 7; j[S] = hi - lo + 14;
     }
@@ -2641,6 +2726,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     e.stub = undefined;
     e.align = model.aligns.some(al => (al.a === e.a && al.b === e.b) || (al.a === e.b && al.b === e.a));
     e.lab = sizeLabel(e.label, measure);
+    e.labS = sizeLabel(e.labelStart, measure); e.labE = sizeLabel(e.labelEnd, measure);
     const railOf = id => model.rails.get(id) || (model.nodes.get(id) && model.nodes.get(id).parent && model.nodes.get(id).parent.type === 'rail' ? model.nodes.get(id).parent : null);
     e.rail = railOf(e.a) || railOf(e.b) || null;
     e.railFrom = !!e.rail && railOf(e.a) === e.rail;
@@ -4819,6 +4905,13 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
       let y = lab.y + 11;
       for (const l of e.lab.lines) {
         labels.push(`<text class="note muted halo" x="${r1(lab.x)}" y="${r1(y)}" text-anchor="${lab.anchor}">${esc(l)}</text>`);
+        y += 13;
+      }
+    }
+    for (const el of r.endLabs || []) {
+      let y = el.lab.y + 11;
+      for (const l of el.size.lines) {
+        labels.push(`<text class="note muted halo" x="${r1(el.lab.x)}" y="${r1(y)}" text-anchor="${el.lab.anchor}">${esc(l)}</text>`);
         y += 13;
       }
     }

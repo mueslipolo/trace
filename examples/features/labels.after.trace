@@ -1,0 +1,15 @@
+direction down
+core [router]: Core router
+row {
+  sw1 [switch]: Switch 1
+  sw2 [switch]: Switch 2
+}
+fw [firewall]: Firewall
+ask decide: allowed?
+app [server]: App
+core -> sw1 : ge-0/0/1 | 10 Gb uplink | port 24
+core -> sw2 : ge-0/0/2 | 10 Gb uplink | port 24
+sw1 -> fw : 443/tcp [label-end]
+sw2 -> fw : 8443/tcp [label-end]
+fw -> decide
+decide -> app : yes [label-start]

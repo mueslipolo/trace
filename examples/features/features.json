@@ -84,6 +84,20 @@
     "wide": false
   },
   {
+    "id": "labels",
+    "title": "Where a link label goes",
+    "group": "Links",
+    "does": "`[label-start]` or `[label-end]` puts a link's label just past its source or just before its target; `[label-above]`, `[label-below]`, `[label-left]`, `[label-right]` choose the side. A label in three parts, `start | middle | end`, also names the two ends.",
+    "effect": "The ports sit next to the firewall that enforces them, “yes” next to the question, and each uplink names the interface at both ends. A hint is a preference: when its place is taken the label goes where there is room, and the result says so.",
+    "beforeLabel": "Labels where the engine puts them",
+    "afterLabel": "With position tags and end labels",
+    "beforeOff": [],
+    "afterOff": [],
+    "syntax": "fw -> app : 443/tcp [label-end]\nask -> fix : no [label-start below]\ncore -> sw : ge-0/0/1 | uplink | port 24\ncore -> sw : ge-0/0/1 | | port 24     # ends only",
+    "use": "When a label belongs to one end of a link: a port at the device that opens it, an interface name, a decision's yes and no. A label that needs a | of its own goes in quotes.",
+    "wide": false
+  },
+  {
     "id": "frames",
     "title": "Frames",
     "group": "Frames",

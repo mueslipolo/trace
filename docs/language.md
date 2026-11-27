@@ -154,6 +154,23 @@ arrow points at Postgres; `fw <- proxy` sends traffic back up without the layout
 
 Link tags: `ok`, `bad`, `muted` (colour), `dashed`.
 
+Where the label goes: the engine puts it beside the link where it crosses nothing. A tag can ask for a place:
+`[label-start]` (just past the source, on the first stretch), `[label-end]` (just before the target, on the last),
+and `[label-above]`, `[label-below]` (on a horizontal stretch) or `[label-left]`, `[label-right]` (on a vertical
+one); `[label-end below]` combines them. A hint is a preference: when its place is taken, the label goes where
+there is room and the result carries a warning.
+
+```
+fw -> app : 443/tcp [label-end]              # the port next to the firewall's target
+ask -> fix : no [label-start]                # yes and no next to the question
+core -> sw : ge-0/0/1 | 10 Gb uplink | port 24   # a label at each end, around the middle one
+core -> sw : ge-0/0/1 | | port 24            # the ends only
+```
+
+A label in three parts, `start | middle | end`, names the two ends of the link as well (interface names, roles);
+each end label sits beside the link just past its end, on the side that is free. A part may be empty. A label
+that needs a `|` of its own goes in quotes.
+
 A link can also say how many at each end, source end first: `[n-1]` many to one, `[1-1]`, `[n-n]`, and
 `01` and `0n` for zero or one and zero or many (`[0n-1]`). The ends are then drawn as in an ER diagram
 (a crow's foot for many, two bars for one, a circle for optional) instead of arrowheads.

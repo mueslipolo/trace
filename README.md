@@ -3,80 +3,81 @@
 Write diagrams as plain text; get them drawn like a careful hand would.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/dmz.dark.png">
-  <img src="docs/images/dmz.png" alt="A three-tier network behind a DMZ, drawn by Trace: traffic flows down through an edge zone, the DMZ, an app zone and a data zone; each firewall sits on the border it guards; a SIEM stands beside the tiers and collects their logs on one joined line." width="760">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/everything.dark.png">
+  <img src="docs/images/everything.png" alt="Everything Trace draws, in one picture: each box names the feature it shows, from span and bridge nodes to icons, logos, tags, kinds, a side zone and joined links." width="760">
 </picture>
 
-<!-- source examples/cases/dmz.trace "The Trace source of this drawing (examples/cases/dmz.trace)" -->
-<details><summary>The Trace source of this drawing (examples/cases/dmz.trace)</summary>
+<!-- source examples/playground/everything.trace "The Trace source of this drawing" -->
+<details><summary>The Trace source of this drawing</summary>
 
 ```
 direction down
-title "Three-tier network behind a DMZ"
+title "Everything Trace draws, in one picture"
+caption "Each box names the feature it shows."
 
 column {
   row {
-    pill users [user]: Internet users
-    pill partners [handshake]: Partner APIs
+    pill you [user]: You write text | nodes, links, zones
+    pill auto [sparkles]: The engine lays it out | no coordinates
   }
-  frame edge "edge, provider managed" [grey] {
-    ddos [span shield]: DDoS scrubbing
-    cdn [cloud]: CDN + WAF | TLS termination, bot rules
+  frame edge "zones: named, coloured" [grey] {
+    span [span arrow-down-wide-narrow]: [span]: as wide as what it feeds
   }
 }
-frame dmz "DMZ, 10.0.1.0/24" [orange] {
-  fw1 [bridge span firewall]: Edge firewall | stateful, geo-block
+frame dmz "zones follow the flow" [orange] {
+  bridge [bridge span firewall]: [bridge]: a node on the border | half in each zone
   row {
-    lb [loadbalancer]: Load balancer pair | VRRP, health checks
-    rp [arrow-right-left]: Reverse proxy | nginx, mTLS to partners
-    bastion [terminal]: Bastion host | SSH via SSO only
+    icons [server]: Icons | 1,500 Lucide names
+    logos [database postgresql]: Logos
+    kinds [bad]: Tags: ok, bad, dashed
   }
 }
-frame app "app zone, 10.0.2.0/24" [blue] {
-  fw2 [bridge span firewall]: Internal firewall | allow 443, 8443 only
-  row "app servers" {
-    web1 [server]: web-01
-    web2 [server]: web-02
-    api1 [api]: api-01
-  }
-}
-frame data "data zone, 10.0.3.0/24" [purple] {
-  fw3 [bridge span firewall]: DB firewall | 5432, 6379 from app only
+frame app "kinds: store, engine, ask" [blue] {
+  bridge2 [bridge span shield]: Another [bridge] | the zones touch
   row {
-    store pgp [database]: Postgres primary
-    store pgr [database]: Postgres replica
-    store redis [cache]: Redis | sessions, cache
+    store one [database]: store
+    engine two [cloud]: engine
+    ask three: ask?
   }
 }
-
-frame mgmt "management VLAN, 10.0.9.0/24" [grey side span] {
-  siem [join monitor]: SIEM | log collection, alerts
+frame watch "[side span]: beside the flow, not after it" [green side span] {
+  gate [join monitor]: [join]: alike links meet | one arrow, one label
 }
 
-users -> ddos : 443/tcp
-partners -> ddos : 443/tcp
-ddos -> cdn : 443, clean traffic
-cdn -> fw1 : 443/tcp
-fw1 -> lb : 443, 80/tcp
-fw1 -> rp : 8443 mTLS
-fw1 -> bastion [dashed] : 22/tcp, VPN only
-lb -> fw2 : 443/tcp
-rp -> fw2 : 8443/tcp
-fw2 -> web1 : 443/tcp
-fw2 -> web2 : 443/tcp
-fw2 -> api1 : 8443/tcp
-web1 -> fw3 : 5432, 6379
-web2 -> fw3 : 5432, 6379
-api1 -> fw3 : 5432, 6379
-fw3 -> pgp : 5432/tcp
-fw3 -> redis : 6379/tcp
-pgp -> pgr : 5432, streaming replication
+you -> span
+auto -> span
+span -> bridge : labels on links
+bridge -> icons : 443/tcp
+bridge -> logos : 5432
+bridge -> kinds [bad] : refused
+icons -> bridge2
+logos -> bridge2
+bridge2 -> one
+bridge2 -> two [dashed] : dashed: optional
+bridge2 -> three [ok] : green: the happy path
+bridge --> gate : logs
+bridge2 --> gate : logs
+three --> gate : logs
 
-key frame [orange] : DMZ
-key box : firewall on a zone border
-fw1 -> siem [dashed] : 514/udp
-fw2 -> siem [dashed] : 514/udp
-fw3 -> siem [dashed] : 514/udp
+key frame [orange] : a zone
+key -> [bad] : a refused path
+
+frame hub "five alike links: gathered on one line" [purple] {
+  row {
+    s1 [package]: Orders
+    s2 [credit-card]: Billing
+    s3 [search]: Search
+    s4 [list]: Catalog
+    s5 [truck]: Shipping
+  }
+}
+idp [key]: A hub | one link in, one label
+s1 -> idp : validate token
+s2 -> idp : validate token
+s3 -> idp : validate token
+s4 -> idp : validate token
+s5 -> idp : validate token
+one -> s1
 ```
 
 </details>
@@ -388,6 +389,92 @@ and what it changes.
 ## Gallery
 
 <table>
+<tr>
+<td colspan="2" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/dmz.dark.png">
+  <img src="docs/images/dmz.png" alt="A three-tier network behind a DMZ: each firewall on the border it guards, a SIEM beside the tiers collecting their logs on one joined line." width="100%">
+</picture>
+<br><b>Three-tier network behind a DMZ</b>: zones in the order traffic crosses them, each firewall a
+<code>[bridge]</code> on the border it guards, the SIEM in a side zone with its log links joined.
+
+<!-- source examples/cases/dmz.trace -->
+<details><summary>Trace source</summary>
+
+```
+direction down
+title "Three-tier network behind a DMZ"
+
+column {
+  row {
+    pill users [user]: Internet users
+    pill partners [handshake]: Partner APIs
+  }
+  frame edge "edge, provider managed" [grey] {
+    ddos [span shield]: DDoS scrubbing
+    cdn [cloud]: CDN + WAF | TLS termination, bot rules
+  }
+}
+frame dmz "DMZ, 10.0.1.0/24" [orange] {
+  fw1 [bridge span firewall]: Edge firewall | stateful, geo-block
+  row {
+    lb [loadbalancer]: Load balancer pair | VRRP, health checks
+    rp [arrow-right-left]: Reverse proxy | nginx, mTLS to partners
+    bastion [terminal]: Bastion host | SSH via SSO only
+  }
+}
+frame app "app zone, 10.0.2.0/24" [blue] {
+  fw2 [bridge span firewall]: Internal firewall | allow 443, 8443 only
+  row "app servers" {
+    web1 [server]: web-01
+    web2 [server]: web-02
+    api1 [api]: api-01
+  }
+}
+frame data "data zone, 10.0.3.0/24" [purple] {
+  fw3 [bridge span firewall]: DB firewall | 5432, 6379 from app only
+  row {
+    store pgp [database]: Postgres primary
+    store pgr [database]: Postgres replica
+    store redis [cache]: Redis | sessions, cache
+  }
+}
+
+frame mgmt "management VLAN, 10.0.9.0/24" [grey side span] {
+  siem [join monitor]: SIEM | log collection, alerts
+}
+
+users -> ddos : 443/tcp
+partners -> ddos : 443/tcp
+ddos -> cdn : 443, clean traffic
+cdn -> fw1 : 443/tcp
+fw1 -> lb : 443, 80/tcp
+fw1 -> rp : 8443 mTLS
+fw1 -> bastion [dashed] : 22/tcp, VPN only
+lb -> fw2 : 443/tcp
+rp -> fw2 : 8443/tcp
+fw2 -> web1 : 443/tcp
+fw2 -> web2 : 443/tcp
+fw2 -> api1 : 8443/tcp
+web1 -> fw3 : 5432, 6379
+web2 -> fw3 : 5432, 6379
+api1 -> fw3 : 5432, 6379
+fw3 -> pgp : 5432/tcp
+fw3 -> redis : 6379/tcp
+pgp -> pgr : 5432, streaming replication
+
+key frame [orange] : DMZ
+key box : firewall on a zone border
+fw1 -> siem [dashed] : 514/udp
+fw2 -> siem [dashed] : 514/udp
+fw3 -> siem [dashed] : 514/udp
+```
+
+</details>
+<!-- /source -->
+
+</td>
+</tr>
 <tr>
 <td width="50%" valign="top">
 <picture>
