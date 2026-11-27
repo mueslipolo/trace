@@ -119,6 +119,14 @@ zones; `[span]` ignores a node beside a column of zones; side zones still refuse
 - Dense publish/subscribe and log fan-ins (event-driven orders, security operations) stay tangled even with
   rows: the services and topics form a staircase that no ordering of two rows fully untangles.
 
+## Links that go against the flow (looked at, not changed)
+
+Tried on the head office network (full, arrangement D): routing links that go against the flow (staff to the NAS,
+the 802.1X check, the cameras to the recorder) through the gaps between zones instead of round the outside. The
+routes through the middle are shorter but cross many more links (staff to the NAS: 7 crossings instead of 1, the
+802.1X check: 5 instead of 3), so the long clean way round stays. What helps is placement: the NAS on its own
+line under the backup server lets the SMB link run under the VLAN row and in from the side.
+
 ## 7. Layout recommendations (later)
 
 Analyse a diagram and suggest the layout features that would improve it (rows or columns across the flow,

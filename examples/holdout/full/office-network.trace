@@ -6,7 +6,6 @@ row {
   pill isp1 [globe]: ISP 1 | fibre 1 Gb/s
   pill isp2 [signal]: ISP 2 | 4G backup
 }
-
 row {
   frame dmz "DMZ — VLAN 50, 10.50.0.0/24" [orange] {
     web [server]: Public web server
@@ -15,24 +14,22 @@ row {
   }
   fw [firewall]: Firewall pair | HA, active/passive
 }
-
 frame core "Core" [grey] {
   row {
     core1 [switch]: Core switch 1 | L3
     core2 [switch]: Core switch 2 | L3
   }
 }
-
 row {
   frame floor1 "Floor 1" [blue] {
     acc1 [switch]: Access switch F1 | PoE
   }
-  frame floor2 "Floor 2" [blue] {
-    acc2 [switch]: Access switch F2 | PoE
-  }
   column {
     wlc [wifi]: Wi-Fi controller
     aps [radio-tower]: Access points | x 12
+  }
+  frame floor2 "Floor 2" [blue] {
+    acc2 [switch]: Access switch F2 | PoE
   }
   frame servers "Server room — VLAN 100, 10.100.0.0/24" [purple] {
     row {
@@ -54,7 +51,6 @@ row {
     store offsite [cloud]: Offsite backup | object storage
   }
 }
-
 frame vlans "User VLANs" [green] {
   row {
     staff [laptop]: VLAN 10 staff | 10.10.0.0/22
