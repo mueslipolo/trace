@@ -78,6 +78,8 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | Nothing sits past the drawing's edge and there is no blank band: the drawing is cut to what it holds, with its 16px margin, after every tidy-up. | System landscape with `align` (blank band at the bottom), Containers with `align` (Customer past the left edge), office simple (a label cut at the left) | engine: `fitCanvas` | content past an edge, or an empty band |
 | A zone moved by `align` takes the nodes that hang from it alone. | OTel telemetry, full, with `align os-http gr-srv` (the Grafana browser stayed behind) | engine: `alignRows` | a leaf left behind by its zone, with a step in its link |
 | Zones side by side in a row put their titles on the same edge; when some need the bottom, the others grow a title band so all titles and bottoms line up. | owner on the UniFi home network (bottom-row zones with titles at different edges) | engine: `alignTitleEdges` | a row of zones with titles at mixed edges |
+| A link leaving a zone at the top level never goes out backwards: when its straight way out is blocked, it runs inside the zone's margin to the side facing the flow, so what it reaches stands beside the zone, not above it. | eShop, full (OpenAI above everything, its links climbing the drawing; the owner: "openai should be lower") | engine: `portFor` | a node outside a zone placed level with the zone's corner |
+| A node whose links all reach it with a short last step slides across the flow, when the room is free, so they arrive straight. | eShop, full (OpenAI one step off its links; the owner: "we could easily avoid one bend"); also CI/CD, routing example | engine: `slideToStraighten` | a short jog just before a node |
 
 ## Reading
 

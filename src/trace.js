@@ -1884,6 +1884,52 @@ function spanSides(rm, model) {
   for (const f of rm.frames) { rm.width = Math.max(rm.width, f.x + f.w + 16); rm.height = Math.max(rm.height, f.y + f.h + 16); }
 }
 
+// A node whose links all reach it with a short last step (a run along the flow, then a jog of under 80px to its
+// side or end) slides across the flow, when that room is free, so the runs end straight on its side.
+function slideToStraighten(rm, flowH) {
+  const A = flowH ? 'y' : 'x', B = flowH ? 'x' : 'y', S = flowH ? 'h' : 'w', L = flowH ? 'w' : 'h';
+  const eq = (a, b) => Math.abs(a - b) < 0.5;
+  for (const n of rm.nodes) {
+    if (n.x === undefined || n.cols || n.span || n.kind === 'junction' || n.kind === 'start') continue;
+    const mine = rm.edges.filter(r => r.pts && r.pts.length > 1 && !r.e.rail && !r.e.lifeline && !r.e.divider && !r.merged && (r.e.a === n.id || r.e.b === n.id) && r.e.a !== r.e.b);
+    if (!mine.length || mine.length > 3) continue;
+    // each link seen as arriving at n; its last long run along the flow, and how far the jog after it goes
+    const plans = [];
+    for (const r of mine) {
+      const atEnd = Math.hypot(r.pts[r.pts.length - 1].x - (n.x + n.w / 2), r.pts[r.pts.length - 1].y - (n.y + n.h / 2)) < Math.hypot(r.pts[0].x - (n.x + n.w / 2), r.pts[0].y - (n.y + n.h / 2));
+      const P = atEnd ? r.pts : [...r.pts].reverse();
+      let k = -1;
+      for (let i = P.length - 1; i > 0; i--) if (eq(P[i - 1][A], P[i][A]) && Math.abs(P[i][B] - P[i - 1][B]) > 30) { k = i; break; }
+      if (k < 1) { plans.length = 0; break; }
+      const tail = P.slice(k).reduce((t, p, i, a) => i ? t + Math.abs(p.x - a[i - 1].x) + Math.abs(p.y - a[i - 1].y) : 0, 0);
+      const c = P[k][A];
+      // the run must come from the side of n it would enter, and the jog be short
+      const fromLow = P[k - 1][B] < n[B];
+      if (tail > 80 || (fromLow ? P[k - 1][B] > n[B] - 4 : P[k - 1][B] < n[B] + n[L] + 4)) { plans.length = 0; break; }
+      plans.push({ r, atEnd, P, k, c, fromLow });
+    }
+    if (plans.length !== mine.length) continue;
+    const lo = Math.max(...plans.map(q => q.c)) - n[S] + 8, hi = Math.min(...plans.map(q => q.c)) - 8;
+    if (lo > hi) continue;
+    const to = Math.min(hi, Math.max(lo, n[A]));
+    if (Math.abs(to - n[A]) < 0.5) continue;
+    const moved = { x: n.x, y: n.y, w: n.w, h: n.h, [A]: to };
+    const ov = (a, b, m) => a.x < b.x + b.w + m && b.x - m < a.x + a.w && a.y < b.y + b.h + m && b.y - m < a.y + a.h;
+    if (rm.nodes.some(o => o !== n && o.x !== undefined && ov(moved, o, 10))) continue;
+    // it stays in the zones that hold it and out of the others
+    const holds = fr => { for (let q = n.parent; q; q = q.parent) if (q === fr.f) return true; return false; };
+    if (rm.frames.some(fr => holds(fr) ? !(moved.x >= fr.x + 10 && moved.y >= fr.y + 10 && moved.x + moved.w <= fr.x + fr.w - 10 && moved.y + moved.h <= fr.y + fr.h - 10) : ov(moved, fr, 8))) continue;
+    if (rm.edges.some(o => !mine.includes(o) && o.pts && o.pts.some((p, i) => i && ov(moved, { x: Math.min(p.x, o.pts[i - 1].x), y: Math.min(p.y, o.pts[i - 1].y), w: Math.abs(p.x - o.pts[i - 1].x), h: Math.abs(p.y - o.pts[i - 1].y) }, 4)))) continue;
+    n[A] = to;
+    for (const q of plans) {
+      const side = q.fromLow ? n[B] : n[B] + n[L];
+      const out = [...q.P.slice(0, q.k), { [A]: q.c, [B]: side }].map(p => ({ x: p.x, y: p.y }));
+      q.r.pts = q.atEnd ? out : out.reverse();
+      if (q.r.lab && q.r.e.lab) q.r.lab = { x: (q.P[q.k - 1][B] + side) / 2, y: q.c - 4 - q.r.e.lab.h, anchor: 'middle', ...(flowH ? {} : { x: q.c + 6, y: (q.P[q.k - 1][B] + side) / 2 - q.r.e.lab.h / 2, anchor: 'start' }) };
+    }
+  }
+}
+
 // A stretch that is almost straight (up to 2px off, left by rounding in a tidy-up) is made straight: the end that
 // is on a node stays, and the run of points on the other side moves with it, so the stretches next to it keep their
 // direction.
@@ -1952,7 +1998,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); squareUp(rm); placeLabels(rm, measure); roomForTitles(rm); alignTitleEdges(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
+  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); slideToStraighten(rm, model.direction === 'RIGHT'); squareUp(rm); placeLabels(rm, measure); roomForTitles(rm); alignTitleEdges(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -2934,7 +2980,27 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       const Wa = dirH ? Lt.w : Lt.h, Ca = dirH ? Lt.h : Lt.w;
       const pt = (a, c) => dirH ? { x: a, y: c } : { x: c, y: a };
       const ma0 = dirH ? mp.x : mp.y, ma1 = ma0 + (dirH ? m.w : m.h), c0 = dirH ? cy : cx;
-      const margins = end === 's' ? ['far', 'near'] : ['near', 'far'];
+      // first: out of the member's top or bottom (left or right in a flow down), along the zone's inner margin, and
+      // out through the side facing the link, so what it reaches outside stays beside the zone, not above it
+      if (!colPort) {
+        const fm = (ma0 + ma1) / 2, exitA = end === 's' ? Wa : 0, side = end === 's' ? OUT_ : IN_;
+        const memLo = dirH ? mp.y : mp.x, memHi = memLo + (dirH ? m.h : m.w);
+        // (14px inside the border: closer, the link would read as running along it)
+        for (const cm of (c0 < Ca / 2 ? [14, Ca - 14] : [Ca - 14, 14])) {
+          if (cm > memLo - 6 && cm < memHi + 6) continue;
+          const edgeC = cm < memLo ? memLo : memHi;
+          const segA = dirH ? { x: fm - 5, y: Math.min(cm, edgeC), w: 10, h: Math.abs(edgeC - cm) } : { x: Math.min(cm, edgeC), y: fm - 5, w: Math.abs(edgeC - cm), h: 10 };
+          const f0 = Math.min(fm, exitA), f1 = Math.max(fm, exitA);
+          const segB = dirH ? { x: f0, y: cm - 5, w: f1 - f0, h: 10 } : { x: cm - 5, y: f0, w: 10, h: f1 - f0 };
+          if (rects.some(r => hit(segA, r) || hit(segB, r))) continue;
+          const rq = { T, e, end, m, side, mp, fixed: pt(exitA, cm), via: { corner: pt(fm, cm), border: pt(fm, edgeC) } };
+          reqs.push(rq);
+          return rq;
+        }
+      }
+      // (out of a zone at the top level, only the margin on the side the link goes: the other sends it back against
+      // the flow, out of a corner of the zone, and what it reaches is placed level with that corner)
+      const margins = end === 's' ? (T.parent && T.parent.parent ? ['far', 'near'] : ['far']) : ['near', 'far'];
       for (const margin of margins) {
         const a = margin === 'near' ? 9 : Wa - 9;
         if (a > ma0 - 6 && a < ma1 + 6) continue;

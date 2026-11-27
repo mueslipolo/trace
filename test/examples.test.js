@@ -1189,3 +1189,13 @@ test('zones in a row put their titles on the same edge, with their bottoms lined
   const bots = row.map(f => f.y + f.h);
   assert.ok(Math.max(...bots) - Math.min(...bots) < 1, 'bottoms lined up');
 });
+
+test('a node reached from inside a zone stands beside it, level with what links to it, its links straight (eShop, OpenAI)', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/full/eshop.trace'), 'utf8'), measure, ELK, {});
+  const n = id => res.rm.nodes.find(x => x.id === id), cloud = res.rm.frames.find(f => f.f.id === 'cloud');
+  assert.ok(n('openai').y > cloud.y + 40, 'OpenAI is not above the cloud zone');
+  for (const r of res.rm.edges.filter(r => r.e.b === 'openai')) {
+    const L = r.pts.length, a = r.pts[L - 2], b = r.pts[L - 1];
+    assert.ok(Math.abs(a.y - b.y) < 0.5 && Math.abs(b.x - n('openai').x) < 1, `${r.e.a} -> openai ends straight on its side`);
+  }
+});
