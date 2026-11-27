@@ -1872,6 +1872,39 @@ function spanSides(rm, model) {
   for (const f of rm.frames) { rm.width = Math.max(rm.width, f.x + f.w + 16); rm.height = Math.max(rm.height, f.y + f.h + 16); }
 }
 
+// The drawing is as big as what it holds, plus its 16px margin: a tidy-up that moved things (align, a zone pulled
+// in) leaves nothing past the left or top edge and no blank band at the right or the bottom.
+function fitCanvas(rm) {
+  // nothing closer than 16px to the left or top edge (8px for a label): everything shifts right or down
+  const labBox = r => { const w = r.e.lab.w; return { x: r.lab.anchor === 'middle' ? r.lab.x - w / 2 : r.lab.anchor === 'end' ? r.lab.x - w : r.lab.x, y: r.lab.y }; };
+  const xs = [16, ...rm.nodes.filter(n => n.x !== undefined).map(n => n.x), ...rm.frames.map(f => f.x), ...rm.edges.flatMap(r => (r.pts || []).map(p => p.x + 6)),
+    ...rm.edges.filter(r => r.lab && r.e.lab).map(r => labBox(r).x + 8)];
+  const ys = [16, ...rm.nodes.filter(n => n.x !== undefined).map(n => n.y), ...rm.frames.map(f => f.y), ...rm.edges.flatMap(r => (r.pts || []).map(p => p.y + 6)),
+    ...rm.edges.filter(r => r.lab && r.e.lab).map(r => labBox(r).y + 8)];
+  const dx = 16 - Math.min(...xs), dy = 16 - Math.min(...ys);
+  if (dx > 0.5 || dy > 0.5) {
+    const ddx = Math.max(0, dx), ddy = Math.max(0, dy), mv = o => { o.x += ddx; o.y += ddy; };
+    for (const n of rm.nodes) if (n.x !== undefined) mv(n);
+    for (const g of (rm.model && rm.model.groups) || []) if (g.x !== undefined) mv(g);
+    for (const f of rm.frames) mv(f);
+    for (const r of rm.edges) { (r.pts || []).forEach(mv); if (r.lab) mv(r.lab); }
+    for (const rl of rm.rails || []) { mv(rl); (rl.bus || []).forEach(mv); (rl.dots || []).forEach(mv); }
+    (rm.joins || []).forEach(mv);
+    rm.width += ddx; rm.height += ddy;
+  }
+  let X = 0, Y = 0;
+  const take = (x, y) => { if (x > X) X = x; if (y > Y) Y = y; };
+  for (const n of rm.nodes) if (n.x !== undefined) take(n.x + n.w, n.y + n.h);
+  for (const f of rm.frames) take(f.x + f.w, f.y + f.h);
+  for (const r of rm.edges) {
+    for (const p of r.pts || []) take(p.x, p.y);
+    if (r.lab && r.e.lab) { const w = r.e.lab.w; take(r.lab.anchor === 'middle' ? r.lab.x + w / 2 : r.lab.anchor === 'end' ? r.lab.x : r.lab.x + w, r.lab.y + r.e.lab.h); }
+  }
+  for (const rl of rm.rails || []) take(rl.x + rl.w, rl.y + rl.h);
+  if (X > 0 && X + 16 < rm.width) rm.width = X + 16;
+  if (Y > 0 && Y + 16 < rm.height) rm.height = Y + 16;
+}
+
 // The tidy-up runs on the layout that was chosen, after the choice: it changes the number of points in a
 // link without changing how it looks, and the choice is made on those counts.
 // opts.off lists the automatic tidy-ups to leave out (for showing what they do): 'wrap', 'fold', 'merge', 'tidy'
@@ -1880,7 +1913,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); roomForTitles(rm); sameSizeFrames(rm, model); return rm; };
+  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); roomForTitles(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -3342,16 +3375,24 @@ function alignRows(rm, model) {
       const tries = [[B, A, d], [A, B, -d]].map(([n, other, dd]) => ({ n, F: regionOf(n, other), dd }));
       // the smaller region first: a single node before a zone
       tries.sort((p, q) => (p.F ? 1 : 0) - (q.F ? 1 : 0));
+      // a zone slides with the nodes that hang from it alone (every link of theirs goes into it, as a browser
+      // under its server), when there is room for them too; else on its own
+      const hangers = F => [...model.nodes.values()].filter(o => o.x !== undefined && !within(o, F) && o !== A && o !== B && (() => {
+        const es = model.edges.filter(e => e.a === o.id || e.b === o.id);
+        return es.length && es.every(e => { const t = model.nodes.get(e.a === o.id ? e.b : e.a); return t && within(t, F); });
+      })());
       let done = false;
-      for (const { n, F, dd } of tries) {
-        const members = F ? [...model.nodes.values()].filter(o => o.x !== undefined && within(o, F)) : [n];
+      for (const { n, F, dd } of tries) for (const extra of F ? [hangers(F), []] : [[]]) {
+        if (done) break;
+        const inZone = F ? [...model.nodes.values()].filter(o => o.x !== undefined && within(o, F)) : [n];
+        const members = [...inZone, ...extra];
         const pad = F ? 20 : 0;
         const x1 = Math.min(...members.map(o => o.x)) - pad, y1 = Math.min(...members.map(o => o.y)) - (F ? 36 : 0);
         const x2 = Math.max(...members.map(o => o.x + o.w)) + pad, y2 = Math.max(...members.map(o => o.y + o.h)) + pad;
         const box = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
         const stacks = model.groups.filter(g => g.x !== undefined && g.items.length && members.includes(g.items[0]));
         const frames = rm.frames.filter(f => F && within(f.f, F));
-        if (slide(F ? (o => within(o, F)) : (o => o === n), box, X, Y, dd, stacks, frames)) { done = true; break; }
+        if (slide(F ? (o => within(o, F) || extra.includes(o)) : (o => o === n), box, X, Y, dd, stacks, frames)) done = true;
       }
       if (!done) { (model.alignNotes = model.alignNotes || []).push(`align ${A.id} ${B.id}: they could not be brought level without touching another node or link, so they are left as laid out`); continue; }
     }

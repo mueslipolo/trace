@@ -75,6 +75,8 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | Zones written the same size stay so when one grows for its title: its partners grow with it, inside their own zone, or it does not grow. | Deployment, full (`same-width dn bb2` silently lost) | engine: `roomForTitles`, then `sameSizeFrames` | same-width zones of different widths |
 | A link label does not straddle a zone border when it has another place. | techtribes, full (two labels across the zone's right border) | engine: `placeLabels` | a label cut by a zone border |
 | A sequence message label hides the lifelines behind it. | GitLab fetch over SSH | engine: label ground in `render` | a lifeline through a label |
+| Nothing sits past the drawing's edge and there is no blank band: the drawing is cut to what it holds, with its 16px margin, after every tidy-up. | System landscape with `align` (blank band at the bottom), Containers with `align` (Customer past the left edge), office simple (a label cut at the left) | engine: `fitCanvas` | content past an edge, or an empty band |
+| A zone moved by `align` takes the nodes that hang from it alone. | OTel telemetry, full, with `align os-http gr-srv` (the Grafana browser stayed behind) | engine: `alignRows` | a leaf left behind by its zone, with a step in its link |
 
 ## Reading
 

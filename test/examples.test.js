@@ -1101,3 +1101,20 @@ test('same-width holds after a zone grows for its title: its partners grow with 
   const dc = res.rm.frames.find(x => f('dn').x > x.x && f('dn').x + f('dn').w < x.x + x.w && x !== f('dn') && x.w > f('dn').w + f('bb2').w);
   assert.ok(dc && f('bb2').x >= dc.x, 'bb2 stays inside the data center');
 });
+
+test('align: the drawing keeps no blank band, and nothing it moves goes past the left edge', async () => {
+  const ent = fs.readFileSync(path.join(root, 'examples/holdout/full/enterprise-context.trace'), 'utf8');
+  const a = await compile(ent, measure, ELK, {}), b = await compile(ent + '\nalign fulfillment post\n', measure, ELK, {});
+  assert.ok(b.rm.height <= a.rm.height + 1, `aligning does not make the drawing taller (${Math.round(a.rm.height)} -> ${Math.round(b.rm.height)})`);
+  const con = fs.readFileSync(path.join(root, 'examples/holdout/full/bigbank-container.trace'), 'utf8')
+    .replace(/row \{\n  (pill customer[^\n]*)\n  (engine email[^\n]*)\n\}/, '$1\n$2') + '\nalign customer email\n';
+  const c = await compile(con, measure, ELK, {});
+  assert.ok(c.rm.nodes.every(n => n.x === undefined || n.x >= 15.5), 'no node past the left edge');
+});
+
+test('align: a zone that slides takes the nodes that hang from it alone (the Grafana browser follows Grafana)', async () => {
+  const src = fs.readFileSync(path.join(root, 'examples/holdout/full/otel-telemetry.trace'), 'utf8') + '\nalign os-http gr-srv\n';
+  const res = await compile(src, measure, ELK, {});
+  const n = id => res.rm.nodes.find(x => x.id === id);
+  assert.ok(Math.abs((n('gr-http').x + n('gr-http').w / 2) - (n('gr-b').x + n('gr-b').w / 2)) < 1, 'the browser stays under Grafana HTTP');
+});
