@@ -1182,6 +1182,28 @@ function minHeap() {
   };
 }
 
+// ELK, once per graph: a compile asks for the same layout many times (the layouts tried in turn, the strip folded
+// and drawn again), and the answer is the same. ELK writes the positions into the graph it is given and returns it;
+// a repeat gets the positions written the same way into its own objects, so the caller cannot tell the difference.
+const ELK_CACHE = new WeakMap();          // per diagram: dropped with it
+async function elkLayout(model, elk, graph) {
+  let cache = ELK_CACHE.get(model);
+  if (!cache) ELK_CACHE.set(model, cache = new Map());
+  const k = JSON.stringify(graph);
+  const hit = cache.get(k);
+  if (hit) { assignDeep(graph, JSON.parse(hit)); return graph; }
+  const res = await elk.layout(graph);
+  cache.set(k, JSON.stringify(res));
+  return res;
+}
+function assignDeep(dst, src) {
+  for (const [key, v] of Object.entries(src)) {
+    if (Array.isArray(v)) { if (!Array.isArray(dst[key])) dst[key] = []; v.forEach((x, i) => { if (x && typeof x === 'object') { if (!dst[key][i] || typeof dst[key][i] !== 'object') dst[key][i] = Array.isArray(x) ? [] : {}; assignDeep(dst[key][i], x); } else dst[key][i] = x; }); dst[key].length = v.length; }
+    else if (v && typeof v === 'object') { if (!dst[key] || typeof dst[key] !== 'object') dst[key] = {}; assignDeep(dst[key], v); }
+    else dst[key] = v;
+  }
+}
+
 function rerouteBlocked(rm, force, siblingsOnly) {
   const M = 8;                                             // the route keeps this far from every node
   const boxes = rm.nodes.filter(n => n.x !== undefined && n.kind !== 'start');
@@ -3161,7 +3183,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     edges: elkEdges,
   };
   const elk = new ELK();
-  const res = HIER ? await hierLayout() : await elk.layout(graph);
+  const res = HIER ? await hierLayout() : await elkLayout(model, elk, graph);
   if (!res) return null;
 
   // ---- read positions back
@@ -3472,7 +3494,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
         opts['elk.layered.nodePlacement.strategy'] = LANEP || 'SIMPLE';
         opts['elk.separateConnectedComponents'] = 'false'; // unlinked children still follow the lane's order
       }
-      const r = await elk.layout({ id: Fr ? prefix(Fr) + Fr.id : 'root', layoutOptions: opts, children, edges });
+      const r = await elkLayout(model, elk, { id: Fr ? prefix(Fr) + Fr.id : 'root', layoutOptions: opts, children, edges });
       // (not the rows that side zones are built from: spanSides places those zones level with what they serve)
       // the main flow beside side zones lines its zones up only when they are written the same size (same-width
       // edge core access): otherwise each keeps the centring ELK gave it, as without side zones

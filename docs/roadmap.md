@@ -60,8 +60,9 @@ What is left to do, by theme, the most wanted first. What is done is described i
 - Simplify the layouts: make the per-zone layout as good as the flat one where both are valid, then drop the flat
   layout and `straightenSpans`.
 - Speed on large diagrams: the full GitLab component diagram (about 80 links) took over four minutes in Node; the
-  router is now about 4 times faster (cells, a heap, each move costed once), to measure again. Next: run ELK fewer
-  times (drop losing layouts before their tidy-up).
+  router is now about 4 times faster (cells, a heap, each move costed once) and ELK is asked once per graph (1818
+  runs over the examples down to 1027), to measure again. What is left is ELK itself (up to 16 different graphs per
+  diagram, one per way of placing the zones tried); skipping some would mean guessing the loser before trying it.
 - Playground: share a diagram by link, syntax highlighting.
 
 ## Decided against, or tried and not kept (so they are not redone)
