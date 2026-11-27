@@ -18,14 +18,14 @@
       }
     },
     "holdout": {
-      "n": 29,
+      "n": 27,
       "total": {
         "crash": 0,
         "through": 0,
         "near": 1,
         "overlap": 4,
         "crossings": 152,
-        "bends": 611,
+        "bends": 603,
         "border": 1,
         "labels": 0,
         "nodeOverlap": 0,

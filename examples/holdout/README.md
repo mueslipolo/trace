@@ -26,8 +26,8 @@ labels, note the source and licence on the first line, and do not change it afte
 |---|---|---|
 | bigbank-context, bigbank-container, bigbank-components, bigbank-deployment, message-bus, techtribes, enterprise-context | C4-PlantUML samples (github.com/plantuml-stdlib/C4-PlantUML, `samples/`) | MIT |
 | online-boutique | Google Cloud Online Boutique architecture (github.com/GoogleCloudPlatform/microservices-demo) | Apache 2.0 |
-| mermaid-groups, mermaid-api-group, mermaid-fan-in | Mermaid documentation, syntax/architecture.md (github.com/mermaid-js/mermaid) | MIT |
-| k8s-ingress, k8s-ingress-fanout, k8s-ingress-hosts | Kubernetes documentation, concepts/services-networking/ingress.md (github.com/kubernetes/website) | CC BY 4.0 |
+| mermaid-groups, mermaid-fan-in | Mermaid documentation, syntax/architecture.md (github.com/mermaid-js/mermaid) | MIT |
+| k8s-ingress, k8s-ingress-fanout | Kubernetes documentation, concepts/services-networking/ingress.md (github.com/kubernetes/website) | CC BY 4.0 |
 | gitlab-simple, gitlab-http-fetch, gitlab-ssh-fetch | GitLab documentation, doc/development/architecture.md (gitlab.com/gitlab-org/gitlab) | CC BY-SA 4.0 |
 | otel-services, otel-telemetry | OpenTelemetry demo documentation, docs/demo/architecture.md (github.com/open-telemetry/opentelemetry.io) | CC BY 4.0 |
 | eshop | .NET eShop reference application (github.com/dotnet/eShop, README, `img/eshop_architecture.png`) | MIT |
