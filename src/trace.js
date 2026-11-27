@@ -1555,26 +1555,72 @@ function mergeHubs(rm, MIN = 4) {
     const whole = plan.length;
     plan = plan.filter(x => !x.path.some((p, j) => j && busLines.some(([u, w]) => crossSeg(x.path[j - 1], p, u, w))));
     if (plan.length < Math.max(need, Math.ceil(whole * 0.75))) continue;
-    const cs = plan.map(x => x.c).concat(trunkC), lo = Math.min(...cs), hi = Math.max(...cs);
+    // the trunk never runs a few pixels beside a branch (it reads as a slip): it goes midway between two branches,
+    // on the hub's side, or the hub slides to such a place when it is free to; else it lines up with the branch
+    const placed = placeTrunk(rm, hub, plan.map(x => x.c), trunkC, vert, new Set(plan.map(x => x.it.r)));
+    const trunkAt = placed.t;
+    if (trunkAt !== trunkC) {
+      const t = trunkAt;
+      plan.forEach(x => {
+        const n = x.path.length;
+        x.path[n - 2] = mk(busM, t); x.path[n - 1] = mk(endM, t);
+      });
+    }
+    const trunkC2 = trunkAt;
+    const cs = plan.map(x => x.c).concat(trunkC2), lo = Math.min(...cs), hi = Math.max(...cs);
     // nor is it built where branches of a bus already drawn would cut across its own line
-    const mine = [[mk(busM, lo), mk(busM, hi)], [mk(busM, trunkC), mk(endM, trunkC)]];
+    const mine = [[mk(busM, lo), mk(busM, hi)], [mk(busM, trunkC2), mk(endM, trunkC2)]];
     if (rm.edges.some(o => o.merged && o.e.a !== hub.id && o.e.b !== hub.id && o.pts.some((p, j) => j && mine.some(([u, w]) => crossSeg(o.pts[j - 1], p, u, w))))) continue;
-    busLines.push([mk(busM, lo), mk(busM, hi)], [mk(busM, trunkC), mk(endM, trunkC)]);
+    if (placed.d) { if (vert) hub.x += placed.d; else hub.y += placed.d; }
+    busLines.push([mk(busM, lo), mk(busM, hi)], [mk(busM, trunkC2), mk(endM, trunkC2)]);
     plan.forEach((x, i) => {
       const r = x.it.r;
       let out = x.path.filter((p, j, a) => j === 0 || Math.hypot(p.x - a[j - 1].x, p.y - a[j - 1].y) > 0.5);
       out = simplifyPts(out);
       r.pts = rev ? out.reverse() : out;
       r.merged = true; r.mergeHub = hub.id; r.mergeRep = i === 0; used.add(r);
-      if (x.c > lo + 0.5 && x.c < hi - 0.5 && !eq(x.c, trunkC)) rm.joins.push(mk(busM, x.c));
+      if (x.c > lo + 0.5 && x.c < hi - 0.5 && !eq(x.c, trunkC2)) rm.joins.push(mk(busM, x.c));
       if (i) r.lab = null;
     });
-    if (plan.some(x => x.c < trunkC - 0.5) && plan.some(x => x.c > trunkC + 0.5)) rm.joins.push(mk(busM, trunkC));
+    if (plan.some(x => x.c < trunkC2 - 0.5) && plan.some(x => x.c > trunkC2 + 0.5)) rm.joins.push(mk(busM, trunkC2));
     const keep = plan[0].it.r;
-    if (keep.lab && keep.e.lab) keep.lab = { x: (busM + endM) / 2, y: trunkC - 4 - keep.e.lab.h, anchor: 'middle' };
+    if (keep.lab && keep.e.lab) keep.lab = { x: (busM + endM) / 2, y: trunkC2 - 4 - keep.e.lab.h, anchor: 'middle' };
   }
   const seen = new Set();
   rm.joins = rm.joins.filter(p => { const k = Math.round(p.x) + ',' + Math.round(p.y); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+// Where a bus's trunk meets its hub. A trunk a few pixels beside a branch reads as a slip, so when one is that
+// close the trunk goes midway between two branches on the hub's side; if no such place is on the side, the hub
+// slides across to one (only when all its links are in this bus and the room is free); failing that, the trunk
+// lines up with the branch. Returns { t: the trunk's coordinate across, d: how far the hub moves }.
+function placeTrunk(rm, hub, cs, trunkC, vert, planRs) {
+  const NEAR = 14, R = 10, MAXMOVE = 60;
+  if (!cs.some(c => Math.abs(c - trunkC) > 0.5 && Math.abs(c - trunkC) < NEAR)) return { t: trunkC, d: 0 };
+  const sorted = [...cs].sort((a, b) => a - b).filter((c, i, a) => !i || c - a[i - 1] > 0.5);
+  const mids = [];
+  for (let i = 1; i < sorted.length; i++) if (sorted[i] - sorted[i - 1] >= 2 * NEAR) mids.push((sorted[i] + sorted[i - 1]) / 2);
+  const lo = (vert ? hub.x : hub.y) + R, hi = (vert ? hub.x + hub.w : hub.y + hub.h) - R;
+  const byNear = a => [...a].sort((x, y) => Math.abs(x - trunkC) - Math.abs(y - trunkC));
+  const inSide = byNear(mids.filter(m => m >= lo && m <= hi));
+  if (inSide.length) return { t: inSide[0], d: 0 };
+  // the hub may slide when nothing else is tied to it
+  const own = rm.edges.filter(r => r.e.a === hub.id || r.e.b === hub.id);
+  if (own.every(r => planRs.has(r))) {
+    const box = d => vert ? { x: hub.x + d, y: hub.y, w: hub.w, h: hub.h } : { x: hub.x, y: hub.y + d, w: hub.w, h: hub.h };
+    const near = (a, b, g) => a.x < b.x + b.w + g && b.x < a.x + a.w + g && a.y < b.y + b.h + g && b.y < a.y + a.h + g;
+    const inside = (a, f, g) => a.x >= f.x + g && a.y >= f.y + g && a.x + a.w <= f.x + f.w - g && a.y + a.h <= f.y + f.h - g;
+    const free = nb => rm.nodes.every(n => n === hub || n.x === undefined || !near(n, nb, 12)) &&
+      (rm.frames || []).every(f => inside(hub, f, 0) ? inside(nb, f, 10) : !near(nb, f, 6)) &&
+      rm.edges.every(r => planRs.has(r) || !r.pts || r.e.rail || r.e.lifeline || r.e.divider ||
+        !r.pts.some((p, j) => j && near({ x: Math.min(p.x, r.pts[j - 1].x), y: Math.min(p.y, r.pts[j - 1].y), w: Math.abs(p.x - r.pts[j - 1].x), h: Math.abs(p.y - r.pts[j - 1].y) }, nb, 6)));
+    for (const m of byNear(mids)) {
+      const d = m - trunkC;
+      if (Math.abs(d) <= MAXMOVE && free(box(d))) return { t: m, d };
+    }
+  }
+  const on = byNear(sorted.filter(c => c >= lo && c <= hi));
+  return on.length ? { t: on[0], d: 0 } : { t: trunkC, d: 0 };
 }
 
 // Two links whose stretches run side by side closer than 8px (or on top of each other) are pulled apart to
@@ -1733,8 +1779,18 @@ function spreadEnds(rm, gap0 = 22) {
     Math.min(x1, x2) < n.x + n.w - 0.5 && n.x + 0.5 < Math.max(x1, x2) && Math.min(y1, y2) < n.y + n.h - 0.5 && n.y + 0.5 < Math.max(y1, y2));
   for (const [, list] of groups) {
     if (list.length < 2) continue;
-    list.sort((a, b) => a.pos - b.pos);
     const horiz = list[0].side === 'top' || list[0].side === 'bottom';
+    // ends on one point are put in the order that keeps their links apart once pushed: a link turning right goes
+    // right of a straight one, which goes right of one turning left; of two turning the same way, the one that
+    // turns sooner goes on the outside of the turn
+    const turn = e => { if (!e.nn) return 0; const h = (horiz ? e.nn.x : e.nn.y) - e.pos; return Math.abs(h) < 0.5 ? 0 : Math.sign(h); };
+    const reach = e => horiz ? Math.abs(e.nx.y - e.n.y - (e.side === 'bottom' ? e.n.h : 0)) : Math.abs(e.nx.x - e.n.x - (e.side === 'right' ? e.n.w : 0));
+    list.sort((a, b) => {
+      if (Math.abs(a.pos - b.pos) > 0.5) return a.pos - b.pos;
+      const ta = turn(a), tb = turn(b);
+      if (ta !== tb) return ta - tb;
+      return ta < 0 ? reach(a) - reach(b) : ta > 0 ? reach(b) - reach(a) : 0;
+    });
     const n = list[0].n, lo = (horiz ? n.x : n.y) + 5, hi = (horiz ? n.x + n.w : n.y + n.h) - 5;
     // a short side with many links: share the room out evenly, down to 7px between links
     const gap = Math.max(7, Math.min(gap0, (hi - lo) / (list.length - 1)));
