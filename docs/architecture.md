@@ -205,7 +205,7 @@ them only when clearly better.
   edge's `container` field instead (what the code does now).
 - With INCLUDE_CHILDREN, ELK keeps compound nodes roughly centred on each other, which can
   leave a node offset from what it links to in another frame. That is why `straightenSpans`
-  exists, and why “draw frames after layout” is on the roadmap.
+  exists, and why frames are also laid out one zone at a time (the per-zone layout).
 - `elk.nodeSize.minimum` on compound nodes is not reliably respected for spacing; frames widened
   for their title can overlap neighbours unless post-processing handles it (it does).
 - Edge labels in `layered` become dummy nodes and take a layer of their own: wide gaps in
