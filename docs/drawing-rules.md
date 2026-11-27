@@ -80,6 +80,7 @@ kept only if the held-out diagrams (`examples/holdout/`) do not get worse.
 | Zones side by side in a row put their titles on the same edge; when some need the bottom, the others grow a title band so all titles and bottoms line up. | owner on the UniFi home network (bottom-row zones with titles at different edges) | engine: `alignTitleEdges` | a row of zones with titles at mixed edges |
 | A link leaving a zone at the top level never goes out backwards: when its straight way out is blocked, it runs inside the zone's margin to the side facing the flow, so what it reaches stands beside the zone, not above it. | eShop, full (OpenAI above everything, its links climbing the drawing; the owner: "openai should be lower") | engine: `portFor` | a node outside a zone placed level with the zone's corner |
 | A node whose links all reach it with a short last step slides across the flow, when the room is free, so they arrive straight. | eShop, full (OpenAI one step off its links; the owner: "we could easily avoid one bend"); also CI/CD, routing example | engine: `slideToStraighten` | a short jog just before a node |
+| A link to a zone ends on the zone's border, and does not stop rows and columns of zones from working. | multi-region SaaS, full ("CI/CD deploys to the cluster" switched every row off); AKS diagrams | engine: zone ends in the per-zone layout, `rerouteBlocked` | a link to a zone ending in empty space, or a grid of zones ignored |
 
 ## Reading
 

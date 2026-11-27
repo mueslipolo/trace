@@ -100,17 +100,15 @@ Done since: cardinality marks (`[n-1]`, `[0n-01]` ...: crow's foot, bars, circle
 Left: tables inside a row or
 column of nodes keep table-level attachment only; a table generated from SQL or a schema file.
 
-## Links to zones (found while writing the infrastructure held-out diagrams)
+## Links to zones
 
-Network and cloud diagrams link to a whole zone ("the router feeds the Wi-Fi", "logs from the VNet go to the
-workspace"). Today such a link:
-- switches off rows and columns of zones for the whole diagram (the per-zone layout cannot place it, so the
-  others are used and the blocks are ignored, with a note): the AKS and home-network full versions had to do
-  without a grid;
-- can end in empty space beside the zone instead of on its border (AKS network, worst with `direction down`);
-- is not taken by `mark` (only links from nodes are), nor counted by `[span]`, which also ignores a node beside
-  a column of zones.
-The fix is one attachment point per zone border in the per-zone layout, like a node's port.
+Done: a link to a zone works with rows and columns of zones. In the per-zone layout a zone end is the zone's box:
+the link ends on a port in the middle of the zone's side facing it when the zone is at that level, or enters the
+box round it like any link and stops at the zone's border when it is deeper; the router takes a link ending on a
+zone round the nodes, as it does a link between nodes (multi-region SaaS, full: the regions and the shared zone in
+one row, CI/CD deploying to each cluster). A diagram without rows or columns of zones keeps the other layouts.
+Left: a link from a zone to something inside it still makes the layout fall back; `mark` does not take links from
+zones; `[span]` ignores a node beside a column of zones; side zones still refuse links to zones.
 
 ## Found while writing the full versions of the held-out diagrams (not yet fixed)
 

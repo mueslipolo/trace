@@ -1057,7 +1057,10 @@ function rerouteBlocked(rm, force) {
   for (const r of force ? rm.edges.filter(x => force.has(x)) : rm.edges) {
     const e = r.e;
     if (e.rail || e.lifeline || e.divider || (r.merged && !force) || !r.pts || r.pts.length < 2 || e.a === e.b) continue;
-    let S = boxes.find(n => n.id === e.a), T = boxes.find(n => n.id === e.b);
+    // a link may end on a zone: its box is the end (the route stops at its border, so what is inside stays in the
+    // way of a route that would cut through)
+    const zoneBox = id => { const fr = rm.frames.find(f => f.f.id === id); return fr ? { id, x: fr.x, y: fr.y, w: fr.w, h: fr.h, zone: fr.f } : null; };
+    let S = boxes.find(n => n.id === e.a) || zoneBox(e.a), T = boxes.find(n => n.id === e.b) || zoneBox(e.b);
     if (!S || !T) continue;
     // the points may run either way round (a link written with <-): S is the node at the first point
     const dd = (n, p) => Math.hypot(Math.max(n.x - p.x, 0, p.x - n.x - n.w), Math.max(n.y - p.y, 0, p.y - n.y - n.h));
@@ -2474,7 +2477,16 @@ async function foldCandidate(model, rm, choose) {
 
 async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   const S = model.spacing;
-  if (HIER && (model.edges.some(e => model.frames.has(e.a) || model.frames.has(e.b)))) return null;
+  // links to zones go through the per-zone layout only where it is needed: when rows or columns of zones are written
+  // (a diagram without them keeps the other layouts, which draw it as before); and a link between a zone and
+  // something inside it has no place in it at all
+  const zoneLinks = model.edges.some(e => model.frames.has(e.a) || model.frames.has(e.b));
+  const lanes = (function f(c) { return c.items.some(i => i.type === 'lane' || (i.items && f(i))); })(model.root);
+  if (HIER && zoneLinks && !lanes) return null;
+  if (HIER && model.edges.some(e => {
+    const inside = (id, F) => { const n = model.nodes.get(id) || model.frames.get(id); for (let p = n && n.parent; p; p = p.parent) if (p === F) return true; return false; };
+    return (model.frames.has(e.a) && inside(e.b, model.frames.get(e.a))) || (model.frames.has(e.b) && inside(e.a, model.frames.get(e.b)));
+  })) return null;
   const flowH = model.direction === 'RIGHT';
   // inside a lane (per-frame layout only) the flow runs along the lane: a row left to right, a column downwards
   const fhOf = it => HIER && it.parent && it.parent.type === 'lane' ? it.parent.axis === 'h' : flowH;
@@ -2917,9 +2929,18 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     const chains = new Map([...model.nodes.values()].map(n => [n, chainOf(n)]));
     const lay = new Map();
     const byL = new Map();
+    // a link may end on a zone: its chain is the zone's own boxes, then the zone
+    const chainEnd = id => model.nodes.has(id) ? chains.get(model.nodes.get(id)) : [...chainOf(model.frames.get(id)), model.frames.get(id)];
+    // a zone end stands for the zone's box: its id and, once the zone is laid out, its size
+    const zoneEnd = new Map();
+    const endOf = id => {
+      if (model.nodes.has(id)) return model.nodes.get(id);
+      if (!zoneEnd.has(id)) { const F = model.frames.get(id); zoneEnd.set(id, { id, type: 'frame', zone: F, parent: F.parent, get w() { return lay.get(F).w; }, get h() { return lay.get(F).h; } }); }
+      return zoneEnd.get(id);
+    };
     for (const e of model.edges) {
       if (e.intra || e.rail) continue;
-      const ca = chains.get(model.nodes.get(e.a)), cb = chains.get(model.nodes.get(e.b));
+      const ca = chainEnd(e.a), cb = chainEnd(e.b);
       let k = 0;
       while (k < ca.length && k < cb.length && ca[k] === cb[k]) k++;
       e.h = { sa: ca[k] || null, sb: cb[k] || null };
@@ -2934,6 +2955,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       const q = lay.get(Fr).pos.get(idOf(c));
       if (c.type === 'node') return { x: q.x, y: q.y };
       if (c.type === 'group') return { x: q.x + n.rx, y: q.y + n.ry };
+      if (c === n || (n.zone && c === n.zone)) return { x: q.x, y: q.y };
       const r = relPos(c, n);
       return { x: q.x + r.x, y: q.y + r.y };
     }
@@ -3027,12 +3049,24 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       const dirH = dirOf(Fr);
       const reqs = [];
       const edgeEnds = [];
+      const zonePorts = [];     // ports where a link ends on a zone itself
       for (const e of byL.get(Fr || null) || []) {
         const ends = {};
         for (const end of ['s', 't']) {
           const T = end === 's' ? e.h.sa : e.h.sb;
-          const m = model.nodes.get(end === 's' ? e.a : e.b);
+          const m = endOf(end === 's' ? e.a : e.b);
           if (!T) { ends[end] = end === 's' ? e.srcBase : e.tgtBase; continue; }
+          // the link ends on this zone itself: a port in the middle of its side facing the link
+          if (m.zone === T) {
+            const { IN: IN_, OUT: OUT_ } = sidesFor(dirH);
+            const side = end === 's' ? OUT_ : IN_, L = lay.get(T);
+            const pid = `P${e.i}${end}`;
+            const p = { id: pid, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } };
+            if (side === 'WEST') { p.x = 0; p.y = L.h / 2; } else if (side === 'EAST') { p.x = L.w; p.y = L.h / 2; } else if (side === 'NORTH') { p.x = L.w / 2; p.y = 0; } else { p.x = L.w / 2; p.y = L.h; }
+            zonePorts.push([T, p]);
+            ends[end] = pid;
+            continue;
+          }
           const rq = portFor(T, e, end, m, reqs, dirH);
           if (!rq) { if (typeof process !== 'undefined' && process.env && process.env.TRACE_DEBUG) console.error('no port', e.a, '->', e.b, 'at', T.id); return null; }
           rq.pid = `P${e.i}${end}`;
@@ -3046,6 +3080,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
       const buckets = new Map();
       for (const rq of reqs) { const k = rq.T.id + '|' + rq.side + '|' + rq.m.id + (rq.via ? '|via' : ''); (buckets.get(k) || buckets.set(k, []).get(k)).push(rq); }
       const eports = new Map();
+      for (const [T, p] of zonePorts) { if (!eports.has(T)) eports.set(T, []); eports.get(T).push(p); }
       for (const list of buckets.values()) {
         list.forEach((rq, i) => {
           const horiz = rq.side === 'NORTH' || rq.side === 'SOUTH';
@@ -3243,7 +3278,8 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   }
 
   function stubPoint(st, p) {
-    const n = st.node;
+    let n = st.node;
+    if (n.zone) { const a = abs.get('F:' + n.zone.id); n = { x: a.x, y: a.y, w: a.w, h: a.h }; }
     if (st.side === 'WEST') return { x: n.x, y: p.y };
     if (st.side === 'EAST') return { x: n.x + n.w, y: p.y };
     if (st.side === 'NORTH') return { x: p.x, y: n.y };

@@ -179,7 +179,8 @@ row "optional title" {
 - A row or column that holds **frames** (or other rows and columns) is a layout block: it places them
   side by side (row) or one above the other (column), in the order you write them, and draws nothing
   itself. Nest them for a grid. Links still decide the details inside each block; the block decides
-  who is next to whom. It takes no title (put the title on a frame).
+  who is next to whom. It takes no title (put the title on a frame). Links may end on a zone
+  (`cicd -> cluster`): the link stops on the zone's border, facing where it comes from.
 
 ```
 column {

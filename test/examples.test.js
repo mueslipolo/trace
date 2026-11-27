@@ -1199,3 +1199,16 @@ test('a node reached from inside a zone stands beside it, level with what links 
     assert.ok(Math.abs(a.y - b.y) < 0.5 && Math.abs(b.x - n('openai').x) < 1, `${r.e.a} -> openai ends straight on its side`);
   }
 });
+
+test('links to zones: rows and columns of zones still work, and a link to a zone ends on its border (multi-region SaaS)', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/full/multi-region-saas.trace'), 'utf8'), measure, ELK, {});
+  assert.deepStrictEqual(res.warnings, [], 'no "could not be placed" note');
+  const f = id => res.rm.frames.find(x => x.f.id === id);
+  const tops = ['eu', 'shared', 'us'].map(id => f(id).y);
+  assert.ok(Math.max(...tops) - Math.min(...tops) < 1, 'the regions and the shared zone in one row');
+  for (const k of ['euk8s', 'usk8s']) {
+    const r = res.rm.edges.find(e => e.e.a === 'cicd' && e.e.b === k), z = f(k), p = r.pts[r.pts.length - 1];
+    const onBorder = (Math.abs(p.x - z.x) < 2 || Math.abs(p.x - z.x - z.w) < 2) && p.y >= z.y && p.y <= z.y + z.h || (Math.abs(p.y - z.y) < 2 || Math.abs(p.y - z.y - z.h) < 2) && p.x >= z.x && p.x <= z.x + z.w;
+    assert.ok(onBorder, `cicd -> ${k} ends on the zone's border`);
+  }
+});
