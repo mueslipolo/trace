@@ -184,11 +184,16 @@ function labelTags(label, allowed) {
   return { label: label.slice(0, m.index).trim(), tags };
 }
 
+// a name or note written whole in quotes loses them: the way to write a # (which starts a comment after a space)
+// or a | in a label, "Flex Mini #1"
 function splitLabel(text) {
   const t = text.replace(/\\n/g, '\n');
+  const uq = v => /^"[^"]*"$/.test(v) ? v.slice(1, -1) : v;
+  const whole = t.trim();
+  if (/^"[^"]*"$/.test(whole)) return { name: whole.slice(1, -1), note: '' };
   const i = t.indexOf('|');
-  if (i < 0) return { name: t.trim(), note: '' };
-  return { name: t.slice(0, i).trim(), note: t.slice(i + 1).trim() };
+  if (i < 0) return { name: uq(t.trim()), note: '' };
+  return { name: uq(t.slice(0, i).trim()), note: uq(t.slice(i + 1).trim()) };
 }
 
 function parse(src) {
@@ -414,7 +419,8 @@ function parse(src) {
           ex.parent.items.splice(ex.parent.items.indexOf(ex), 1);
           model.nodes.delete(id);
         }
-        const f = { type: 'frame', id, title: title || (id.startsWith('_') ? '' : id), tags, items: [], parent, line: ln };
+        // a title written "" means none; no title written shows the name
+        const f = { type: 'frame', id, title: qm ? title : (id.startsWith('_') ? '' : id), tags, items: [], parent, line: ln };
         if (flogo) f.logo = flogo;
         model.frames.set(id, f);
         parent.items.push(f);
@@ -450,7 +456,7 @@ function parse(src) {
       for (let i = 1; i < parts.length; i += 2) {
         const op = parts[i], a = parts[i - 1], b = parts[i + 1];
         const edge = {
-          a, b, op, label: label ? label.replace(/\\n/g, '\n') : '',
+          a, b, op, label: label ? (/^"[^"]*"$/.test(label) ? label.slice(1, -1) : label).replace(/\\n/g, '\n') : '',
           tags: tags.slice(),
           dashed: op === '-->' || op === '<--' || tags.includes('dashed'),
           start: op.startsWith('<'), end: op.endsWith('>'),
@@ -1188,7 +1194,10 @@ function rerouteBlocked(rm, force) {
     let from = starts[0];
     for (let id = best.id; id !== undefined; id = prev.get(id)) { const k = Math.floor(id / 4); path.unshift({ x: X[Math.floor(k / Y.length)], y: Y[k % Y.length] }); if (startAt.has(k) && !prev.has(id)) { from = startAt.get(k); break; } if (startAt.has(k) && dist.get(id) === startAt.get(k).extra) { from = startAt.get(k); break; } }
     const pts = simplifyPts([from.p, ...path, best.o.p]);
-    if (overlapsLinks(rm, pts, new Set([r])) && (force || !overlapsLinks(rm, r.pts, new Set([r])))) continue;
+    // a route on top of another link is refused, unless the old one runs right through a node: a link through a
+    // box reads as joining it, which is worse than two links side by side
+    const through = r.pts.some((p, i) => i && others.some(b => segHits(r.pts[i - 1], p, b, -2)));
+    if (!through && overlapsLinks(rm, pts, new Set([r])) && (force || !overlapsLinks(rm, r.pts, new Set([r])))) continue;
     // a new route may not cross more links than the old one, unless the old one ran through a node; a detour
     // may cross one more link when the new route is at most half as long (a hop reads better than going round)
     const newCost = pts.reduce((t, p, i) => i ? t + len(pts[i - 1], p) : 0, 0) + 60 * Math.max(0, pts.length - 2);
@@ -1587,7 +1596,8 @@ function separateParallels(rm) {
     }
     return out;
   };
-  const hitsNode = (a, b) => rm.nodes.some(n => n.x !== undefined && Math.min(a.x, b.x) < n.x + n.w + 2 && n.x - 2 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h + 2 && n.y - 2 < Math.max(a.y, b.y));
+  // (6px, the clearance every link keeps from a node it does not serve)
+  const hitsNode = (a, b) => rm.nodes.some(n => n.x !== undefined && Math.min(a.x, b.x) < n.x + n.w + 6 && n.x - 6 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h + 6 && n.y - 6 < Math.max(a.y, b.y));
   for (let pass = 0; pass < 6; pass++) {
     let moved = false;
     const mov = segsOf();
@@ -1874,6 +1884,33 @@ function spanSides(rm, model) {
   for (const f of rm.frames) { rm.width = Math.max(rm.width, f.x + f.w + 16); rm.height = Math.max(rm.height, f.y + f.h + 16); }
 }
 
+// A stretch that is almost straight (up to 2px off, left by rounding in a tidy-up) is made straight: the end that
+// is on a node stays, and the run of points on the other side moves with it, so the stretches next to it keep their
+// direction.
+function squareUp(rm) {
+  for (const r of rm.edges) {
+    const P = r.pts;
+    if (!P || P.length < 2 || r.e.rail) continue;
+    for (const [A, B] of [['x', 'y'], ['y', 'x']]) {
+      // runs of points along B whose A differs by at most 2px (but not all the same): set to the run's first A,
+      // or its last when the run ends on the last point and does not start on the first
+      let i = 0;
+      while (i < P.length - 1) {
+        let j = i;
+        while (j < P.length - 1 && Math.abs(P[j + 1][A] - P[j][A]) <= 2 && Math.abs(P[j + 1][B] - P[j][B]) > 4 * Math.abs(P[j + 1][A] - P[j][A])) j++;
+        if (j > i) {
+          const vals = P.slice(i, j + 1).map(q => q[A]);
+          if (Math.max(...vals) - Math.min(...vals) > 0.01) {
+            const target = i === 0 || j < P.length - 1 ? P[i][A] : P[j][A];
+            for (let k = i; k <= j; k++) P[k][A] = target;
+          }
+        }
+        i = j + 1;
+      }
+    }
+  }
+}
+
 // The drawing is as big as what it holds, plus its 16px margin: a tidy-up that moved things (align, a zone pulled
 // in) leaves nothing past the left or top edge and no blank band at the right or the bottom.
 function fitCanvas(rm) {
@@ -1915,7 +1952,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); placeLabels(rm, measure); roomForTitles(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
+  const finish = rm => { if (isTree(model)) centreParents(rm, model.direction === 'RIGHT'); placeOnConcentrators(rm); splitDecisions(rm, model.direction === 'RIGHT'); spanSides(rm, model); clearFrames(rm); alignJogs(rm); simplifySnakes(rm); if (!off.has('merge')) mergeHubs(rm); rerouteBlocked(rm); straightenSmallJogs(rm); reorderEnds(rm); if (!off.has('tidy')) { spreadEnds(rm); separateParallels(rm); } resolveOverlaps(rm); squareUp(rm); placeLabels(rm, measure); roomForTitles(rm); sameSizeFrames(rm, model); fitCanvas(rm); return rm; };
   const run = async () => finish(await chooseLayout(model, measure, ELK));
   let rm = await run();
   // A strip that is still much wider than tall is folded: the top-level items, in the order they lie, go into
@@ -3745,39 +3782,52 @@ function alignJogs(rm) {
     groups.get(k).push(z);
   }
   for (const [, list] of groups) {
-    const fresh = list.filter(z => !used.has(z));
-    if (!fresh.length) continue;
-    const kind = fresh[0].kind;
-    // the gap every link in the group can put its step in
-    const lo = Math.max(...fresh.map(z => z.lo)) + 10, hi = Math.min(...fresh.map(z => z.hi)) - 10;
-    if (lo > hi) continue;
-    // the middle of the gap, unless a frame border is there: then the place in the gap farthest from borders
-    const borderGap = v => Math.min(Infinity, ...rm.frames.filter(f => fresh.some(z => kind === 'v'
-      ? Math.min(z.q[0].x, z.q[3].x) < f.x + f.w && f.x < Math.max(z.q[0].x, z.q[3].x)
-      : Math.min(z.q[0].y, z.q[3].y) < f.y + f.h && f.y < Math.max(z.q[0].y, z.q[3].y)))
-      .flatMap(f => kind === 'v' ? [Math.abs(v - f.y), Math.abs(v - f.y - f.h)] : [Math.abs(v - f.x), Math.abs(v - f.x - f.w)]));
-    let c = (lo + hi) / 2;
-    if (borderGap(c) < 10) {
-      let best = c, gap = borderGap(c);
-      for (let i = 0; i <= 12; i++) { const v = lo + (hi - lo) * i / 12, g = borderGap(v); if (g > gap + 0.5 || (Math.abs(g - gap) <= 0.5 && Math.abs(v - (lo + hi) / 2) < Math.abs(best - (lo + hi) / 2))) { best = v; gap = g; } }
-      c = best;
-    }
-    // the new steps must clear every node and not run along another link
-    const steps = fresh.map(z => kind === 'v'
-      ? { x1: Math.min(z.q[0].x, z.q[3].x), x2: Math.max(z.q[0].x, z.q[3].x), y1: c, y2: c }
-      : { x1: c, x2: c, y1: Math.min(z.q[0].y, z.q[3].y), y2: Math.max(z.q[0].y, z.q[3].y) });
-    const hitsNode = steps.some(st => rm.nodes.some(n => n.x !== undefined && st.x1 < n.x + n.w && n.x < st.x2 && st.y1 < n.y + n.h && n.y < st.y2));
-    if (hitsNode) continue;
-    const along = steps.some(st => rm.edges.some(o => {
-      if (fresh.some(z => z.r === o) || !o.pts) return false;
-      for (let i = 1; i < o.pts.length; i++) {
-        const a = o.pts[i - 1], b = o.pts[i];
-        if (kind === 'v' && eq(a.y, b.y) && Math.abs(a.y - c) < 3 && Math.min(a.x, b.x) < st.x2 && st.x1 < Math.max(a.x, b.x)) return true;
-        if (kind === 'h' && eq(a.x, b.x) && Math.abs(a.x - c) < 3 && Math.min(a.y, b.y) < st.y2 && st.y1 < Math.max(a.y, b.y)) return true;
+    let fresh = list.filter(z => !used.has(z)), c, ok = false;
+    // the group's links that cannot reach the shared step (a node in the way) leave the group, and the step is
+    // placed again for the others
+    const kind = list[0].kind;
+    for (let attempt = 0; attempt < 4 && fresh.length && !ok; attempt++) {
+      // the gap every link in the group can put its step in
+      const lo = Math.max(...fresh.map(z => z.lo)) + 10, hi = Math.min(...fresh.map(z => z.hi)) - 10;
+      if (lo > hi) break;
+      // the middle of the gap, unless a frame border is there: then the place in the gap farthest from borders
+      const borderGap = v => Math.min(Infinity, ...rm.frames.filter(f => fresh.some(z => kind === 'v'
+        ? Math.min(z.q[0].x, z.q[3].x) < f.x + f.w && f.x < Math.max(z.q[0].x, z.q[3].x)
+        : Math.min(z.q[0].y, z.q[3].y) < f.y + f.h && f.y < Math.max(z.q[0].y, z.q[3].y)))
+        .flatMap(f => kind === 'v' ? [Math.abs(v - f.y), Math.abs(v - f.y - f.h)] : [Math.abs(v - f.x), Math.abs(v - f.x - f.w)]));
+      c = (lo + hi) / 2;
+      if (borderGap(c) < 10) {
+        let best = c, gap = borderGap(c);
+        for (let i = 0; i <= 12; i++) { const v = lo + (hi - lo) * i / 12, g = borderGap(v); if (g > gap + 0.5 || (Math.abs(g - gap) <= 0.5 && Math.abs(v - (lo + hi) / 2) < Math.abs(best - (lo + hi) / 2))) { best = v; gap = g; } }
+        c = best;
       }
-      return false;
-    }));
-    if (along) continue;
+      // the new steps must clear every node and not run along another link
+      const steps = fresh.map(z => kind === 'v'
+        ? { x1: Math.min(z.q[0].x, z.q[3].x), x2: Math.max(z.q[0].x, z.q[3].x), y1: c, y2: c }
+        : { x1: c, x2: c, y1: Math.min(z.q[0].y, z.q[3].y), y2: Math.max(z.q[0].y, z.q[3].y) });
+      // and so must the stretches on either side, which grow or shrink to meet the new step (a link's own ends aside)
+      const legs = fresh.flatMap(z => kind === 'v'
+        ? [{ z, x1: z.q[0].x, x2: z.q[0].x, y1: Math.min(z.q[0].y, c), y2: Math.max(z.q[0].y, c) }, { z, x1: z.q[3].x, x2: z.q[3].x, y1: Math.min(z.q[3].y, c), y2: Math.max(z.q[3].y, c) }]
+        : [{ z, x1: Math.min(z.q[0].x, c), x2: Math.max(z.q[0].x, c), y1: z.q[0].y, y2: z.q[0].y }, { z, x1: Math.min(z.q[3].x, c), x2: Math.max(z.q[3].x, c), y1: z.q[3].y, y2: z.q[3].y }]);
+      // (the node a stretch starts on is its own: a link to a table row names the row, so it is found by place)
+      const onIt = (n, z) => [z.q[0], z.q[3]].some(p => p.x >= n.x - 2 && p.x <= n.x + n.w + 2 && p.y >= n.y - 2 && p.y <= n.y + n.h + 2);
+      const stepHits = st => rm.nodes.some(n => n.x !== undefined && st.x1 < n.x + n.w && n.x < st.x2 && st.y1 < n.y + n.h && n.y < st.y2);
+      const blockedZ = new Set([...legs.filter(st => rm.nodes.some(n => n.x !== undefined && !onIt(n, st.z) && st.x1 < n.x + n.w && n.x < st.x2 + 0.01 && st.y1 < n.y + n.h && n.y < st.y2 + 0.01)).map(st => st.z),
+        ...fresh.filter((z, k) => stepHits(steps[k]))]);
+      if (blockedZ.size) { fresh = fresh.filter(z => !blockedZ.has(z)); continue; }
+      const along = steps.some(st => rm.edges.some(o => {
+        if (fresh.some(z => z.r === o) || !o.pts) return false;
+        for (let i = 1; i < o.pts.length; i++) {
+          const a = o.pts[i - 1], b = o.pts[i];
+          if (kind === 'v' && eq(a.y, b.y) && Math.abs(a.y - c) < 3 && Math.min(a.x, b.x) < st.x2 && st.x1 < Math.max(a.x, b.x)) return true;
+          if (kind === 'h' && eq(a.x, b.x) && Math.abs(a.x - c) < 3 && Math.min(a.y, b.y) < st.y2 && st.y1 < Math.max(a.y, b.y)) return true;
+        }
+        return false;
+      }));
+      if (along) break;
+      ok = true;
+    }
+    if (!ok) continue;
     for (const z of fresh) {
       const [p0, , , p3] = z.q;
       const old = z.q[1][kind === 'v' ? 'y' : 'x'];
@@ -3811,7 +3861,7 @@ function fitFrames(rm, model, flowH) {
     let nx = x1 - PAD, nw = x2 - x1 + 2 * PAD;
     const minW = (fr.f.titleW || 0) + 36;
     fr.widen = null;
-    if (nw < minW) { fr.widen = { cx1: nx, cx2: nx + nw, minW }; nx -= (minW - nw) / 2; nw = minW; }
+    if (nw < minW) { fr.widen = { cx1: nx, cx2: nx + nw, minW, ex: fr.x, ew: fr.w }; nx -= (minW - nw) / 2; nw = minW; }
     Object.assign(fr, { x: nx, y: y1 - top, w: nw, h: y2 - y1 + top + PAD });
   }
   // a frame widened to fit its title grows away from its neighbours
@@ -3819,12 +3869,21 @@ function fitFrames(rm, model, flowH) {
   const nested = (a, b) => { for (let p = a.f.parent; p; p = p.parent) if (p === b.f) return true; return false; };
   for (const fr of rm.frames) {
     if (!fr.widen) continue;
-    const { cx1, cx2, minW } = fr.widen;
-    const tries = [fr.x, cx2 - minW, cx1];
+    const { cx1, cx2, minW, ex, ew } = fr.widen;
+    // centred first, then where the layout had room for it (ELK puts the spare width on one side), then flush with
+    // either end of the contents, then any place in between
+    const tries = [fr.x];
+    if (ex !== undefined && ew >= minW - 0.5) tries.push(ex, ex + ew - minW);
+    tries.push(cx2 - minW, cx1);
+    for (let x = cx2 - minW; x <= cx1; x += 4) tries.push(x);
+    let placed = false;
     for (const x of tries) {
       const c = { ...fr, x };
-      if (!rm.frames.some(o => o !== fr && !nested(fr, o) && !nested(o, fr) && hit(c, o))) { fr.x = x; break; }
+      if (!rm.frames.some(o => o !== fr && !nested(fr, o) && !nested(o, fr) && hit(c, o))) { fr.x = x; placed = true; break; }
     }
+    // no room beside its neighbours: the zone keeps the width of its contents and its title is shortened (the
+    // whole title is kept as the zone's tooltip)
+    if (!placed) { fr.x = cx1; fr.w = cx2 - cx1; fr.titleFit = Math.max(40, fr.w - 36); }
   }
 
   const frameOf = frameOfItem;
@@ -4152,7 +4211,7 @@ function roomForTitles(rm) {
   const labBox = r => { const w = r.e.lab.w, x = r.lab.anchor === 'middle' ? r.lab.x - w / 2 : r.lab.anchor === 'end' ? r.lab.x - w : r.lab.x; return { x, y: r.lab.y, w, h: r.e.lab.h }; };
   for (const fr of rm.frames) {
     if (!fr.f.title || titleSpot(rm, fr)) continue;
-    const tw = fr.f.titleW || fr.f.title.length * 6.5;
+    const tw = fr.titleFit || fr.f.titleW || fr.f.title.length * 6.5;
     // the links crossing the strip under the top edge, where the title would go
     const xs = rm.edges.filter(r => r.pts && !r.e.lifeline).flatMap(r => r.pts.flatMap((q, i) => {
       if (!i) return [];
@@ -4222,7 +4281,7 @@ function roomForTitles(rm) {
 // place along the top edge, then the bottom edge, nearest the right. null when there is none.
 function titleSpot(rm, fr) {
   // first corner where the title clears every node
-  const tw = fr.f.titleW || fr.f.title.length * 6.5;
+  const tw = fr.titleFit || fr.f.titleW || fr.f.title.length * 6.5;
   const spots = [
     { x: fr.x + fr.w - 12, y: fr.y + 20, a: 'end' }, { x: fr.x + 12, y: fr.y + 20, a: 'start' },
     { x: fr.x + fr.w - 12, y: fr.y + fr.h - 10, a: 'end' }, { x: fr.x + 12, y: fr.y + fr.h - 10, a: 'start' },
@@ -4264,7 +4323,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     const color = (t.find(x => PALETTE.light.zones[x === 'gray' ? 'grey' : x]) || 'green').replace('gray', 'grey');
     body.push(`<rect class="zone zone-${color}${t.includes('dashed') ? ' dashed' : ''}" x="${r1(fr.x)}" y="${r1(fr.y)}" width="${r1(fr.w)}" height="${r1(fr.h)}" rx="10"/>`);
     if (fr.f.title) {
-      const tw = fr.f.titleW || fr.f.title.length * 6.5;
+      const tw = fr.titleFit || fr.f.titleW || fr.f.title.length * 6.5;
       let sp = titleSpot(rm, fr), out = body;
       if (!sp) {
         // no free place at all: the corner that the fewest links cross, and the title drawn over the links on a
@@ -4275,13 +4334,19 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
         out = late;
         out.push(`<rect class="zone zone-${color} zground" x="${r1((sp.a === 'end' ? sp.x - tw : sp.x) - 4)}" y="${r1(sp.y - 13)}" width="${r1(tw + 8)}" height="17" rx="3"/>`);
       }
+      // a title shortened to fit its zone ends with an ellipsis; the whole title is the tooltip
+      let ttext = esc(fr.f.title);
+      if (fr.titleFit && fr.f.titleW > fr.titleFit) {
+        const n = Math.max(4, Math.floor(fr.f.title.length * fr.titleFit / fr.f.titleW) - 1);
+        ttext = `${esc(fr.f.title.slice(0, n).trimEnd())}…<title>${esc(fr.f.title)}</title>`;
+      }
       const zl = fr.f.logo && logoData(fr.f.logo);
       if (zl) {
         // the logo before the title, both in the title's grey
         const tx0 = sp.a === 'end' ? sp.x - (fr.f.textW || tw - 16) : sp.x + 16;
         out.push(`<g class="logo-soft" transform="translate(${r1(tx0 - 16)} ${r1(sp.y - 10)}) scale(${r1(12 / 24 * 1000) / 1000})"><path d="${zl.d}"/></g>`);
-        out.push(`<text class="ztitle muted" x="${r1(tx0)}" y="${r1(sp.y)}">${esc(fr.f.title)}</text>`);
-      } else out.push(`<text class="ztitle muted" x="${r1(sp.x)}" y="${r1(sp.y)}" text-anchor="${sp.a}">${esc(fr.f.title)}</text>`);
+        out.push(`<text class="ztitle muted" x="${r1(tx0)}" y="${r1(sp.y)}">${ttext}</text>`);
+      } else out.push(`<text class="ztitle muted" x="${r1(sp.x)}" y="${r1(sp.y)}" text-anchor="${sp.a}">${ttext}</text>`);
     }
   }
   for (const rl of rm.rails || []) {

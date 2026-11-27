@@ -1,0 +1,61 @@
+# Adapted from romvek/home-network-diagram, diagrams/network.mmd (MIT); converted with tools/mermaid-to-trace.js, original in unifi-home-vlans.mmd
+title "Home network: UniFi, four VLANs"
+direction down
+
+pill ISP [internet]: ISP Fiber Modem / ONT | WAN handoff
+UDM [router]: UniFi Dream Machine SE | Router · Firewall · IDS/IPS · Controller\nVLAN_TRUSTED · YOUR_TRUSTED_SUBNET
+frame CORE "Core switching" [blue] {
+  USW [switch]: USW-24-G2 | 24-port · PoE+ · VLAN trunk
+  FM1 [switch]: "Flex Mini #1" | 5-port cluster A
+  FM2 [switch]: "Flex Mini #2" | 5-port cluster B
+}
+frame WIFI "Wi-Fi — 2× U7 Pro (Wi-Fi 7 · 2.4 / 5 / 6 GHz)" [blue] {
+  SSID1 [wifi]: Trusted 2.4 GHz | VLAN_TRUSTED · YOUR_TRUSTED_SUBNET
+  SSID2 [wifi]: Trusted 5 GHz | VLAN_TRUSTED · YOUR_TRUSTED_SUBNET
+  SSID3 [wifi]: IoT SSID | VLAN_IOT · YOUR_IOT_SUBNET
+  SSID4 [wifi]: Kids SSID | VLAN_KIDS · YOUR_KIDS_SUBNET
+}
+frame VLAN1W "VLAN_TRUSTED — wireless" [purple] {
+  PH [smartphone]: Phones
+  LAP [laptop]: Laptops
+}
+frame VLAN65W "VLAN_IOT — IoT wireless" [orange] {
+  ECH [speaker]: Echo speakers
+  WLED [lightbulb]: WLED strips
+  CAM [camera]: IP cameras
+  PLUG [plug]: Smart plugs
+}
+frame VLAN64W "VLAN_KIDS — Kids" [orange] {
+  KIDS [tablet]: Kids devices
+}
+frame VLAN1W2 "VLAN_TRUSTED — wired" [purple] {
+  PC [monitor]: Desktop PC
+  ATV [tv]: Apple TV
+  CON [gamepad-2]: Gaming console
+  TV [tv]: Smart TV
+}
+frame VLAN62 "VLAN_SERVERS — Secure Server Net · YOUR_SERVER_SUBNET" [green] {
+  NAS [hard-drive]: NAS / home server
+}
+frame VLAN65W2 "VLAN_IOT — IoT wired" [orange] {
+  HUE [lightbulb]: Philips Hue bridge
+}
+
+ISP -> UDM : WAN
+USW -> FM1 : trunk
+USW -> FM2 : trunk
+UDM -> USW : trunk all VLANs
+UDM -> WIFI : VLAN-tagged SSIDs
+SSID1 -> PH
+SSID2 -> LAP
+SSID3 -> ECH
+SSID3 -> WLED
+SSID3 -> CAM
+SSID3 -> PLUG
+SSID4 -> KIDS
+FM1 -> PC
+FM1 -> NAS
+FM2 -> ATV
+FM2 -> CON
+FM2 -> TV
+USW -> HUE

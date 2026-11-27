@@ -1140,3 +1140,44 @@ test('align: a zone that slides takes the nodes that hang from it alone (the Gra
   const n = id => res.rm.nodes.find(x => x.id === id);
   assert.ok(Math.abs((n('gr-http').x + n('gr-http').w / 2) - (n('gr-b').x + n('gr-b').w / 2)) < 1, 'the browser stays under Grafana HTTP');
 });
+
+test('no two zones that are not nested overlap, in any example or held-out diagram (a title too long for its room is shortened)', async () => {
+  const holdout = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace')).map(f => 'examples/holdout/' + f);
+  const bad = [];
+  for (const file of [...files, ...holdout]) {
+    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
+    const F = res.rm.frames, nest = (x, y) => { for (let p = x.f.parent; p; p = p.parent) if (p === y.f) return true; return false; };
+    for (const a of F) for (const b of F) if (a.f.id < b.f.id && !/^_seq/.test(a.f.id) && !/^_seq/.test(b.f.id) && !nest(a, b) && !nest(b, a) && Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 2 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 2) bad.push(`${file}: ${a.f.id} / ${b.f.id}`);
+  }
+  assert.deepStrictEqual(bad, []);
+  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/unifi-home-vlans.trace'), 'utf8'), measure, ELK, {});
+  assert.match(res.svg, /VLAN_SERVERS[^<]*…<title>VLAN_SERVERS — Secure Server Net · YOUR_SERVER_SUBNET<\/title>/);
+});
+
+test('a link that ELK sends through nodes is routed round them, even alongside another link (a row of zones in a column)', async () => {
+  const res = await compile(fs.readFileSync(path.join(root, 'test/fixtures/row-in-column-through.trace'), 'utf8'), measure, ELK, {});
+  const N = res.rm.nodes.filter(n => n.x !== undefined);
+  for (const r of res.rm.edges) for (let i = 1; i < r.pts.length; i++) {
+    const a = r.pts[i - 1], b = r.pts[i];
+    for (const n of N) if (n.id !== r.e.a && n.id !== r.e.b) assert.ok(!(Math.min(a.x, b.x) < n.x + n.w - 1 && n.x + 1 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h - 1 && n.y + 1 < Math.max(a.y, b.y)) || (Math.abs(a.x - b.x) > 0.5 && Math.abs(a.y - b.y) > 0.5), `${r.e.a} -> ${r.e.b} runs through ${n.id}`);
+  }
+});
+
+test('labels: a name, note or link label written whole in quotes loses them (to write a # or a |); "" is a zone with no title', () => {
+  const m = parse('a: "Flex Mini #1" | "5-port #A"\nb: say "hi"\na -> b : "port #2"\nframe z "" [grey] {\n  c\n}\nframe y [grey] {\n  d\n}\n');
+  assert.deepStrictEqual([m.nodes.get('a').name, m.nodes.get('a').note, m.nodes.get('b').name], ['Flex Mini #1', '5-port #A', 'say "hi"']);
+  assert.strictEqual(m.edges[0].label, 'port #2');
+  assert.strictEqual(m.frames.get('z').title, '');
+  assert.strictEqual(m.frames.get('y').title, 'y');
+});
+
+test('mermaid-to-trace: a link to a subgraph links the zone (no node of that name); a # or | in a label is quoted', async () => {
+  const { convert } = require('../tools/mermaid-to-trace.js');
+  const out = convert('flowchart TD\n  r[Router] --> sw[Flex Mini #1]\n  r --> W\n  subgraph W[Wi-Fi]\n    a[AP 1]\n  end\n  sw -->|port #2| a\n', 'T');
+  assert.match(out, /sw: "Flex Mini #1"/);
+  assert.match(out, /sw -> a : "port #2"/);
+  assert.ok(!/^\s*W:/m.test(out), 'no node W');
+  const res = await compile(out, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  assert.strictEqual(res.model.nodes.get('sw').name, 'Flex Mini #1');
+});

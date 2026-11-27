@@ -1,0 +1,61 @@
+%% Written for comparison from the same nodes and links as eshop-containers.trace
+flowchart LR
+  subgraph clients[Client apps]
+    mobile["eShop mobile app<br/>Xamarin.Forms, C#"]
+    mvcweb["eShop traditional Web app<br/>HTML"]
+    spa["eShop SPA Web app<br/>TypeScript/Angular 2"]
+  end
+  subgraph host[Docker Host]
+    subgraph mvcframe[eShop WebApp MVC]
+      mvc["WebApp MVC<br/>ASP.NET Core MVC"]
+    end
+    subgraph gateways[API Gateways/BFF]
+      mobileshopping["Mobile-Shopping"]
+      webshopping["Web-Shopping"]
+    end
+    subgraph identity["Identity microservice (STS+users)"]
+      identityapi["Identity.API"]
+      identitydb[("SQL Server database")]
+    end
+    subgraph catalog[Catalog microservice]
+      catalogapi["Catalog.API"]
+      catalogdb[("SQL Server database")]
+    end
+    subgraph ordering[Ordering microservice]
+      orderingapi["Ordering.API"]
+      orderingtasks["Ordering.BackgroundTasks"]
+      orderingdb[("SQL Server database")]
+    end
+    subgraph basket[Basket microservice]
+      basketapi["Basket.API"]
+      redis[("Redis cache")]
+    end
+    eventbus[("Event Bus<br/>Publish/Subscribe Channel, RabbitMQ or Azure Service Bus")]
+    subgraph admin[Admin Services]
+      webstatus["Web Status"]
+      seq["Seq Logging"]
+      webhooks["Webhooks API"]
+    end
+  end
+  mobile --> mobileshopping
+  spa --> webshopping
+  mvc --> webshopping
+  mvc --> mvcweb
+  mobileshopping --> catalogapi
+  mobileshopping --> orderingapi
+  mobileshopping --> basketapi
+  webshopping --> catalogapi
+  webshopping --> orderingapi
+  webshopping --> basketapi
+  webstatus --> catalogapi
+  webstatus --> orderingapi
+  webstatus --> basketapi
+  identityapi --> identitydb
+  catalogapi --> catalogdb
+  orderingapi --> orderingdb
+  orderingtasks --> orderingdb
+  basketapi --> redis
+  identityapi <--> eventbus
+  catalogapi <--> eventbus
+  orderingapi <--> eventbus
+  basketapi <--> eventbus

@@ -1,0 +1,73 @@
+# Adapted from the architecture diagram of dotnet/eShop (eShop reference application), README, img/eshop_architecture.png (MIT)
+title "eShop reference application"
+
+frame clients "Client Apps" [blue] {
+  mobileapp [mobile]: Mobile App
+  browser [browser]: Browser
+}
+
+frame cloud "Cloud Services: Aspire orchestration" [purple] {
+  frame bff "Mobile BFF" [grey] {
+    mobileapi: Mobile API
+  }
+  frame web "Web App" [grey] {
+    blazor: Blazor App
+  }
+  frame identity "Identity Service" {
+    identityapi: Identity API
+    store identitydb [database]: PostgreSQL
+  }
+  frame catalog "Catalog Service" {
+    catalogapi: Catalog API
+    store catalogdb [database]: PostgreSQL
+  }
+  frame order "Order Service" {
+    orderingapi: Ordering API
+    orderprocessor: Order Processor
+    store orderingdb [database]: PostgreSQL
+  }
+  frame basket "Basket Service" {
+    basketapi: Basket API | gRPC
+    store redis [cache]: Redis
+  }
+  frame payment "Payment Service" {
+    paymentprocessor: Payment Processor
+  }
+  store eventbus [queue]: Event Bus | RabbitMQ
+  frame admin "Admin Services" [grey] {
+    webhookclient: Webhook Client
+    frame webhooks "Webhooks Service" {
+      webhooksapi: Webhooks API
+      store webhooksdb [database]: PostgreSQL
+    }
+    observability: Observability
+  }
+}
+
+engine openai: OpenAI
+
+mobileapp -> mobileapi
+browser -> blazor
+mobileapi -> identityapi
+mobileapi -> catalogapi
+mobileapi -> orderingapi
+mobileapi -> basketapi
+blazor -> identityapi
+blazor -> catalogapi
+blazor -> orderingapi
+blazor -> basketapi
+identityapi -> identitydb
+catalogapi -> catalogdb
+orderingapi -> orderingdb
+orderprocessor -> orderingdb
+basketapi -> redis
+basketapi <-> eventbus [dashed]
+catalogapi <-> eventbus [dashed]
+orderingapi <-> eventbus [dashed]
+paymentprocessor <-> eventbus [dashed]
+eventbus --> blazor
+eventbus --> webhooksapi
+catalogapi --> openai
+blazor --> openai
+webhookclient -> webhooksapi
+webhooksapi -> webhooksdb

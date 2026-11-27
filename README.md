@@ -2,6 +2,18 @@
 
 Write diagrams as plain text; get them drawn like a careful hand would.
 
+Trace keeps what people love in Mermaid (a diagram is code, it is easy to write, and the layout is automatic)
+and adds what it lacks to look good. Two promises:
+
+- **With no help, at least as good as Mermaid.** Write nodes and links only and the automatic layout must
+  read at least as well as Mermaid's drawing of the same diagram.
+- **With a few hints, the next level.** Rows and columns, `[span]`, `[bridge]`, side zones, `align`, `mark`,
+  `[join]`, `tree`, icons and logos: each is optional, each says something the engine cannot guess, and
+  together they give a drawing a careful hand would make.
+
+Both are checked on real diagrams: `npm run build:compare` draws every held-out diagram three ways, as first
+written, with hints, and by Mermaid.
+
 ```
 frame api "api process" {
   router: FastAPI app | and Router

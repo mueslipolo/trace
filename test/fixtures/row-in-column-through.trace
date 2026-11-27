@@ -1,0 +1,82 @@
+# A draft of examples/holdout/full/eshop-containers.trace: Admin Services as a row in a column of zones; ELK sent
+# Web Status's links through the two nodes beside it in the row.
+# Adapted from the architecture diagram of dotnet-architecture/eShopOnContainers, README, img/eShopOnContainers-architecture.png (MIT)
+title "eShopOnContainers reference application"
+
+frame clients "Client apps" [blue dashed] {
+  column {
+    mobile [mobile]: eShop mobile app | Xamarin.Forms, C#
+    mvcweb [browser]: eShop traditional Web app | HTML
+    spa [angular]: eShop SPA Web app | TypeScript/Angular 2
+  }
+}
+
+frame host "Docker Host" [blue dashed docker] {
+  column {
+    row {
+      column {
+        frame mvcframe "eShop WebApp MVC" [grey dashed] {
+          mvc [dotnet]: WebApp MVC | ASP.NET Core MVC
+        }
+      frame admin "Admin Services" [grey dashed] {
+        row {
+          webstatus [monitor]: Web Status
+          seq [document]: Seq Logging
+          webhooks [webhook]: Webhooks API
+        }
+      }
+      }
+      frame gateways "API Gateways/BFF" [grey dashed] {
+        column {
+          mobileshopping [api]: Mobile-Shopping
+          webshopping [api]: Web-Shopping
+        }
+      }
+      column {
+        frame identity "Identity microservice (STS+users)" [dashed] {
+          identityapi [key]: Identity.API
+          store identitydb [database]: SQL Server database
+        }
+        frame catalog "Catalog microservice" [dashed] {
+          catalogapi [book-open]: Catalog.API
+          store catalogdb [database]: SQL Server database
+        }
+        frame ordering "Ordering microservice" [dashed] {
+          column {
+            orderingapi [api]: Ordering.API
+            orderingtasks [settings]: Ordering.BackgroundTasks
+          }
+          store orderingdb [database]: SQL Server database
+        }
+        frame basket "Basket microservice" [dashed] {
+          basketapi [shopping-cart]: Basket.API
+          store redis [cache redis]: Redis cache
+        }
+      }
+      store eventbus [queue]: Event Bus | Publish/Subscribe Channel, RabbitMQ or Azure Service Bus
+    }
+  }
+}
+
+mobile -> mobileshopping
+spa -> webshopping
+mvc -> webshopping
+mvcweb <- mvc
+mobileshopping -> catalogapi
+mobileshopping -> orderingapi
+mobileshopping -> basketapi
+webshopping -> catalogapi
+webshopping -> orderingapi
+webshopping -> basketapi
+webstatus -> catalogapi
+webstatus -> orderingapi
+webstatus -> basketapi
+identityapi -> identitydb
+catalogapi -> catalogdb
+orderingapi -> orderingdb
+orderingtasks -> orderingdb
+basketapi -> redis
+identityapi <-> eventbus
+catalogapi <-> eventbus
+orderingapi <-> eventbus
+basketapi <-> eventbus

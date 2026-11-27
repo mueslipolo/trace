@@ -1,0 +1,88 @@
+# Full-feature version of ../eshop.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+# Adapted from the architecture diagram of dotnet/eShop (eShop reference application), README, img/eshop_architecture.png (MIT)
+title "eShop reference application"
+
+frame clients "Client Apps" [blue] {
+  column {
+    mobileapp [mobile]: Mobile App
+    browser [browser]: Browser
+  }
+}
+
+frame cloud "Cloud Services: Aspire orchestration" [purple dotnet] {
+  column {
+    row {
+      column {
+        frame bff "Mobile BFF" [grey] {
+          mobileapi [api]: Mobile API
+        }
+        frame web "Web App" [grey] {
+          blazor [blazor]: Blazor App
+        }
+      }
+      column {
+        frame identity "Identity Service" {
+          identityapi [key]: Identity API
+          store identitydb [postgresql]: PostgreSQL
+        }
+        frame catalog "Catalog Service" {
+          catalogapi [book-open]: Catalog API
+          store catalogdb [postgresql]: PostgreSQL
+        }
+        frame basket "Basket Service" {
+          basketapi [shopping-cart]: Basket API | gRPC
+          store redis [cache redis]: Redis
+        }
+        frame order "Order Service" {
+          column {
+            orderingapi [api]: Ordering API
+            orderprocessor [settings]: Order Processor
+          }
+          store orderingdb [postgresql]: PostgreSQL
+        }
+        frame payment "Payment Service" {
+          paymentprocessor [credit-card]: Payment Processor
+        }
+      }
+      store eventbus [queue rabbitmq]: Event Bus | RabbitMQ
+    }
+    frame admin "Admin Services" [grey] {
+      row {
+        webhookclient [webhook]: Webhook Client
+        frame webhooks "Webhooks Service" {
+          webhooksapi [webhook]: Webhooks API
+          store webhooksdb [postgresql]: PostgreSQL
+        }
+        observability [telescope]: Observability
+      }
+    }
+  }
+}
+
+engine openai [bot]: OpenAI
+
+mobileapp -> mobileapi
+browser -> blazor
+mobileapi -> identityapi
+mobileapi -> catalogapi
+mobileapi -> orderingapi
+mobileapi -> basketapi
+blazor -> identityapi
+blazor -> catalogapi
+blazor -> orderingapi
+blazor -> basketapi
+identityapi -> identitydb
+catalogapi -> catalogdb
+orderingapi -> orderingdb
+orderprocessor -> orderingdb
+basketapi -> redis
+basketapi <-> eventbus [dashed]
+catalogapi <-> eventbus [dashed]
+orderingapi <-> eventbus [dashed]
+paymentprocessor <-> eventbus [dashed]
+eventbus --> blazor
+eventbus --> webhooksapi
+catalogapi --> openai
+blazor --> openai
+webhookclient -> webhooksapi
+webhooksapi -> webhooksdb

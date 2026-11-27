@@ -1,7 +1,18 @@
 # Trace
 
 Trace is a small text language for diagrams. You write plain text; it is drawn like a careful
-hand would lay it out. The rendered cases in `examples/cases/` are the quality bar: when in doubt
+hand would lay it out.
+
+The core idea (the owner's): take what people love in Mermaid (diagram as code, easy to write, automatic
+layout) and add what makes the drawing look good. Two rules follow, and every change is judged by them:
+
+- **Full auto layout comes first.** A diagram written with no help (nodes, links, zones) must read at least as
+  well as Mermaid's. That is what the held-out set measures (`examples/holdout/`, `npm run metrics`), and no
+  engine change may make it worse. A hint must never be needed for a drawing to be correct.
+- **Hints take it to the next level.** Every layout feature is optional and says something the engine cannot
+  guess (this belongs beside that, these links are one, this is a hierarchy). Nothing a hint does is turned on by
+  default when it changes what the reader sees (the owner turned the org-chart drawing into the `tree` line for
+  that reason). The `full/` versions of the held-out diagrams show what the hints add. The rendered cases in `examples/cases/` are the quality bar: when in doubt
 about how something should look, follow the style rules below and look at those.
 
 The project started in a claude.ai conversation. Everything decided there is captured in this

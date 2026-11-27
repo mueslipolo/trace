@@ -1,0 +1,51 @@
+# Full-feature version of ../aks-baseline.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+# Adapted from the AKS baseline cluster reference implementation (github.com/mspnp/aks-baseline), docs/architecture.drawio, page "aks-baseline" (MIT)
+direction down
+title "AKS baseline: hub and spoke"
+engine onprem [dashed building-2]: On-premises | placeholder
+engine spoke2 [dashed network]: Spoke | another business unit
+frame hub "Hub VNet" [grey dashed] {
+  frame fwsnet "Subnet" [blue] {
+    fw [firewall]: Azure Firewall | outbound
+  }
+  frame bastionsnet "Subnet" [blue] {
+    bastion [terminal]: Azure Bastion | management
+  }
+  frame gwsnet "Subnet" [blue] {
+    gw [vpn]: Gateway | to on-premises
+  }
+}
+pill internet [globe]: Public internet
+frame paas "" [blue] {
+  row {
+    kv [key]: Azure Key Vault
+    store acr [container]: Azure Container Registry
+  }
+}
+frame spoke "Spoke VNet" [grey dashed kubernetes] {
+  frame pesnet "Subnet" [blue] {
+    pe [lock]: Private Link | endpoints
+  }
+  frame ilbsnet "Subnet" [blue] {
+    ilb [loadbalancer]: Internal Load Balancer | AKS-managed
+  }
+  frame appgwsnet "Subnet" [blue] {
+    appgw [shield]: Azure Application Gateway | WAF
+  }
+  frame nodes "Subnet: cluster nodes" [blue] {
+    frame syspool "Node pool" [grey] {
+      sysnodes [server]: Kubernetes system nodes
+    }
+    frame userpool "Node pool" [grey] {
+      column {
+        usernodes [server]: Kubernetes user nodes
+        workload [container]: Workload | pod(s)
+      }
+    }
+  }
+}
+hub <-> spoke : VNet peering
+spoke2 -> hub : VNet peered
+gw -- onprem
+paas -> pesnet
+internet -> appgw

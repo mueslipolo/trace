@@ -168,7 +168,9 @@ row "optional title" {
 ```
 
 - `frame` draws a titled zone. Colours: `green` (default), `blue`, `orange`, `purple`, `grey`;
-  `dashed` also works. Frames nest. The id is optional; links can name a frame id.
+  `dashed` also works. Frames nest. The id is optional; links can name a frame id. Without a title the id is
+  shown as one; `frame paas "" [blue]` draws the zone with no title. A title too long for the room the zone has
+  is shortened with an ellipsis (the whole title shows as its tooltip).
 - `column` stacks nodes top to bottom, `row` side by side. They hold nodes only. Links between
   members run straight inside the stack. Stacks across the flow (columns when the direction is
   right) give every member the same width. Sibling stacks of the same length share slot sizes,

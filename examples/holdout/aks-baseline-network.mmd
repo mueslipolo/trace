@@ -1,0 +1,59 @@
+%% Written for comparison from the same nodes and links as aks-baseline-network.trace
+flowchart LR
+  internet(["Public Internet"])
+  subgraph hubrg[rg-enterprise-networking-hubs]
+    subgraph fwpips[three geo-redundant public IP addresses]
+      pipfw0["pip-fw-[region]-00"]
+      pipfw1["pip-fw-[region]-01"]
+      pipfw2["pip-fw-[region]-02"]
+    end
+    fw["fw-[region]"]
+    subgraph fwpolicy[" "]
+      fwpol["fw-policies-[region]"]
+      ipg["ipg-[region]-AksNodepools<br/>10.240.0.0/22"]
+    end
+    subgraph hubvnet["vnet-[region]-hub, 10.200.0.0/24"]
+      fwsubnet["AzureFirewallSubnet"]
+      gwsubnet["GatewaySubnet"]
+      bastionsubnet["AzureBastionSubnet"]
+    end
+    nsgbastion["nsg-[region]-bastion"]
+    lahub[("la-hub-[region]")]
+  end
+  subgraph spokerg[rg-enterprise-networking-spokes]
+    pipbu["pip-BU0001A0008-00"]
+    subgraph nsgs[" "]
+      nsgappgw["nsg-vnet-...-appgw<br/>Internet > Vnet via tcp/443: Allow; [Azure Probes,...] > Vnet: Allow (and more)"]
+      nsgpe["nsg-vnet-...-privatelinkendpoints<br/>VNet > VNet via tcp/443: Allow (rest: deny)"]
+      nsgilbs["nsg-vnet-...-aksilbs"]
+      nsgnodes["nsg-vnet-...-nodepools"]
+    end
+    subgraph spokevnet["vnet-spoke-BU0001A0008-00, 10.240.0.0/16"]
+      appgwsubnet["snet-applicationgateway<br/>10.240.5.0/24"]
+      pesubnet["snet-privatelinkendpoints<br/>10.240.4.32/28"]
+      ingresssubnet["snet-clusteringressservices<br/>10.240.4.0/28"]
+      nodesubnet["snet-clusternodes<br/>10.240.0.0/22"]
+    end
+    route["route-to-[region]-hub-fw<br/>0.0.0.0/0 > fw-region's private IP"]
+  end
+  fw -->|connects to subnet| fwsubnet
+  fw -->|uses public IP addresses| fwpips
+  fwpips -->|outbound traffic to internet| internet
+  internet -->|"inbound requests (from internet)"| pipbu
+  fw -->|implements rule set| fwpol
+  fwpol -->|uses IP group| ipg
+  fw -->|sends logs, metrics| lahub
+  hubvnet -->|sends logs, metrics| lahub
+  fwpol --> lahub
+  pipbu --> lahub
+  nsgs --> lahub
+  lahub --- nsgbastion
+  lahub --- fwpips
+  spokevnet <-->|peered with| hubvnet
+  nsgbastion -->|filters traffic| bastionsubnet
+  nsgappgw -->|filters traffic| appgwsubnet
+  nsgpe -->|filters traffic| pesubnet
+  nsgilbs -->|filters traffic| ingresssubnet
+  nsgnodes -->|filters traffic| nodesubnet
+  route -->|directs outbound traffic| nodesubnet
+  route --> ingresssubnet

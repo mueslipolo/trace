@@ -1,0 +1,59 @@
+flowchart TB
+    NET(["🌍 Internet / WAN"])
+    CF["☁️ Cloudflare Tunnel<br/>inbound HTTPS · zero open ports"]
+    TS["🔗 Tailscale<br/>remote admin · subnet-router"]
+    FW{{"🛡️ OPNsense<br/>router · firewall<br/>deny-by-default between VLANs"}}
+
+    NET --> CF --> FW
+    NET <--> TS --> FW
+
+    FW <==>|"admin plane · reaches all"| MGMT
+    FW <==>|"ingress + observability"| INFRA
+    FW -->|"allow-listed ingress · WAN egress"| PROD
+    FW -->|"tunnel ingress in · WAN out only"| DEV
+    FW -->|"WAN out only"| MEDIA
+
+    PROD ==>|"egress"| NET
+    DEV ==>|"egress"| NET
+    MEDIA ==>|"egress"| NET
+
+    subgraph MGMT ["🟣 Management VLAN"]
+        direction LR
+        N1["pve-infra node"]
+        N2["pve-apps node"]
+        PBS["Proxmox Backup Server"]
+    end
+    subgraph INFRA ["🔵 Infra VLAN"]
+        direction LR
+        DNS["AdGuard DNS + OPNsense Unbound"]
+        RP["Caddy reverse proxy"]
+        MON["Prometheus · Grafana · Uptime Kuma"]
+        IAC["Semaphore · Ansible · gh-runner"]
+        TOOLS["Vaultwarden · Twenty CRM · Umami"]
+        AI["Hermes AI agent"]
+    end
+    subgraph PROD ["🟢 Production VLAN"]
+        direction LR
+        PA["Coolify worker (apps)"]
+        PDB[("dedicated project database VMs")]
+    end
+    subgraph DEV ["🟡 Dev / Staging VLAN · reserved"]
+        direction LR
+        CO["No dedicated guest currently deployed"]
+    end
+    subgraph MEDIA ["🟠 Media &amp; Personal VLAN"]
+        DK["Docker VM<br/>Jellyfin · Immich · Navidrome …"]
+    end
+
+    classDef mgmt  fill:#f3e8ff,stroke:#9333ea,color:#3b0764;
+    classDef infra fill:#dbeafe,stroke:#2563eb,color:#172554;
+    classDef prod  fill:#dcfce7,stroke:#16a34a,color:#052e16;
+    classDef dev   fill:#fef9c3,stroke:#ca8a04,color:#422006;
+    classDef media fill:#ffedd5,stroke:#ea580c,color:#431407;
+    classDef edge  fill:#f1f5f9,stroke:#475569,color:#0f172a;
+    class MGMT,N1,N2,PBS mgmt;
+    class INFRA,DNS,RP,MON,IAC,TOOLS,AI infra;
+    class PROD,PA,PDB prod;
+    class DEV,CO,DDB dev;
+    class MEDIA,DK media;
+    class NET,CF,TS,FW edge;

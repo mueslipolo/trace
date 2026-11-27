@@ -102,9 +102,13 @@ function flowchart(lines, title) {
   if (title) out.push(`title "${title}"`);
   if (dir === 'down') out.push('direction down');
   out.push('');
-  const decl = n => `${n.kind ? n.kind + ' ' : ''}${n.id}: ${n.label}`;
+  // a # after a space would start a comment, a | would start the note: such text goes in quotes
+  const q = v => /(^|\s)#|\|/.test(v) ? `"${v.replace(/"/g, "'")}"` : v;
+  const qLabel = l => { const i = l.indexOf(' | '); return i < 0 ? q(l) : q(l.slice(0, i)) + ' | ' + q(l.slice(i + 3)); };
+  const decl = n => `${n.kind ? n.kind + ' ' : ''}${n.id}: ${qLabel(n.label)}`;
+  // a link to a subgraph is a link to that zone (Trace links can name a zone): no node of that name
   const write = (c, ind) => {
-    for (const n of c.items) out.push(ind + decl(n));
+    for (const n of c.items) if (!frames.some(f => f.id === n.id)) out.push(ind + decl(n));
     for (const f of c.kids) {
       if (hidden.has(f.id)) { write(f, ind); continue; }
       out.push(`${ind}frame ${f.id} "${f.title}" {`); write(f, ind + '  '); out.push(ind + '}');
@@ -116,7 +120,7 @@ function flowchart(lines, title) {
   for (const e of edges) {
     if (e.invisible) continue;
     const op = e.both ? '<->' : !e.arrow ? '--' : e.dashed ? '-->' : '->';
-    out.push(`${e.a} ${op} ${e.b}${e.label ? ' : ' + e.label : ''}`);
+    out.push(`${e.a} ${op} ${e.b}${e.label ? ' : ' + q(e.label) : ''}`);
   }
   return out.join('\n').replace(/frame (\S+) "([^"]*)" \{\n(\s*)\}/g, 'frame $1 "$2" {\n$3  $1_empty: $2\n$3}') + '\n';
 }

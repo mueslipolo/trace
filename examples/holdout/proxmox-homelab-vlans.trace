@@ -1,0 +1,44 @@
+# Adapted from idrisschen/homelab, README.md (MIT); converted with tools/mermaid-to-trace.js, original in proxmox-homelab-vlans.mmd
+title "Two-node Proxmox homelab: VLANs"
+direction down
+
+pill NET [internet]: Internet / WAN
+CF [cloud cloudflare]: Cloudflare Tunnel | inbound HTTPS · zero open ports
+TS [vpn tailscale]: Tailscale | remote admin · subnet-router
+engine FW [firewall opnsense]: OPNsense | router · firewall deny-by-default between VLANs
+frame MGMT "Management VLAN" [purple] {
+  N1 [server proxmox]: pve-infra node
+  N2 [server proxmox]: pve-apps node
+  PBS [hard-drive]: Proxmox Backup Server
+}
+frame INFRA "Infra VLAN" [blue] {
+  DNS [dns]: AdGuard DNS + OPNsense Unbound
+  RP [arrow-right-left]: Caddy reverse proxy
+  MON [chart]: Prometheus · Grafana · Uptime Kuma
+  IAC [settings]: Semaphore · Ansible · gh-runner
+  TOOLS [key]: Vaultwarden · Twenty CRM · Umami
+  AI [bot]: Hermes AI agent
+}
+frame PROD "Production VLAN" [green] {
+  PA [container]: Coolify worker (apps)
+  store PDB [database]: dedicated project database VMs
+}
+frame DEV "Dev / Staging VLAN · reserved" [grey] {
+  CO: No dedicated guest currently deployed
+}
+frame MEDIA "Media & Personal VLAN" [orange] {
+  DK [docker]: Docker VM | Jellyfin · Immich · Navidrome …
+}
+
+NET -> CF
+CF -> FW
+NET <-> TS
+TS -> FW
+FW <-> MGMT : admin plane · reaches all
+FW <-> INFRA : ingress + observability
+FW -> PROD : allow-listed ingress · WAN egress
+FW -> DEV : tunnel ingress in · WAN out only
+FW -> MEDIA : WAN out only
+PROD -> NET : egress
+DEV -> NET : egress
+MEDIA -> NET : egress

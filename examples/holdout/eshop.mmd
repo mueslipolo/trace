@@ -1,0 +1,69 @@
+%% Written for comparison from the same nodes and links as eshop.trace
+flowchart LR
+  subgraph clients[Client Apps]
+    mobileapp["Mobile App"]
+    browser["Browser"]
+  end
+  subgraph cloud[Cloud Services: Aspire orchestration]
+    subgraph bff[Mobile BFF]
+      mobileapi["Mobile API"]
+    end
+    subgraph web[Web App]
+      blazor["Blazor App"]
+    end
+    subgraph identity[Identity Service]
+      identityapi["Identity API"]
+      identitydb[("PostgreSQL")]
+    end
+    subgraph catalog[Catalog Service]
+      catalogapi["Catalog API"]
+      catalogdb[("PostgreSQL")]
+    end
+    subgraph order[Order Service]
+      orderingapi["Ordering API"]
+      orderprocessor["Order Processor"]
+      orderingdb[("PostgreSQL")]
+    end
+    subgraph basket[Basket Service]
+      basketapi["Basket API<br/>gRPC"]
+      redis[("Redis")]
+    end
+    subgraph payment[Payment Service]
+      paymentprocessor["Payment Processor"]
+    end
+    eventbus[("Event Bus<br/>RabbitMQ")]
+    subgraph admin[Admin Services]
+      webhookclient["Webhook Client"]
+      subgraph webhooks[Webhooks Service]
+        webhooksapi["Webhooks API"]
+        webhooksdb[("PostgreSQL")]
+      end
+      observability["Observability"]
+    end
+  end
+  openai["OpenAI"]
+  mobileapp --> mobileapi
+  browser --> blazor
+  mobileapi --> identityapi
+  mobileapi --> catalogapi
+  mobileapi --> orderingapi
+  mobileapi --> basketapi
+  blazor --> identityapi
+  blazor --> catalogapi
+  blazor --> orderingapi
+  blazor --> basketapi
+  identityapi --> identitydb
+  catalogapi --> catalogdb
+  orderingapi --> orderingdb
+  orderprocessor --> orderingdb
+  basketapi --> redis
+  basketapi <-.-> eventbus
+  catalogapi <-.-> eventbus
+  orderingapi <-.-> eventbus
+  paymentprocessor <-.-> eventbus
+  eventbus -.-> blazor
+  eventbus -.-> webhooksapi
+  catalogapi -.-> openai
+  blazor -.-> openai
+  webhookclient --> webhooksapi
+  webhooksapi --> webhooksdb
