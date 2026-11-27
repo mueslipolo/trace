@@ -1,0 +1,56 @@
+%% Written for comparison from the same nodes and links as multi-region-saas.trace
+flowchart LR
+  users(["Customers<br/>worldwide"])
+  dns["Global DNS<br/>health-checked failover"]
+  glb["Global load balancer<br/>anycast"]
+  subgraph eu["Region eu-west (active)"]
+    eugw["API gateway"]
+    subgraph euk8s["Cluster"]
+      euapp["App pods<br/>x 12"]
+      euwork["Workers<br/>x 4"]
+    end
+    eudb[("Postgres primary")]
+    eucache[("Redis")]
+    euq[("Queue")]
+    eus3[("Object storage")]
+  end
+  subgraph us["Region us-east (passive)"]
+    usgw["API gateway"]
+    subgraph usk8s["Cluster"]
+      usapp["App pods<br/>x 2, scaled on failover"]
+      uswork["Workers<br/>x 1"]
+    end
+    usdb[("Postgres replica<br/>read-only")]
+    uscache[("Redis")]
+    usq[("Queue")]
+    uss3[("Object storage")]
+  end
+  subgraph shared["Shared"]
+    idp["Identity provider"]
+    obs["Observability<br/>metrics, logs, traces"]
+    cicd["CI/CD<br/>deploys both regions"]
+  end
+  users -->|"resolve"| dns
+  users -->|"HTTPS"| glb
+  glb -->|"100%"| eugw
+  glb -.->|"0%, on failover"| usgw
+  eugw --> euapp
+  usgw --> usapp
+  euapp --> eudb
+  euapp --> eucache
+  euapp -->|"jobs"| euq
+  euwork --> euq
+  euwork --> eus3
+  usapp --> usdb
+  usapp --> uscache
+  usapp --> usq
+  uswork --> usq
+  uswork --> uss3
+  eudb -->|"streaming replication"| usdb
+  eus3 -->|"cross-region copy"| uss3
+  eugw -->|"tokens"| idp
+  usgw -->|"tokens"| idp
+  euapp -.->|"telemetry"| obs
+  usapp -.->|"telemetry"| obs
+  cicd -->|"deploy"| euk8s
+  cicd -->|"deploy"| usk8s

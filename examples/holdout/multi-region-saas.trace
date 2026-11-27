@@ -1,0 +1,61 @@
+# Written for Trace, modelled on a common active-passive multi-region SaaS deployment (global DNS and load balancing, per-region gateway and cluster, primary and replica databases, cross-region replication); frozen at its first draft
+title "Multi-region SaaS, active / passive"
+
+pill users [users]: Customers | worldwide
+dns [globe]: Global DNS | health-checked failover
+glb [loadbalancer]: Global load balancer | anycast
+
+frame eu "Region eu-west (active)" [green] {
+  eugw [api]: API gateway
+  frame euk8s "Cluster" [blue kubernetes] {
+    euapp [container]: App pods | x 12
+    euwork [cog]: Workers | x 4
+  }
+  store eudb [database postgresql]: Postgres primary
+  store eucache [redis]: Redis
+  store euq [list]: Queue
+  store eus3 [package]: Object storage
+}
+
+frame us "Region us-east (passive)" [grey dashed] {
+  usgw [api]: API gateway
+  frame usk8s "Cluster" [blue kubernetes] {
+    usapp [container]: App pods | x 2, scaled on failover
+    uswork [cog]: Workers | x 1
+  }
+  store usdb [database postgresql]: Postgres replica | read-only
+  store uscache [redis]: Redis
+  store usq [list]: Queue
+  store uss3 [package]: Object storage
+}
+
+frame shared "Shared" [orange] {
+  idp [key]: Identity provider
+  obs [activity]: Observability | metrics, logs, traces
+  cicd [rocket]: CI/CD | deploys both regions
+}
+
+users -> dns : resolve
+users -> glb : HTTPS
+glb -> eugw : 100%
+glb -> usgw [dashed] : 0%, on failover
+eugw -> euapp
+usgw -> usapp
+euapp -> eudb
+euapp -> eucache
+euapp -> euq : jobs
+euwork -> euq
+euwork -> eus3
+usapp -> usdb
+usapp -> uscache
+usapp -> usq
+uswork -> usq
+uswork -> uss3
+eudb -> usdb : streaming replication
+eus3 -> uss3 : cross-region copy
+eugw -> idp : tokens
+usgw -> idp : tokens
+euapp -> obs [dashed] : telemetry
+usapp -> obs [dashed] : telemetry
+cicd -> euk8s : deploy
+cicd -> usk8s : deploy

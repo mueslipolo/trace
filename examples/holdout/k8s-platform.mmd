@@ -1,0 +1,65 @@
+%% Written for comparison from the same nodes and links as k8s-platform.trace
+flowchart LR
+  users(["Customers<br/>web and mobile"])
+  devs(["Developers"])
+  cdn["CDN + WAF<br/>TLS, bot rules"]
+  lb["Cloud load balancer<br/>L4, public IP"]
+  subgraph cluster["Kubernetes cluster (prod)"]
+    ingress["Ingress controller<br/>NGINX"]
+    subgraph web["namespace: web"]
+      storefront["Storefront<br/>Next.js SSR"]
+    end
+    subgraph api["namespace: api"]
+      gateway["API gateway<br/>auth, rate limits"]
+      orders["Orders service"]
+      catalog["Catalog service"]
+      payments["Payments service"]
+    end
+    subgraph jobs["namespace: workers"]
+      worker["Order worker<br/>consumes events"]
+      cron["Nightly jobs<br/>CronJobs"]
+    end
+    subgraph platform["namespace: platform"]
+      argocd["Argo CD<br/>GitOps sync"]
+      eso["External Secrets operator"]
+      prom["Prometheus"]
+      loki["Loki<br/>logs"]
+    end
+  end
+  subgraph managed["Managed services"]
+    pg[("PostgreSQL<br/>primary + replica")]
+    redis[("Redis<br/>sessions, cache")]
+    queue[("RabbitMQ<br/>order events")]
+    blob[("Object storage<br/>images, exports")]
+  end
+  git["Git repository<br/>manifests, Helm charts"]
+  registry["Container registry"]
+  vault["Vault<br/>secrets"]
+  grafana["Grafana<br/>dashboards, alerts"]
+  pagerduty["On-call paging"]
+  users -->|"HTTPS"| cdn
+  cdn -->|"HTTPS"| lb
+  lb -->|"443"| ingress
+  ingress -->|"/"| storefront
+  ingress -->|"/api"| gateway
+  storefront -->|"REST"| gateway
+  gateway --> orders
+  gateway --> catalog
+  gateway --> payments
+  orders -->|"SQL"| pg
+  catalog -->|"SQL"| pg
+  payments -->|"SQL"| pg
+  catalog -->|"cache"| redis
+  storefront -->|"sessions"| redis
+  orders -->|"publish"| queue
+  worker -->|"consume"| queue
+  worker -->|"exports"| blob
+  cron -->|"cleanup"| pg
+  catalog -->|"images"| blob
+  devs -->|"push"| git
+  argocd -->|"pull"| git
+  argocd -->|"image tags"| registry
+  eso -->|"read secrets"| vault
+  prom -.->|"metrics"| grafana
+  loki -.->|"logs"| grafana
+  grafana -->|"alerts"| pagerduty

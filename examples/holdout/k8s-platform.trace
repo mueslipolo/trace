@@ -1,0 +1,71 @@
+# Written for Trace, modelled on a common production Kubernetes platform (CDN and WAF, managed cluster, GitOps, Vault, Prometheus stack); frozen at its first draft
+title "Production Kubernetes platform"
+
+pill users [users]: Customers | web and mobile
+pill devs [user]: Developers
+
+cdn [cloud]: CDN + WAF | TLS, bot rules
+lb [loadbalancer]: Cloud load balancer | L4, public IP
+
+frame cluster "Kubernetes cluster (prod)" [blue kubernetes] {
+  ingress [nginx]: Ingress controller | NGINX
+  frame web "namespace: web" [green] {
+    storefront [react]: Storefront | Next.js SSR
+  }
+  frame api "namespace: api" [green] {
+    gateway [api]: API gateway | auth, rate limits
+    orders [go]: Orders service
+    catalog [go]: Catalog service
+    payments [java]: Payments service
+  }
+  frame jobs "namespace: workers" [green] {
+    worker [cog]: Order worker | consumes events
+    cron [clock]: Nightly jobs | CronJobs
+  }
+  frame platform "namespace: platform" [grey] {
+    argocd [argocd]: Argo CD | GitOps sync
+    eso [key]: External Secrets operator
+    prom [prometheus]: Prometheus
+    loki [scroll-text]: Loki | logs
+  }
+}
+
+frame managed "Managed services" [orange] {
+  store pg [database postgresql]: PostgreSQL | primary + replica
+  store redis [redis]: Redis | sessions, cache
+  store queue [rabbitmq]: RabbitMQ | order events
+  store blob [package]: Object storage | images, exports
+}
+
+git [github]: Git repository | manifests, Helm charts
+registry [container]: Container registry
+vault [hashicorp-vault]: Vault | secrets
+grafana [grafana]: Grafana | dashboards, alerts
+pagerduty [bell]: On-call paging
+
+users -> cdn : HTTPS
+cdn -> lb : HTTPS
+lb -> ingress : 443
+ingress -> storefront : /
+ingress -> gateway : /api
+storefront -> gateway : REST
+gateway -> orders
+gateway -> catalog
+gateway -> payments
+orders -> pg : SQL
+catalog -> pg : SQL
+payments -> pg : SQL
+catalog -> redis : cache
+storefront -> redis : sessions
+orders -> queue : publish
+worker -> queue : consume
+worker -> blob : exports
+cron -> pg : cleanup
+catalog -> blob : images
+devs -> git : push
+argocd -> git : pull
+argocd -> registry : image tags
+eso -> vault : read secrets
+prom -> grafana [dashed] : metrics
+loki -> grafana [dashed] : logs
+grafana -> pagerduty : alerts

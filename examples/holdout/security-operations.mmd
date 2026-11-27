@@ -1,0 +1,60 @@
+%% Written for comparison from the same nodes and links as security-operations.trace
+flowchart TD
+  subgraph endpoints["Endpoints"]
+    laptops["Staff laptops<br/>MDM enrolled"]
+    phones["Mobile phones"]
+    edr["EDR agent<br/>on every device"]
+  end
+  subgraph identity["Identity"]
+    idp["SSO / IdP<br/>SAML, OIDC"]
+    mfa["MFA<br/>push, FIDO2"]
+    mdm["MDM<br/>device posture"]
+  end
+  ztna["Zero-trust access proxy"]
+  waf["WAF<br/>public apps"]
+  subgraph apps["Applications"]
+    hr["HR system"]
+    crm["CRM"]
+    git["Git hosting"]
+    wiki["Wiki"]
+  end
+  subgraph admin["Privileged access"]
+    pam["PAM vault<br/>session recording"]
+    bastion["Jump host"]
+    prod["Production servers"]
+  end
+  subgraph soc["Security operations"]
+    collector["Log collector"]
+    siem["SIEM<br/>correlation, detections"]
+    soar["SOAR<br/>playbooks"]
+    ti["Threat intelligence feed"]
+    vuln["Vulnerability scanner"]
+    tickets["Ticketing"]
+  end
+  analysts["SOC analysts"]
+  laptops -->|"every request"| ztna
+  phones -->|"every request"| ztna
+  ztna -->|"who is it?"| idp
+  idp -->|"second factor"| mfa
+  ztna -->|"device healthy?"| mdm
+  ztna --> hr
+  ztna --> crm
+  ztna --> git
+  ztna --> wiki
+  waf --> crm
+  pam -->|"brokered session"| bastion
+  bastion -->|"SSH"| prod
+  idp -->|"SSO"| pam
+  edr -.->|"telemetry"| collector
+  idp -.->|"sign-in logs"| collector
+  ztna -.->|"access logs"| collector
+  waf -.->|"WAF logs"| collector
+  pam -.->|"session logs"| collector
+  collector --> siem
+  ti -->|"indicators"| siem
+  vuln -->|"weekly scan"| prod
+  vuln -->|"findings"| siem
+  siem -->|"alerts"| soar
+  soar -->|"cases"| tickets
+  soar -->|"isolate device"| edr
+  analysts -->|"triage"| tickets

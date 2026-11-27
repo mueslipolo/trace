@@ -1,0 +1,81 @@
+# Written for Trace, modelled on a typical head-office network (dual ISP, firewall pair, core and access switching, VLANs, server room with NAS and backup, DMZ); frozen at its first draft
+title "Head office network"
+direction down
+
+pill isp1 [globe]: ISP 1 | fibre 1 Gb/s
+pill isp2 [signal]: ISP 2 | 4G backup
+
+frame dmz "DMZ — VLAN 50, 10.50.0.0/24" [orange] {
+  web [server]: Public web server
+  mailrelay [mail]: Mail relay | SMTP
+  vpn [lock]: VPN gateway | remote staff
+}
+
+fw [firewall]: Firewall pair | HA, active/passive
+
+frame core "Core" [grey] {
+  core1 [switch]: Core switch 1 | L3
+  core2 [switch]: Core switch 2 | L3
+}
+
+frame floor1 "Floor 1" [blue] {
+  acc1 [switch]: Access switch F1 | PoE
+}
+frame floor2 "Floor 2" [blue] {
+  acc2 [switch]: Access switch F2 | PoE
+}
+
+frame vlans "User VLANs" [green] {
+  staff [laptop]: VLAN 10 staff | 10.10.0.0/22
+  voip [phone]: VLAN 20 VoIP | 10.20.0.0/24
+  printers [printer]: VLAN 30 printers | 10.30.0.0/24
+  guest [wifi]: VLAN 40 guest Wi-Fi | internet only
+  cams [cctv]: VLAN 60 cameras | 10.60.0.0/24
+}
+
+wlc [wifi]: Wi-Fi controller
+aps [radio-tower]: Access points | x 12
+
+frame servers "Server room — VLAN 100, 10.100.0.0/24" [purple] {
+  hv1 [server]: Hypervisor 1
+  hv2 [server]: Hypervisor 2
+  dc [users]: Domain controller | AD, DNS, DHCP
+  radius [key]: RADIUS / NAC | 802.1X
+  store nas [hard-drive]: NAS | file shares, 40 TB
+  backup [archive]: Backup server
+  nvr [cctv]: Video recorder
+}
+
+siem [monitor]: SIEM | cloud
+store offsite [cloud]: Offsite backup | object storage
+
+isp1 -> fw : WAN 1
+isp2 -> fw : WAN 2
+fw -> web : 443
+fw -> mailrelay : 25
+fw -> vpn : IPsec
+fw -> core1 : trunk
+fw -> core2 : trunk
+core1 -- core2 : stack
+core1 -> acc1 : 10 Gb/s
+core2 -> acc2 : 10 Gb/s
+acc1 -> staff
+acc1 -> voip
+acc2 -> printers
+acc2 -> cams
+acc1 -> aps : PoE
+aps -> guest
+wlc -> aps : CAPWAP
+core1 -> hv1
+core2 -> hv2
+hv1 -> dc
+hv2 -> radius
+staff -> nas : SMB
+backup -> nas : snapshots
+backup -> hv1 : VM backups
+backup -> hv2 : VM backups
+backup -> offsite : nightly copy
+cams -> nvr : RTSP
+acc1 -> radius [dashed] : 802.1X
+fw -> siem [dashed] : syslog
+dc -> siem [dashed] : events

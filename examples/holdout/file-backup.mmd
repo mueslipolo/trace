@@ -1,0 +1,43 @@
+%% Written for comparison from the same nodes and links as file-backup.trace
+flowchart LR
+  subgraph office["Main office"]
+    users["Staff PCs"]
+    subgraph cluster["Hypervisor cluster"]
+      hv1["Host 1"]
+      hv2["Host 2"]
+      hv3["Host 3"]
+    end
+    san[("Shared storage<br/>iSCSI")]
+    nas[("NAS<br/>SMB shares, hourly snapshots")]
+    backup["Backup server<br/>jobs, catalogue"]
+    repo[("Backup repository<br/>local disks, 14 days")]
+    router["Office router<br/>site-to-site VPN"]
+  end
+  subgraph cloud["Cloud"]
+    s3[("Object storage<br/>immutable, 90 days")]
+    sync["File sync service<br/>M365"]
+  end
+  subgraph dr["DR site"]
+    router2["DR router"]
+    drhost["Standby host"]
+    drnas[("DR NAS<br/>replica")]
+  end
+  admin["IT admin"]
+  monitor["Monitoring<br/>backup alerts"]
+  users -->|"SMB"| nas
+  users -->|"OneDrive"| sync
+  hv1 -->|"iSCSI"| san
+  hv2 -->|"iSCSI"| san
+  hv3 -->|"iSCSI"| san
+  backup -->|"VM snapshots"| hv1
+  backup -->|"VM snapshots"| hv2
+  backup -->|"VM snapshots"| hv3
+  backup -->|"file backup"| nas
+  backup -->|"copy 1"| repo
+  backup -->|"copy 2, nightly"| s3
+  nas -->|"replication, hourly"| drnas
+  router ---|"IPsec VPN"| router2
+  drnas -->|"restore target"| drhost
+  admin -->|"restore tests"| backup
+  backup -.->|"job status"| monitor
+  sync -.->|"retention copy"| s3

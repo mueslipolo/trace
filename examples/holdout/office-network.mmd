@@ -1,0 +1,70 @@
+%% Written for comparison from the same nodes and links as office-network.trace
+flowchart TD
+  isp1(["ISP 1<br/>fibre 1 Gb/s"])
+  isp2(["ISP 2<br/>4G backup"])
+  subgraph dmz["DMZ — VLAN 50, 10.50.0.0/24"]
+    web["Public web server"]
+    mailrelay["Mail relay<br/>SMTP"]
+    vpn["VPN gateway<br/>remote staff"]
+  end
+  fw["Firewall pair<br/>HA, active/passive"]
+  subgraph core["Core"]
+    core1["Core switch 1<br/>L3"]
+    core2["Core switch 2<br/>L3"]
+  end
+  subgraph floor1["Floor 1"]
+    acc1["Access switch F1<br/>PoE"]
+  end
+  subgraph floor2["Floor 2"]
+    acc2["Access switch F2<br/>PoE"]
+  end
+  subgraph vlans["User VLANs"]
+    staff["VLAN 10 staff<br/>10.10.0.0/22"]
+    voip["VLAN 20 VoIP<br/>10.20.0.0/24"]
+    printers["VLAN 30 printers<br/>10.30.0.0/24"]
+    guest["VLAN 40 guest Wi-Fi<br/>internet only"]
+    cams["VLAN 60 cameras<br/>10.60.0.0/24"]
+  end
+  wlc["Wi-Fi controller"]
+  aps["Access points<br/>x 12"]
+  subgraph servers["Server room — VLAN 100, 10.100.0.0/24"]
+    hv1["Hypervisor 1"]
+    hv2["Hypervisor 2"]
+    dc["Domain controller<br/>AD, DNS, DHCP"]
+    radius["RADIUS / NAC<br/>802.1X"]
+    nas[("NAS<br/>file shares, 40 TB")]
+    backup["Backup server"]
+    nvr["Video recorder"]
+  end
+  siem["SIEM<br/>cloud"]
+  offsite[("Offsite backup<br/>object storage")]
+  isp1 -->|"WAN 1"| fw
+  isp2 -->|"WAN 2"| fw
+  fw -->|"443"| web
+  fw -->|"25"| mailrelay
+  fw -->|"IPsec"| vpn
+  fw -->|"trunk"| core1
+  fw -->|"trunk"| core2
+  core1 ---|"stack"| core2
+  core1 -->|"10 Gb/s"| acc1
+  core2 -->|"10 Gb/s"| acc2
+  acc1 --> staff
+  acc1 --> voip
+  acc2 --> printers
+  acc2 --> cams
+  acc1 -->|"PoE"| aps
+  aps --> guest
+  wlc -->|"CAPWAP"| aps
+  core1 --> hv1
+  core2 --> hv2
+  hv1 --> dc
+  hv2 --> radius
+  staff -->|"SMB"| nas
+  backup -->|"snapshots"| nas
+  backup -->|"VM backups"| hv1
+  backup -->|"VM backups"| hv2
+  backup -->|"nightly copy"| offsite
+  cams -->|"RTSP"| nvr
+  acc1 -.->|"802.1X"| radius
+  fw -.->|"syslog"| siem
+  dc -.->|"events"| siem

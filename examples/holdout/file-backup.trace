@@ -1,0 +1,48 @@
+# Written for Trace, modelled on a common small-business file and backup setup (NAS shares, hypervisor cluster, backup server, immutable object storage, offsite copy over VPN, disaster-recovery site); frozen at its first draft
+title "File services and backup, 3-2-1"
+
+frame office "Main office" [blue] {
+  users [users]: Staff PCs
+  frame cluster "Hypervisor cluster" [grey] {
+    hv1 [server]: Host 1
+    hv2 [server]: Host 2
+    hv3 [server]: Host 3
+  }
+  store san [hard-drive]: Shared storage | iSCSI
+  store nas [hard-drive]: NAS | SMB shares, hourly snapshots
+  backup [archive]: Backup server | jobs, catalogue
+  store repo [hard-drive]: Backup repository | local disks, 14 days
+  router [router]: Office router | site-to-site VPN
+}
+
+frame cloud "Cloud" [orange] {
+  store s3 [cloud]: Object storage | immutable, 90 days
+  sync [refresh-cw]: File sync service | M365
+}
+
+frame dr "DR site" [purple] {
+  router2 [router]: DR router
+  drhost [server]: Standby host
+  store drnas [hard-drive]: DR NAS | replica
+}
+
+admin [user]: IT admin
+monitor [bell]: Monitoring | backup alerts
+
+users -> nas : SMB
+users -> sync : OneDrive
+hv1 -> san : iSCSI
+hv2 -> san : iSCSI
+hv3 -> san : iSCSI
+backup -> hv1 : VM snapshots
+backup -> hv2 : VM snapshots
+backup -> hv3 : VM snapshots
+backup -> nas : file backup
+backup -> repo : copy 1
+backup -> s3 : copy 2, nightly
+nas -> drnas : replication, hourly
+router -- router2 : IPsec VPN
+drnas -> drhost : restore target
+admin -> backup : restore tests
+backup -> monitor [dashed] : job status
+sync -> s3 [dashed] : retention copy

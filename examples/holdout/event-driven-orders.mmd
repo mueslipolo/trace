@@ -1,0 +1,57 @@
+%% Written for comparison from the same nodes and links as event-driven-orders.trace
+flowchart LR
+  web(["Web shop"])
+  mobile(["Mobile app"])
+  partner(["Partner API clients"])
+  gw["API gateway<br/>Kong"]
+  idp["Identity provider<br/>Keycloak, OIDC"]
+  subgraph services["Services"]
+    orders["Order service"]
+    payments["Payment service"]
+    inventory["Inventory service"]
+    shipping["Shipping service"]
+    notify["Notification service"]
+  end
+  subgraph data["Databases"]
+    ordersdb[("Orders DB<br/>with outbox table")]
+    paydb[("Payments DB")]
+    invdb[("Inventory DB")]
+  end
+  relay["Outbox relay<br/>Debezium"]
+  subgraph kafka["Kafka"]
+    placed[("order.placed")]
+    paid[("payment.completed")]
+    reserved[("stock.reserved")]
+    shipped[("shipment.created")]
+    dlq[("dead letters")]
+  end
+  psp["Payment provider<br/>Stripe"]
+  carrier["Carrier API"]
+  email["Email / SMS provider"]
+  connect["Kafka Connect"]
+  dwh[("Data warehouse")]
+  web -->|"HTTPS"| gw
+  mobile -->|"HTTPS"| gw
+  partner -->|"HTTPS, API key"| gw
+  gw -->|"validate token"| idp
+  gw -->|"REST"| orders
+  orders -->|"write order + outbox"| ordersdb
+  relay -->|"read outbox"| ordersdb
+  relay -->|"publish"| placed
+  payments -.->|"consume"| placed
+  payments -->|"charge"| psp
+  payments --> paydb
+  payments -->|"publish"| paid
+  inventory -.->|"consume"| paid
+  inventory --> invdb
+  inventory -->|"publish"| reserved
+  shipping -.->|"consume"| reserved
+  shipping -->|"book"| carrier
+  shipping -->|"publish"| shipped
+  notify -.->|"consume"| shipped
+  notify -.->|"consume"| paid
+  notify -->|"send"| email
+  payments -.->|"failed"| dlq
+  shipping -.->|"failed"| dlq
+  connect -.->|"consume all"| placed
+  connect -->|"load"| dwh

@@ -1,0 +1,69 @@
+# Written for Trace, modelled on a common zero-trust and security-operations setup (MDM and EDR on devices, SSO with MFA, access proxy, log pipeline, SIEM, SOAR, privileged access); frozen at its first draft
+title "Zero trust and security operations"
+direction down
+
+frame endpoints "Endpoints" [blue] {
+  laptops [laptop]: Staff laptops | MDM enrolled
+  phones [smartphone]: Mobile phones
+  edr [shield]: EDR agent | on every device
+}
+
+frame identity "Identity" [purple] {
+  idp [key]: SSO / IdP | SAML, OIDC
+  mfa [fingerprint]: MFA | push, FIDO2
+  mdm [tablet-smartphone]: MDM | device posture
+}
+
+ztna [lock]: Zero-trust access proxy
+waf [shield]: WAF | public apps
+
+frame apps "Applications" [green] {
+  hr [users]: HR system
+  crm [contact]: CRM
+  git [git-branch]: Git hosting
+  wiki [book-open]: Wiki
+}
+
+frame admin "Privileged access" [orange] {
+  pam [vault]: PAM vault | session recording
+  bastion [terminal]: Jump host
+  prod [server]: Production servers
+}
+
+frame soc "Security operations" [grey] {
+  collector [funnel]: Log collector
+  siem [monitor]: SIEM | correlation, detections
+  soar [workflow]: SOAR | playbooks
+  ti [radar]: Threat intelligence feed
+  vuln [scan]: Vulnerability scanner
+  tickets [ticket]: Ticketing
+}
+
+analysts [user]: SOC analysts
+
+laptops -> ztna : every request
+phones -> ztna : every request
+ztna -> idp : who is it?
+idp -> mfa : second factor
+ztna -> mdm : device healthy?
+ztna -> hr
+ztna -> crm
+ztna -> git
+ztna -> wiki
+waf -> crm
+pam -> bastion : brokered session
+bastion -> prod : SSH
+idp -> pam : SSO
+edr -> collector [dashed] : telemetry
+idp -> collector [dashed] : sign-in logs
+ztna -> collector [dashed] : access logs
+waf -> collector [dashed] : WAF logs
+pam -> collector [dashed] : session logs
+collector -> siem
+ti -> siem : indicators
+vuln -> prod : weekly scan
+vuln -> siem : findings
+siem -> soar : alerts
+soar -> tickets : cases
+soar -> edr : isolate device
+analysts -> tickets : triage
