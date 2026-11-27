@@ -243,7 +243,7 @@ goes in a frame or at the top level.
 A link can name a column, `orders.customer_id`, and then it leaves or enters level with that row, on the
 side the diagram flows from and to. Links that meet the same row are spread within it. A link to the table
 alone (`orders -> customers`) attaches wherever the layout puts it. `-->` and `[dashed]` give the dashed
-link the roadmap asked for, for a reference without a foreign key. Tables are ordinary nodes otherwise:
+link, for a reference without a foreign key. Tables are ordinary nodes otherwise:
 frames, icons, `same-width`, `align`, rails and the rest apply; only a table inside a row or column of
 nodes loses the row-level attachment.
 

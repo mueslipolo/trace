@@ -2,7 +2,7 @@
 
 What makes a Trace diagram look right, learned case by case from the owner's reviews of the showcase. Each
 rule says where it came from, how Trace keeps it today, and how a diagram could be checked for it: the last
-column is the raw material for automatic layout suggestions (roadmap item 7).
+column is the raw material for automatic layout suggestions (on the roadmap: layout recommendations).
 
 How a rule is kept:
 
