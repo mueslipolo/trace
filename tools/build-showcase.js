@@ -12,7 +12,7 @@ const cases = meta.map(m => {
   const simple = fs.readFileSync(path.join(root, 'examples/cases/simple', m.id + '.trace'), 'utf8');
   return { ...m, trace: full, simple, stats: simplify(full).stats };
 });
-const LABELS = { icons: ['icon', 'icons'], span: ['span node', 'span nodes'], bridge: ['bridge', 'bridges'], join: ['join', 'joins'], top: ['icon on top', 'icons on top'], blocks: ['row or column', 'rows and columns'], rails: ['rail', 'rails'], sizing: ['same-width line', 'same-width lines'], reversed: ['reversed link', 'reversed links'], side: ['side zone', 'side zones'], marks: ['mark', 'marks'] };
+const LABELS = { icons: ['icon', 'icons'], span: ['span node', 'span nodes'], bridge: ['bridge', 'bridges'], join: ['join', 'joins'], top: ['icon on top', 'icons on top'], blocks: ['row or column', 'rows and columns'], rails: ['rail', 'rails'], sizing: ['same-width line', 'same-width lines'], reversed: ['reversed link', 'reversed links'], side: ['side zone', 'side zones'], marks: ['mark', 'marks'], tree: ['tree line', 'tree lines'] };
 const adds = st => Object.entries(st).filter(([, v]) => v).map(([k, v]) => `${v} ${LABELS[k][v === 1 ? 0 : 1]}`).join(', ') || 'nothing: this diagram is already fine on its own';
 // the page shows one case at a time: a list of cases on the left (a menu on a phone), the case on the right
 const md = t => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>');

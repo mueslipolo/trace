@@ -257,6 +257,8 @@ function parse(src) {
       return;
     }
     if (/^sequence$/i.test(line)) { model.mode = 'sequence'; return; }
+    // tree: draw the hierarchy as an org chart (each parent centred over its children; stem, bar and drops)
+    if (/^tree$/i.test(line)) { model.tree = ln || true; return; }
     if ((m = line.match(/^note\s+(over|left\s+of|right\s+of)\s+([^:]+?)\s*:\s*(.+)$/i))) {
       // note over a[, b] : text    note left of a : text    note right of a : text
       if (model.mode !== 'sequence') throw new TraceError('A note belongs to a sequence diagram: put the line  sequence  at the top');
@@ -2114,10 +2116,11 @@ function splitDecisions(rm, flowH) {
 
 // A hierarchy: a tree (no zones, no layout blocks, every node reached by at most one link, one root) with no
 // decisions. Its parents are centred on their children.
+// Only when asked for with the line `tree`: a diagram shaped as a hierarchy is not drawn this way by itself.
 function isTree(model) {
   if (model.treeShape !== undefined) return model.treeShape;
   const ok = (() => {
-    if (model.frames.size || model.groups.length || model.mode === 'sequence') return false;
+    if (!model.tree || model.groups.length || model.mode === 'sequence') return false;
     const nodes = [...model.nodes.values()];
     // a flowchart (decisions) keeps its straight main path; centring is for hierarchies
     if (nodes.some(n => n.kind === 'ask')) return false;
@@ -4474,7 +4477,7 @@ async function compile(src, measure, ELK, opts) {
   }
   const rm = model.mode === 'sequence' ? await layoutSequence(model, measure) : await layout(model, measure, ELK, opts);
   rm.head = measureHead(model, rm, measure);
-  return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || [])], svg: render(rm, opts), standalone: theme => render(rm, { ...opts, standalone: true, theme: typeof theme === 'string' ? theme : null }) };
+  return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || []), ...(model.tree && !isTree(model) ? ['tree: this diagram is not a hierarchy (one root, every node with one parent at most, no decision, no reversed or self link, four nodes or more), so it is drawn as usual'] : [])], svg: render(rm, opts), standalone: theme => render(rm, { ...opts, standalone: true, theme: typeof theme === 'string' ? theme : null }) };
 }
 
 if (typeof module !== 'undefined') module.exports = { parse, layout, render, compile, diagramCSS, standaloneCSS, PALETTE, FONT_NAME, FONT_NOTE, withIcon };

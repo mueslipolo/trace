@@ -29,6 +29,20 @@ Write nodes and links and nothing else: the layout is automatic. A long chain su
 wider than tall; zones (frames) are placed around their members; you never have to say where anything
 goes. Rows and columns of frames (see Blocks) are there for the cases where you want to decide.
 
+### Hierarchies: `tree`
+
+```
+direction down
+tree
+```
+
+The line `tree` draws a hierarchy as an org chart: each parent stands exactly over the middle of its children
+(beside them in a diagram flowing right), and its links are one stem, one bar and a drop to each child. It
+applies when the diagram is a hierarchy: one root, every node with one parent at most, no decision (`ask`), no
+reversed or self link, four nodes or more. Zones around the nodes are fine; a parent never leaves its zone.
+Otherwise a warning says so and the diagram is drawn as usual. Without the line a hierarchy is drawn like any
+other diagram.
+
 ## Nodes
 
 ```

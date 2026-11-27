@@ -961,13 +961,22 @@ test('a decision sends its two outcomes out of different sides, each with its la
   }
 });
 
-test('a hierarchy (a tree with no decisions) puts each parent in the middle of its children; a decision tree keeps its straight path', async () => {
+test('tree: a hierarchy (a tree with no decisions) puts each parent in the middle of its children, only when asked for; a decision tree keeps its straight path', async () => {
   const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/orgchart.trace'), 'utf8'), measure, ELK, {});
   const N = id => res.rm.nodes.find(n => n.id === id), c = n => n.x + n.w / 2;   // the case is top-down
   for (const [p, kids] of [['cto', ['platform', 'security']], ['cfo', ['finance', 'legal']], ['coo', ['support', 'ops']]]) {
     const lo = c(N(kids[0])), hi = c(N(kids[1])), mid = (lo + hi) / 2;
     assert.ok(Math.abs(c(N(p)) - mid) <= (hi - lo) / 4 + 1, `${p} in the middle half of its children (${c(N(p))}, children ${lo} to ${hi})`);
   }
+  // only when asked for: the same chart without the line tree is drawn as usual
+  const plain = await compile(fs.readFileSync(path.join(root, 'examples/cases/orgchart.trace'), 'utf8').replace(/^tree\n/m, ''), measure, ELK, {});
+  assert.ok(!plain.rm.edges.some(r => r.merged), 'no org-chart bars without the line tree');
+  // zones round a tree are fine (Ingress fan-out, top-down): each service over its pods, inside the cluster
+  const ing = await compile(fs.readFileSync(path.join(root, 'examples/holdout/k8s-ingress-fanout.trace'), 'utf8').replace(/^title.*$/m, '$&\ndirection down\ntree'), measure, ELK, {});
+  const I = id => ing.rm.nodes.find(n => n.id === id);
+  for (const [p, a, b] of [['service1', 'pod1', 'pod2'], ['service2', 'pod3', 'pod4']]) { const lo = Math.min(c(I(a)), c(I(b))), hi = Math.max(c(I(a)), c(I(b))); assert.ok(Math.abs(c(I(p)) - (lo + hi) / 2) <= (hi - lo) / 4 + 1, `${p} over the middle of its pods`); }
+  const notTree = await compile('tree\na -> b\nb -> a\nc -> a\nd -> c\n', measure, ELK, {});
+  assert.ok(notTree.warnings.some(w => /^tree:/.test(w)), 'a warning when the diagram is not a hierarchy');
   const who = await compile(fs.readFileSync(path.join(root, 'examples/playground/who-may-delete-audit-rows.trace'), 'utf8'), measure, ELK, {});
   assert.ok(who.rm.edges.some(r => r.e.label === 'yes' && r.pts.length === 2), 'the decision tree keeps a straight yes');
 });
