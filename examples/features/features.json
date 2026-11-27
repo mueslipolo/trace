@@ -255,14 +255,14 @@
     "id": "align",
     "title": "Align",
     "group": "Sizing and placement",
-    "does": "`align registry deploy e2e approve` brings nodes in different rows level (here the registry, the zone holding Deploy and E2E, and the approval).",
-    "effect": "The stacks and zones are slid into line on those nodes, so the links between them are straight. A node in a zone moves with its whole zone.",
+    "does": "`align slo rollback` puts nodes in different blocks on one line across the flow (here the rollback, outside the production zone, under the decision that leads to it).",
+    "effect": "The blocks and zones are slid into line on those nodes, so the link between them is straight. A node in a zone moves with its whole zone. The engine already levels most linked pairs on its own; `align` is for the ones it does not, such as a node centred in a column of wider blocks.",
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
     "afterOff": [],
-    "syntax": "align registry deploy e2e approve",
-    "use": "To keep one pair (or chain) level across stacks of different lengths. It does not remove crossings.",
+    "syntax": "align slo rollback",
+    "use": "When a link between two blocks keeps a step the engine does not take out, or to choose which pair is level. It does not remove crossings.",
     "wide": true
   },
   {

@@ -1,18 +1,5 @@
-title "CI/CD with canary releases"
-
+title "A canary release"
 column {
-  row {
-    dev [user]: Developer push
-    frame ci "CI, every commit" [blue] {
-      build [span container]: Build | cached Docker layers
-      column {
-        unit [flask-conical]: Unit tests
-        lint [list-checks]: Lint + typecheck
-        sast [shield]: SAST + dependency scan
-      }
-      ask gate: all green?
-    }
-  }
   row {
     store registry [package]: Image registry | signed with cosign
     frame staging "staging" [green] {
@@ -30,21 +17,10 @@ column {
     rollback [bad undo-2]: Automatic rollback
   }
 }
-
-dev -> build
-build -> unit
-build -> lint
-build -> sast
-unit -> gate
-lint -> gate
-sast -> gate
-dev <- gate [bad] : no, PR blocked
-gate -> registry [ok] : yes, push
 registry -> deploy -> e2e -> approve
 approve -> canary [ok] : yes
 canary -> slo
 slo -> full [ok] : yes
 slo -> rollback [bad] : no
 
-align registry deploy e2e approve
 align slo rollback

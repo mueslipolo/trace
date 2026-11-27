@@ -28,12 +28,11 @@ const readme = [
   ['bridge.after', 'examples/features/bridge.after.trace'],
 ];
 // layout guide: feature pairs, plus the plain DMZ (the full one is the README's)
-const guidePairs = ['direction', 'across', 'lanes', 'bridge', 'span', 'samewidth', 'side', 'rail',
+const guidePairs = ['direction', 'across', 'lanes', 'bridge', 'span', 'samewidth', 'align', 'side', 'rail',
   'reverse', 'bus', 'junction', 'join', 'mark', 'fold'];
 const meta = JSON.parse(fs.readFileSync(path.join(root, 'examples/features/features.json'), 'utf8'));
-// [name, source, tidy-ups off, lines to leave out]; k8s shows align on a case where it still matters
-const guide = [['dmz-plain', 'examples/cases/simple/dmz.trace'],
-  ['align.before', 'examples/cases/k8s.trace', [], /^align .*\n/gm], ['align.after', 'examples/cases/k8s.trace']];
+// [name, source, tidy-ups off]
+const guide = [['dmz-plain', 'examples/cases/simple/dmz.trace']];
 for (const id of guidePairs) {
   const m = meta.find(f => f.id === id);
   if (!m) throw new Error(`no feature ${id} in examples/features/features.json`);
@@ -41,10 +40,8 @@ for (const id of guidePairs) {
     if (!readme.some(r => r[0] === `${id}.${k}`)) guide.push([`${id}.${k}`, `examples/features/${id}.${k}.trace`, k === 'before' ? m.beforeOff || [] : []]);
 }
 
-async function draw(name, file, off = [], theme, drop) {
-  let src = fs.readFileSync(path.join(root, file), 'utf8');
-  if (drop) src = src.replace(drop, '');
-  const res = await compile(src, measure, ELK, { off });
+async function draw(name, file, off = [], theme) {
+  const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, { off });
   if (res.errors.length) throw new Error(`${file}:${res.errors[0].line}: ${res.errors[0].msg}`);
   const png = toPng(res.standalone(theme), { zoom: 1.5, dark: theme === 'dark' });
   fs.writeFileSync(path.join(outDir, `${name}${theme === 'dark' ? '.dark' : ''}.png`), png);
@@ -54,6 +51,6 @@ async function draw(name, file, off = [], theme, drop) {
   if (!available()) { console.error('Needs @resvg/resvg-js: run npm install'); process.exit(2); }
   fs.mkdirSync(outDir, { recursive: true });
   for (const [name, file] of readme) { await draw(name, file, [], 'light'); await draw(name, file, [], 'dark'); }
-  for (const [name, file, off, drop] of guide) await draw(name, file, off, 'light', drop);
+  for (const [name, file, off] of guide) await draw(name, file, off, 'light');
   console.log(`docs/images: ${readme.length * 2 + guide.length} pictures`);
 })().catch(e => { console.error(e.message); process.exit(1); });

@@ -173,27 +173,27 @@ Straight sides read as one stack of layers.
 
 **Result:** it is a statement about relations, not a number, so it keeps working when a label changes.
 
-## 8. Keep linked pairs level across stacks
+## 8. Keep linked pairs level across blocks
 
-**Rule:** when links run between two stacks of different lengths, the pairs they link are level and the links
-straight.
+**Rule:** two nodes linked across blocks (stacks, zones, rows) sit level, so the link between them is straight.
 
-**Why:** each stack is centred on its own, so a node in the middle of a long stack and one at the end of a short
-stack sit at different heights, and the link between them takes a step.
+**Why:** each block is placed on its own. A node centred in a column of wider blocks lands under the middle of
+the column, not under the node that leads to it, and the link takes a step.
 
-**Write:** usually nothing: the engine slides stacks and zones in one layer into line on their links. When it
-picks a different pair from the one you care about, name yours: `align podcart redis`.
+**Write:** usually nothing: the engine slides stacks and zones into line on their links. When a step stays,
+name the pair: `align slo rollback`.
 
 <table>
-<tr><th>Without <code>align</code>: the cart pods' link to Redis takes a small step</th></tr>
-<tr><td><img src="images/align.before.png" alt="Kubernetes diagram where the link from the cart pods to Redis has a small step" width="100%"></td></tr>
-<tr><th><code>align podcart redis</code>: the data zone slides down and the link is one straight line</th></tr>
-<tr><td><img src="images/align.after.png" alt="The same diagram with the cart pods level with Redis" width="100%"></td></tr>
+<tr><th>Without</th><th><code>align slo rollback</code></th></tr>
+<tr>
+<td valign="top"><img src="images/align.before.png" alt="A canary release where the link from the SLO decision down to the rollback takes a step" width="100%"></td>
+<td valign="top"><img src="images/align.after.png" alt="The same with the rollback straight under the decision" width="100%"></td>
+</tr>
 </table>
 
-**Result:** the stacks (and their zones) slide into line on those nodes; a node in a zone moves with its whole
-zone. It can cost a bend in other links between the two stacks, and it does not remove crossings: use it for
-the neatness of a pair, not to untangle.
+**Result:** the blocks (and their zones) slide into line on those nodes; a node in a zone moves with its whole
+zone. It can cost a bend in other links between the two blocks, and it does not remove crossings: use it for the
+neatness of a pair, not to untangle.
 
 ## 9. Put what watches the diagram beside it, not after it
 
@@ -324,7 +324,7 @@ Not layout, and always worth doing:
 | A firewall floating inside one zone | it belongs to two | `[bridge]`, with the zones one after the other (5) |
 | Two links that slide inward and bunch up at a node | the sources are wider apart than the node | `[span]` on the node (6) |
 | Tiers with ragged sides | each zone sized on its own | `same-width` (7) |
-| A step in every link between two stacks | the stacks are centred apart | `align` on the pair (8) |
+| A link between two blocks with a step the engine leaves | the blocks are centred apart | `align` on the pair (8) |
 | A monitoring zone stacked as the last tier | it only receives links | `[side]`, or a `rail` (9) |
 | A long link looping round the whole diagram | a link written against the flow | write it in story order with `<-` (10) |
 | A fan of links into one node | the same thing said many times | one label, a zone round the senders, `[join]` or `mark` (11) |
