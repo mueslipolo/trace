@@ -143,6 +143,25 @@ Analyse a diagram and suggest the layout features that would improve it (rows or
 align, side zones, span, bridge), from the rules in `docs/layout-guide.md`. Either applied one by one by the
 author, or tried automatically and compared with the same cost the engine uses. Wanted, not designed in detail.
 
+## 8. From Mermaid: link styles, notes, text formatting (wanted)
+
+Compared with what Mermaid writes (November 2026), the owner picked three gaps. Each keeps Trace's rules: a
+style says something (no free colours or `classDef`), and none of it changes the layout unless it has to take room.
+
+- **Link styles.** Mermaid has thick links (`==>`), circle and cross ends (`--o`, `--x`) and invisible links
+  (`~~~`). Candidates: a thick link for the main path (`==>`, or a `[main]` tag), and a cross end for traffic that
+  is refused (`-x`, a firewall that drops). Not a circle end: Trace already draws a circle as “optional” on ER links.
+  Invisible links are a layout trick, which rows and columns already cover.
+- **Notes.** Today only sequence diagrams have them. A note beside a node or a zone (`note fw : stateful, geo-block
+  since March`), drawn as a small box with a dashed leader, placed by the layout like a leaf node so it never
+  covers anything. Perhaps on a link too.
+- **Text formatting.** `**bold**`, `*italic*` and `` `code` `` inside labels, notes and link labels (Mermaid's
+  markdown strings). The width measure has to know the bold and monospace runs, in Node and in the browser.
+
+Decided against: Mermaid's thirty node shapes (owner, November 2026). Kinds and icons say what a node is.
+The gaps in sequence diagrams (activation bars, `autonumber`, `critical`, `break`) and state diagrams
+(composite states, fork and join) are not picked for now.
+
 ## Smaller items
 
 - Split `src/trace.js` into modules (parse, measure, layout, postprocess, render) without breaking
