@@ -138,7 +138,7 @@ With `tree`, each parent moves over the middle of its children.
 <!-- step: placeOnConcentrators -->
 ### 2. Junctions inside zones
 
-Many alike links into a zone meet one line inside it; each runs straight across to it.
+Five or more alike links from one zone meet one line inside it; each runs straight across to it.
 
 <table>
 <tr><th>Before</th><th>After</th></tr>
@@ -300,7 +300,7 @@ A link that zigzags more than it needs takes the shorter route.
 <!-- step: mergeHubs -->
 ### 8. Gathered links
 
-Alike links into one node become one bus, the label written once.
+Five or more alike links into one node (`gather N` changes the number) become one bus, the label written once.
 
 <table>
 <tr><th>Before</th><th>After</th></tr>
