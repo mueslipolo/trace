@@ -55,6 +55,9 @@ before changing layout, and `docs/roadmap.md` before picking up work. `docs/draw
   (the comparison page gets its Trace drawings already rendered).
 - `docs/images/`: the pictures in `README.md` and `docs/layout-guide.md`, PNGs drawn by `npm run build:docs`
   (`tools/build-docs-images.js`, which lists them; the README ones also in dark). Never edit by hand.
+  Every diagram shown in the docs comes with its Trace source in a collapsible block: put
+  `<!-- source path/to/file.trace "label" -->` and `<!-- /source -->` under the picture and `npm run build:docs`
+  (`tools/doc-sources.js`) writes the file between them; a test fails when a block is out of date.
 - `tools/`: `build-playground.js`, `build-showcase.js`, `build-features.js`, `build-compare.js` (the pages, to `dist/`),
   `build-icons.js` (icon and logo data), `render.js` (one file to SVG or PNG), `snapshots.js` (all examples to `out/`),
   `simplify.js` (the simple forms), `metrics.js` (layout quality), `mermaid-to-trace.js` (Mermaid to Trace, plainly),

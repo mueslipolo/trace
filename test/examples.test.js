@@ -1227,3 +1227,14 @@ test('UniFi home network: zones in one layer share their top in every layout, an
   })())));
   assert.ok(!crossesAny, 'the link to the Hue bridge crosses nothing');
 });
+
+test('every diagram in the docs shows its Trace source, up to date', () => {
+  const { fill, docFiles } = require('../tools/doc-sources.js');
+  for (const f of docFiles()) {
+    const md = fs.readFileSync(path.join(root, f), 'utf8');
+    assert.strictEqual(fill(md), md, `${f}: a source block is out of date: run npm run build:docs`);
+    // a picture of a diagram (docs/images, not a .dark one) has a source block in the same file
+    const pics = [...md.matchAll(/<img src="(?:docs\/)?images\/([\w.-]+)\.png"/g)].map(m => m[1]);
+    if (pics.length) assert.ok(/<!-- source /.test(md), `${f}: pictures without a source block`);
+  }
+});

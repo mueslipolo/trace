@@ -33,6 +33,40 @@ A pipeline or a lifecycle reads like a sentence, left to right.
 <tr><td><img src="images/direction.after.png" alt="The same request path drawn top to bottom" width="182"></td></tr>
 </table>
 
+<!-- source examples/features/direction.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+title "Request path"
+user [user]: Browser
+cdn [cloud]: CDN
+lb [loadbalancer]: Load balancer
+web [server]: Web tier
+app [api]: App tier
+db [database]: Database
+user -> cdn -> lb -> web -> app -> db
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/direction.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+direction down
+title "Request path"
+user [user]: Browser
+cdn [cloud]: CDN
+lb [loadbalancer]: Load balancer
+web [server]: Web tier
+app [api]: App tier
+db [database]: Database
+user -> cdn -> lb -> web -> app -> db
+```
+
+</details>
+<!-- /source -->
+
 **Result:** the same six steps fit a page. A strip more than about four times wider than tall is folded into
 rows by the engine anyway (rule 4), but for layered things choosing the direction yourself is the better move:
 the tiers stay whole instead of being cut where the fold happens to fall.
@@ -55,6 +89,49 @@ every node has a clear line from what feeds it and to what it feeds.
 <td valign="top"><img src="images/across.after.png" alt="The three nodes side by side under the firewall; every link drops straight" width="100%"></td>
 </tr>
 </table>
+
+<!-- source examples/features/across.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+direction down
+fw: Firewall
+column {
+  lb: Load balancer
+  rp: Reverse proxy
+  bastion: Bastion
+}
+app: App servers
+fw -> lb
+fw -> rp
+fw -> bastion
+lb -> app
+rp -> app
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/across.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+direction down
+fw: Firewall
+row {
+  lb: Load balancer
+  rp: Reverse proxy
+  bastion: Bastion
+}
+app: App servers
+fw -> lb
+fw -> rp
+fw -> bastion
+lb -> app
+rp -> app
+```
+
+</details>
+<!-- /source -->
 
 **Result:** every link leaves its node on the side facing its target, one bend at most. This is the rule most
 likely to apply to your next diagram.
@@ -87,6 +164,55 @@ column {
 <tr><td><img src="images/lanes.after.png" alt="The four zones as a two by two grid" width="508"></td></tr>
 </table>
 
+<!-- source examples/features/lanes.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+frame edge "edge" [orange] {
+  fw: Firewall
+}
+frame dmz "DMZ" [orange] {
+  lb: Load balancer
+}
+frame app "app zone" [blue] {
+  api: API servers
+}
+frame data "data zone" [purple] {
+  db: Postgres
+}
+fw -> lb -> api -> db
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/lanes.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+column {
+  row {
+    frame edge "edge" [orange] {
+      fw: Firewall
+    }
+    frame dmz "DMZ" [orange] {
+      lb: Load balancer
+    }
+  }
+  row {
+    frame app "app zone" [blue] {
+      api: API servers
+    }
+    frame data "data zone" [purple] {
+      db: Postgres
+    }
+  }
+}
+fw -> lb -> api -> db
+```
+
+</details>
+<!-- /source -->
+
 **Result:** you decide who is next to whom; links still decide the details inside each zone. The price is
 paid by links between zones that end up in different rows: keep zones that talk most one after the other.
 
@@ -109,6 +235,51 @@ where it folds, for instance one row per stage of a pipeline.
 <tr><td><img src="images/fold.after.png" alt="The same pipeline wrapped into rows" width="626"></td></tr>
 </table>
 
+<!-- source examples/features/fold.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+title "Release pipeline"
+a [git-branch]: Commit
+b [hammer]: Build
+c [flask-conical]: Unit tests
+d [shield]: Security scan
+e [package]: Package
+f [rocket]: Deploy staging
+g [monitor-check]: Smoke tests
+h [user-check]: Approval
+i [bird]: Canary 5%
+j [activity]: Watch SLOs
+k [server]: Roll out 100%
+l [archive]: Tag release
+a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/fold.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+title "Release pipeline"
+a [git-branch]: Commit
+b [hammer]: Build
+c [flask-conical]: Unit tests
+d [shield]: Security scan
+e [package]: Package
+f [rocket]: Deploy staging
+g [monitor-check]: Smoke tests
+h [user-check]: Approval
+i [bird]: Canary 5%
+j [activity]: Watch SLOs
+k [server]: Roll out 100%
+l [archive]: Tag release
+a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l
+```
+
+</details>
+<!-- /source -->
+
 **Result:** each wrap costs one link that comes back to the start of the next row. With frames the same idea
 is tried on the zones and refused when it adds crossings, or when that link would cross much of the page.
 
@@ -129,6 +300,65 @@ zone, the firewall looks like one more server, and the gap between the zones mea
 <td valign="top"><img src="images/bridge.after.png" alt="The zones touch and each firewall sits on the border" width="100%"></td>
 </tr>
 </table>
+
+<!-- source examples/features/bridge.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+direction down
+frame dmz "DMZ" [orange] {
+  fw1: Edge firewall
+  row {
+    lb: Load balancer
+    rp: Reverse proxy
+  }
+}
+frame app "app zone" [blue] {
+  fw2: Internal firewall
+  row {
+    web: Web servers
+    api: API servers
+  }
+}
+fw1 -> lb
+fw1 -> rp
+lb -> fw2
+rp -> fw2
+fw2 -> web
+fw2 -> api
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/bridge.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+direction down
+frame dmz "DMZ" [orange] {
+  fw1 [bridge span firewall]: Edge firewall
+  row {
+    lb: Load balancer
+    rp: Reverse proxy
+  }
+}
+frame app "app zone" [blue] {
+  fw2 [bridge span firewall]: Internal firewall
+  row {
+    web: Web servers
+    api: API servers
+  }
+}
+fw1 -> lb
+fw1 -> rp
+lb -> fw2
+rp -> fw2
+fw2 -> web
+fw2 -> api
+```
+
+</details>
+<!-- /source -->
 
 **Result:** the two zones are made to touch, the firewall straddles the line. It needs the zones one after the
 other along the flow: zones placed beside each other by a block have no shared border, and the bridge is drawn
@@ -151,6 +381,39 @@ slide inward and bunch up at its edge, each with a bend.
 </tr>
 </table>
 
+<!-- source examples/features/span.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+direction down
+row {
+  pill users [user]: Internet users
+  pill partners [handshake]: Partner APIs
+}
+ddos [shield]: DDoS scrubbing
+users -> ddos
+partners -> ddos
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/span.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+direction down
+row {
+  pill users [user]: Internet users
+  pill partners [handshake]: Partner APIs
+}
+ddos [span shield]: DDoS scrubbing
+users -> ddos
+partners -> ddos
+```
+
+</details>
+<!-- /source -->
+
 **Result:** the node grows as wide (or tall) as the stack it feeds, with one attachment point under each
 member. A wider stack on its other side attaches in proportion, and those links may keep a step.
 
@@ -171,6 +434,52 @@ Straight sides read as one stack of layers.
 </tr>
 </table>
 
+<!-- source examples/features/samewidth.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+direction down
+frame a "edge" [orange] {
+  fw: Firewall
+}
+frame b "application servers and workers" [blue] {
+  app: App servers
+  jobs: Background workers
+}
+frame c "data" [purple] {
+  db: Postgres
+}
+fw -> app
+app -> db
+jobs -> db
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/samewidth.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+direction down
+frame a "edge" [orange] {
+  fw: Firewall
+}
+frame b "application servers and workers" [blue] {
+  app: App servers
+  jobs: Background workers
+}
+frame c "data" [purple] {
+  db: Postgres
+}
+fw -> app
+app -> db
+jobs -> db
+same-width a b c
+```
+
+</details>
+<!-- /source -->
+
 **Result:** it is a statement about relations, not a number, so it keeps working when a label changes.
 
 ## 8. Keep linked pairs level across blocks
@@ -190,6 +499,73 @@ name the pair: `align slo rollback`.
 <td valign="top"><img src="images/align.after.png" alt="The same with the rollback straight under the decision" width="100%"></td>
 </tr>
 </table>
+
+<!-- source examples/features/align.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+title "A canary release"
+column {
+  row {
+    store registry [package]: Image registry | signed with cosign
+    frame staging "staging" [green] {
+      deploy [rocket]: Deploy | Helm
+      e2e [monitor-check]: E2E + smoke tests
+    }
+    ask approve: release approved?
+  }
+  column {
+    frame prod "production" [orange] {
+      canary [bird]: Canary 5%
+      ask slo: SLOs held 30 min?
+      full [ok server]: Roll out 100%
+    }
+    rollback [bad undo-2]: Automatic rollback
+  }
+}
+registry -> deploy -> e2e -> approve
+approve -> canary [ok] : yes
+canary -> slo
+slo -> full [ok] : yes
+slo -> rollback [bad] : no
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/align.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+title "A canary release"
+column {
+  row {
+    store registry [package]: Image registry | signed with cosign
+    frame staging "staging" [green] {
+      deploy [rocket]: Deploy | Helm
+      e2e [monitor-check]: E2E + smoke tests
+    }
+    ask approve: release approved?
+  }
+  column {
+    frame prod "production" [orange] {
+      canary [bird]: Canary 5%
+      ask slo: SLOs held 30 min?
+      full [ok server]: Roll out 100%
+    }
+    rollback [bad undo-2]: Automatic rollback
+  }
+}
+registry -> deploy -> e2e -> approve
+approve -> canary [ok] : yes
+canary -> slo
+slo -> full [ok] : yes
+slo -> rollback [bad] : no
+
+align slo rollback
+```
+
+</details>
+<!-- /source -->
 
 **Result:** the blocks (and their zones) slide into line on those nodes; a node in a zone moves with its whole
 zone. It can cost a bend in other links between the two blocks, and it does not remove crossings: use it for the
@@ -212,6 +588,73 @@ last tier, and every link to it runs the length of the drawing. Beside the flow,
 </tr>
 </table>
 
+<!-- source examples/features/side.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+direction down
+title "side zone"
+frame dmz "DMZ" [orange] {
+  lb [loadbalancer]: Load balancer
+  col1 [server]: Collector | zone aggregator
+}
+frame app "app zone" [blue] {
+  web1 [server]: web-01
+  api1 [api]: api-01
+  col2 [server]: Collector | zone aggregator
+}
+frame data "data zone" [purple] {
+  store pg [database]: Postgres
+  col3 [server]: Collector | zone aggregator
+}
+frame obs "observability" [green] {
+  gw [server]: OTel gateway
+  loki [file-text]: Loki
+}
+lb -> web1
+web1 -> pg
+col1 -> gw : 4317
+col2 -> gw : 4317
+col3 -> gw : 4317
+gw -> loki
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/side.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+direction down
+title "side zone"
+frame dmz "DMZ" [orange] {
+  lb [loadbalancer]: Load balancer
+  col1 [server]: Collector | zone aggregator
+}
+frame app "app zone" [blue] {
+  web1 [server]: web-01
+  api1 [api]: api-01
+  col2 [server]: Collector | zone aggregator
+}
+frame data "data zone" [purple] {
+  store pg [database]: Postgres
+  col3 [server]: Collector | zone aggregator
+}
+frame obs "observability" [green side] {
+  gw [server]: OTel gateway
+  loki [file-text]: Loki
+}
+lb -> web1
+web1 -> pg
+col1 -> gw : 4317
+col2 -> gw : 4317
+col3 -> gw : 4317
+gw -> loki
+```
+
+</details>
+<!-- /source -->
+
 When those links touch many nodes and are no part of the story at all (logs to a SIEM, a scheduler's triggers),
 take them out of the layout with a **rail**: each runs straight to a bus on the edge, and the drawing looks as
 it did before they were added. Put the rail on the side the nodes are near.
@@ -223,6 +666,53 @@ it did before they were added. Put the rail on the side the nodes are near.
 <td valign="top"><img src="images/rail.after.png" alt="The same chain with the log links running straight to a rail on the right" width="100%"></td>
 </tr>
 </table>
+
+<!-- source examples/features/rail.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+direction down
+fw1: Edge firewall
+fw2: Internal firewall
+fw3: DB firewall
+app: App servers
+db: Postgres
+siem: SIEM
+fw1 -> app
+app -> fw2
+fw2 -> fw3
+fw3 -> db
+fw1 --> siem
+fw2 --> siem
+fw3 --> siem
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/rail.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+direction down
+fw1: Edge firewall
+fw2: Internal firewall
+fw3: DB firewall
+app: App servers
+db: Postgres
+rail logs "management" [right] {
+  siem: SIEM
+}
+fw1 -> app
+app -> fw2
+fw2 -> fw3
+fw3 -> db
+fw1 --> siem
+fw2 --> siem
+fw3 --> siem
+```
+
+</details>
+<!-- /source -->
 
 ## 10. Write links in the order of the story; point the arrow with `<-`
 
@@ -241,6 +731,35 @@ that part of the drawing round. A link written against the flow loops round the 
 <tr><th align="left"><code>pg &lt;- worker</code></th></tr>
 <tr><td><img src="images/reverse.after.png" alt="The same layout, the arrow pointing into Postgres" width="610"></td></tr>
 </table>
+
+<!-- source examples/features/reverse.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+client: Client
+api: API
+pg [database]: Postgres
+worker: Worker
+client -> api -> pg
+pg -> worker : claim a job
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/reverse.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+client: Client
+api: API
+pg [database]: Postgres
+worker: Worker
+client -> api -> pg
+pg <- worker : claim a job
+```
+
+</details>
+<!-- /source -->
 
 **Result:** the same layout with the arrow the right way. The same trick keeps a loop back (“dispute won”, “no,
 PR blocked”) from turning a state machine or a pipeline round.
@@ -266,6 +785,51 @@ labels stay apart.
 </tr>
 </table>
 
+<!-- source examples/features/bus.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+title "Eight different labels"
+idp [key]: Identity provider
+a [globe]: Web
+b [smartphone]: Mobile
+c [package]: Orders
+d [credit-card]: Billing
+e [truck]: Shipping
+f [bell]: Notify
+a -> idp : login
+b -> idp : refresh
+c -> idp : validate orders
+d -> idp : validate billing
+e -> idp : validate shipping
+f -> idp : validate notify
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/bus.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+title "One label"
+idp [key]: Identity provider
+a [globe]: Web
+b [smartphone]: Mobile
+c [package]: Orders
+d [credit-card]: Billing
+e [truck]: Shipping
+f [bell]: Notify
+a -> idp : validate token
+b -> idp : validate token
+c -> idp : validate token
+d -> idp : validate token
+e -> idp : validate token
+f -> idp : validate token
+```
+
+</details>
+<!-- /source -->
+
 **Put the senders in a zone.** When five or more of them stand in one zone the node is not in, they meet a bar
 inside the zone, and only one link crosses its edge.
 
@@ -277,6 +841,63 @@ inside the zone, and only one link crosses its edge.
 </tr>
 </table>
 
+<!-- source examples/features/junction.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+title "a bar inside a zone"
+gw [arrow-right-left]: API gateway
+frame services "services" [blue] {
+  orders [package]: Orders
+  billing [credit-card]: Billing
+  shipping [truck]: Shipping
+  catalog [list]: Catalog
+  search [search]: Search
+}
+idp [key]: Identity provider
+gw -> orders
+gw -> billing
+gw -> shipping
+gw -> catalog
+gw -> search
+orders -> idp : validate token
+billing -> idp : validate token
+shipping -> idp : validate token
+catalog -> idp : validate token
+search -> idp : validate token
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/junction.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+title "a bar inside a zone"
+gw [arrow-right-left]: API gateway
+frame services "services" [blue] {
+  orders [package]: Orders
+  billing [credit-card]: Billing
+  shipping [truck]: Shipping
+  catalog [list]: Catalog
+  search [search]: Search
+}
+idp [key]: Identity provider
+gw -> orders
+gw -> billing
+gw -> shipping
+gw -> catalog
+gw -> search
+orders -> idp : validate token
+billing -> idp : validate token
+shipping -> idp : validate token
+catalog -> idp : validate token
+search -> idp : validate token
+```
+
+</details>
+<!-- /source -->
+
 **Fewer than four, written.** Tag the node `[join]` (a gate after a parallel stage, a log collector): two or three
 alike links meet a line with a dot, and one arrow reaches the node.
 
@@ -287,6 +908,51 @@ alike links meet a line with a dot, and one arrow reaches the node.
 <td valign="top"><img src="images/join.after.png" alt="The three links meet a line with a dot; one arrow reaches the gate" width="100%"></td>
 </tr>
 </table>
+
+<!-- source examples/features/join.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+title "A parallel stage"
+build [container]: Build
+column {
+  unit [flask-conical]: Unit tests
+  lint [list-checks]: Lint
+  sast [shield]: Security scan
+}
+ask gate: all green?
+build -> unit
+build -> lint
+build -> sast
+unit -> gate
+lint -> gate
+sast -> gate
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/join.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+title "A parallel stage"
+build [container]: Build
+column {
+  unit [flask-conical]: Unit tests
+  lint [list-checks]: Lint
+  sast [shield]: Security scan
+}
+ask gate [join]: all green?
+build -> unit
+build -> lint
+build -> sast
+unit -> gate
+lint -> gate
+sast -> gate
+```
+
+</details>
+<!-- /source -->
 
 **Mark the node.** When the links say no more than “uses it” and the node is not what the diagram is about
 (feature flags, a config service), `mark flagd "reads its feature flags from Flagd"` stops drawing them: each user
@@ -300,6 +966,71 @@ carry their own labels.
 <td valign="top"><img src="images/mark.after.png" alt="Each service carries a small flag icon; a legend explains it" width="100%"></td>
 </tr>
 </table>
+
+<!-- source examples/features/mark.before.trace "Trace source, before" -->
+<details><summary>Trace source, before</summary>
+
+```
+direction down
+title "every service reads the flags"
+gw [api]: API gateway
+row {
+  orders: Orders
+  payments: Payments
+  shipping: Shipping
+  catalog: Catalog
+}
+store db [database]: Orders DB
+frame shared "shared" [purple] {
+  flagd [flag]: Flagd | feature flags
+}
+gw -> orders
+gw -> catalog
+orders -> payments
+orders -> shipping
+orders -> db
+orders -> flagd
+payments -> flagd
+shipping -> flagd
+catalog -> flagd
+gw -> flagd
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/mark.after.trace "Trace source, after" -->
+<details><summary>Trace source, after</summary>
+
+```
+direction down
+title "every service reads the flags"
+gw [api]: API gateway
+row {
+  orders: Orders
+  payments: Payments
+  shipping: Shipping
+  catalog: Catalog
+}
+store db [database]: Orders DB
+frame shared "shared" [purple] {
+  flagd [flag]: Flagd | feature flags
+}
+gw -> orders
+gw -> catalog
+orders -> payments
+orders -> shipping
+orders -> db
+orders -> flagd
+payments -> flagd
+shipping -> flagd
+catalog -> flagd
+gw -> flagd
+
+mark flagd "reads its feature flags from Flagd"
+```
+
+</details>
+<!-- /source -->
 
 ## 12. Say what things are
 
@@ -357,11 +1088,145 @@ a `[side span]` zone with its three log links joined (9, 11), icons (12).
 <td valign="top"><img src="images/dmz-plain.png" alt="The DMZ diagram drawn plainly: a tall stack with the SIEM as the last tier" width="100%"></td>
 <td valign="top"><img src="images/dmz.png" alt="The DMZ diagram with bridges, spans, a side zone and icons" width="100%"></td>
 </tr>
-<tr>
-<td valign="top"><a href="../examples/cases/simple/dmz.trace">source</a></td>
-<td valign="top"><a href="../examples/cases/dmz.trace">source</a></td>
-</tr>
 </table>
+
+<!-- source examples/cases/simple/dmz.trace "Trace source, plain" -->
+<details><summary>Trace source, plain</summary>
+
+```
+direction down
+title "Three-tier network behind a DMZ"
+
+pill users: Internet users
+pill partners: Partner APIs
+frame edge "edge, provider managed" [grey] {
+  ddos: DDoS scrubbing
+  cdn: CDN + WAF | TLS termination, bot rules
+}
+frame dmz "DMZ, 10.0.1.0/24" [orange] {
+  fw1: Edge firewall | stateful, geo-block
+  lb: Load balancer pair | VRRP, health checks
+  rp: Reverse proxy | nginx, mTLS to partners
+  bastion: Bastion host | SSH via SSO only
+}
+frame app "app zone, 10.0.2.0/24" [blue] {
+  fw2: Internal firewall | allow 443, 8443 only
+  web1: web-01
+  web2: web-02
+  api1: api-01
+}
+frame data "data zone, 10.0.3.0/24" [purple] {
+  fw3: DB firewall | 5432, 6379 from app only
+  store pgp: Postgres primary
+  store pgr: Postgres replica
+  store redis: Redis | sessions, cache
+}
+
+frame mgmt "management VLAN, 10.0.9.0/24" [grey] {
+  siem: SIEM | log collection, alerts
+}
+
+users -> ddos : 443/tcp
+partners -> ddos : 443/tcp
+ddos -> cdn : 443, clean traffic
+cdn -> fw1 : 443/tcp
+fw1 -> lb : 443, 80/tcp
+fw1 -> rp : 8443 mTLS
+fw1 -> bastion [dashed] : 22/tcp, VPN only
+lb -> fw2 : 443/tcp
+rp -> fw2 : 8443/tcp
+fw2 -> web1 : 443/tcp
+fw2 -> web2 : 443/tcp
+fw2 -> api1 : 8443/tcp
+web1 -> fw3 : 5432, 6379
+web2 -> fw3 : 5432, 6379
+api1 -> fw3 : 5432, 6379
+fw3 -> pgp : 5432/tcp
+fw3 -> redis : 6379/tcp
+pgp -> pgr : 5432, streaming replication
+
+key frame [orange] : DMZ
+fw1 -> siem [dashed] : 514/udp
+fw2 -> siem [dashed] : 514/udp
+fw3 -> siem [dashed] : 514/udp
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/cases/dmz.trace "Trace source, with the rules" -->
+<details><summary>Trace source, with the rules</summary>
+
+```
+direction down
+title "Three-tier network behind a DMZ"
+
+column {
+  row {
+    pill users [user]: Internet users
+    pill partners [handshake]: Partner APIs
+  }
+  frame edge "edge, provider managed" [grey] {
+    ddos [span shield]: DDoS scrubbing
+    cdn [cloud]: CDN + WAF | TLS termination, bot rules
+  }
+}
+frame dmz "DMZ, 10.0.1.0/24" [orange] {
+  fw1 [bridge span firewall]: Edge firewall | stateful, geo-block
+  row {
+    lb [loadbalancer]: Load balancer pair | VRRP, health checks
+    rp [arrow-right-left]: Reverse proxy | nginx, mTLS to partners
+    bastion [terminal]: Bastion host | SSH via SSO only
+  }
+}
+frame app "app zone, 10.0.2.0/24" [blue] {
+  fw2 [bridge span firewall]: Internal firewall | allow 443, 8443 only
+  row "app servers" {
+    web1 [server]: web-01
+    web2 [server]: web-02
+    api1 [api]: api-01
+  }
+}
+frame data "data zone, 10.0.3.0/24" [purple] {
+  fw3 [bridge span firewall]: DB firewall | 5432, 6379 from app only
+  row {
+    store pgp [database]: Postgres primary
+    store pgr [database]: Postgres replica
+    store redis [cache]: Redis | sessions, cache
+  }
+}
+
+frame mgmt "management VLAN, 10.0.9.0/24" [grey side span] {
+  siem [join monitor]: SIEM | log collection, alerts
+}
+
+users -> ddos : 443/tcp
+partners -> ddos : 443/tcp
+ddos -> cdn : 443, clean traffic
+cdn -> fw1 : 443/tcp
+fw1 -> lb : 443, 80/tcp
+fw1 -> rp : 8443 mTLS
+fw1 -> bastion [dashed] : 22/tcp, VPN only
+lb -> fw2 : 443/tcp
+rp -> fw2 : 8443/tcp
+fw2 -> web1 : 443/tcp
+fw2 -> web2 : 443/tcp
+fw2 -> api1 : 8443/tcp
+web1 -> fw3 : 5432, 6379
+web2 -> fw3 : 5432, 6379
+api1 -> fw3 : 5432, 6379
+fw3 -> pgp : 5432/tcp
+fw3 -> redis : 6379/tcp
+pgp -> pgr : 5432, streaming replication
+
+key frame [orange] : DMZ
+key box : firewall on a zone border
+fw1 -> siem [dashed] : 514/udp
+fw2 -> siem [dashed] : 514/udp
+fw3 -> siem [dashed] : 514/udp
+```
+
+</details>
+<!-- /source -->
 
 The plain drawing is already correct: every link is clear, nothing overlaps. What the rules add is what a reader
 sees first: where the borders are, what crosses them, and what only watches.

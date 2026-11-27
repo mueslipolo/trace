@@ -7,7 +7,80 @@ Write diagrams as plain text; get them drawn like a careful hand would.
   <img src="docs/images/dmz.png" alt="A three-tier network behind a DMZ, drawn by Trace: traffic flows down through an edge zone, the DMZ, an app zone and a data zone; each firewall sits on the border it guards; a SIEM stands beside the tiers and collects their logs on one joined line." width="760">
 </picture>
 
-<sub>The 66 lines of text behind this drawing: <a href="examples/cases/dmz.trace"><code>examples/cases/dmz.trace</code></a>.</sub>
+<!-- source examples/cases/dmz.trace "The Trace source of this drawing (examples/cases/dmz.trace)" -->
+<details><summary>The Trace source of this drawing (examples/cases/dmz.trace)</summary>
+
+```
+direction down
+title "Three-tier network behind a DMZ"
+
+column {
+  row {
+    pill users [user]: Internet users
+    pill partners [handshake]: Partner APIs
+  }
+  frame edge "edge, provider managed" [grey] {
+    ddos [span shield]: DDoS scrubbing
+    cdn [cloud]: CDN + WAF | TLS termination, bot rules
+  }
+}
+frame dmz "DMZ, 10.0.1.0/24" [orange] {
+  fw1 [bridge span firewall]: Edge firewall | stateful, geo-block
+  row {
+    lb [loadbalancer]: Load balancer pair | VRRP, health checks
+    rp [arrow-right-left]: Reverse proxy | nginx, mTLS to partners
+    bastion [terminal]: Bastion host | SSH via SSO only
+  }
+}
+frame app "app zone, 10.0.2.0/24" [blue] {
+  fw2 [bridge span firewall]: Internal firewall | allow 443, 8443 only
+  row "app servers" {
+    web1 [server]: web-01
+    web2 [server]: web-02
+    api1 [api]: api-01
+  }
+}
+frame data "data zone, 10.0.3.0/24" [purple] {
+  fw3 [bridge span firewall]: DB firewall | 5432, 6379 from app only
+  row {
+    store pgp [database]: Postgres primary
+    store pgr [database]: Postgres replica
+    store redis [cache]: Redis | sessions, cache
+  }
+}
+
+frame mgmt "management VLAN, 10.0.9.0/24" [grey side span] {
+  siem [join monitor]: SIEM | log collection, alerts
+}
+
+users -> ddos : 443/tcp
+partners -> ddos : 443/tcp
+ddos -> cdn : 443, clean traffic
+cdn -> fw1 : 443/tcp
+fw1 -> lb : 443, 80/tcp
+fw1 -> rp : 8443 mTLS
+fw1 -> bastion [dashed] : 22/tcp, VPN only
+lb -> fw2 : 443/tcp
+rp -> fw2 : 8443/tcp
+fw2 -> web1 : 443/tcp
+fw2 -> web2 : 443/tcp
+fw2 -> api1 : 8443/tcp
+web1 -> fw3 : 5432, 6379
+web2 -> fw3 : 5432, 6379
+api1 -> fw3 : 5432, 6379
+fw3 -> pgp : 5432/tcp
+fw3 -> redis : 6379/tcp
+pgp -> pgr : 5432, streaming replication
+
+key frame [orange] : DMZ
+key box : firewall on a zone border
+fw1 -> siem [dashed] : 514/udp
+fw2 -> siem [dashed] : 514/udp
+fw3 -> siem [dashed] : 514/udp
+```
+
+</details>
+<!-- /source -->
 
 Trace keeps what people love in Mermaid (a diagram is code, it is easy to write, and the layout is automatic)
 and adds what it lacks to look good. Two promises:
@@ -23,6 +96,8 @@ and adds what it lacks to look good. Two promises:
 <table>
 <tr>
 <td valign="top">
+
+<!-- source examples/cases/payment.trace open -->
 
 ```
 title "Payment lifecycle"
@@ -55,6 +130,8 @@ disputed -> lost [bad] : dispute lost
 key final : terminal state
 key -> [bad] : money at risk
 ```
+
+<!-- /source -->
 
 </td>
 <td valign="top">
@@ -121,10 +198,90 @@ flowchart TD
 </td>
 </tr>
 <tr>
-<td valign="top"><a href="examples/holdout/bigbank-container.trace">source</a>: nodes, links, one frame, a few icons.</td>
-<td valign="top"><a href="examples/holdout/full/bigbank-container.trace">source</a>: the same, plus two icons, a <code>row</code> for the
+<td valign="top">Nodes, links, one frame, a few icons.
+
+<!-- source examples/holdout/bigbank-container.trace -->
+<details><summary>Trace source</summary>
+
+```
+# Adapted from C4-PlantUML, samples/C4_Container Diagram Sample - bigbankplc.puml (MIT)
+direction down
+title "Containers: Internet Banking System"
+
+pill customer [user]: Customer | personal bank accounts
+
+frame c1 "Internet Banking" [blue] {
+  web [browser]: Web Application | Java, Spring MVC
+  spa: Single-Page App | JavaScript, Angular
+  mobile [mobile]: Mobile App | C#, Xamarin
+  store database [database]: Database | SQL Database
+  api [api]: API Application | Java, Docker Container
+}
+
+engine email [mail]: E-Mail System | Microsoft Exchange
+engine banking: Mainframe Banking System | core banking information
+
+customer -> web : uses, HTTPS
+customer -> spa : uses, HTTPS
+customer -> mobile : uses
+web -> spa : delivers
+spa -> api : async, JSON/HTTPS
+mobile -> api : async, JSON/HTTPS
+api -> database : reads and writes, JDBC
+email -> customer : sends e-mails to
+api -> email : sends e-mails, SMTP
+api -> banking : sync/async, XML/HTTPS
+```
+
+</details>
+<!-- /source -->
+
+</td>
+<td valign="top">The same, plus two icons, a <code>row</code> for the
 three front ends, a <code>row</code> for the API and its database, and two links written with <code>&lt;-</code>
-so the e-mail system stands beside the customer instead of under everything.</td>
+so the e-mail system stands beside the customer instead of under everything.
+
+<!-- source examples/holdout/full/bigbank-container.trace -->
+<details><summary>Trace source</summary>
+
+```
+# Full-feature version of ../bigbank-container.trace: the same nodes, links and labels, written with Trace's layout features. Not part of the held-out measure.
+direction down
+title "Containers: Internet Banking System"
+
+row {
+  pill customer [user]: Customer | personal bank accounts
+  engine email [mail]: E-Mail System | Microsoft Exchange
+}
+frame c1 "Internet Banking" [blue] {
+  row {
+    web [browser]: Web Application | Java, Spring MVC
+    spa [app-window javascript]: Single-Page App | JavaScript, Angular
+    mobile [mobile]: Mobile App | C#, Xamarin
+  }
+  row {
+    api [api]: API Application | Java, Docker Container
+    store database [database]: Database | SQL Database
+  }
+}
+engine banking [server]: Mainframe Banking System | core banking information
+
+customer -> web : uses, HTTPS
+customer -> spa : uses, HTTPS
+customer -> mobile : uses
+web -> spa : delivers
+spa -> api : async, JSON/HTTPS
+mobile -> api : async, JSON/HTTPS
+api -> database : reads and writes, JDBC
+customer <- email : sends e-mails to
+email <- api : sends e-mails, SMTP
+api -> banking : sync/async, XML/HTTPS
+```
+
+</details>
+<!-- /source -->
+
+</td>
 </tr>
 </table>
 
@@ -166,6 +323,65 @@ as wide as what it feeds, so every rule drops on a straight line.
 </tr>
 </table>
 
+<!-- source examples/features/bridge.before.trace "Trace source, without" -->
+<details><summary>Trace source, without</summary>
+
+```
+direction down
+frame dmz "DMZ" [orange] {
+  fw1: Edge firewall
+  row {
+    lb: Load balancer
+    rp: Reverse proxy
+  }
+}
+frame app "app zone" [blue] {
+  fw2: Internal firewall
+  row {
+    web: Web servers
+    api: API servers
+  }
+}
+fw1 -> lb
+fw1 -> rp
+lb -> fw2
+rp -> fw2
+fw2 -> web
+fw2 -> api
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/bridge.after.trace "Trace source, with" -->
+<details><summary>Trace source, with</summary>
+
+```
+direction down
+frame dmz "DMZ" [orange] {
+  fw1 [bridge span firewall]: Edge firewall
+  row {
+    lb: Load balancer
+    rp: Reverse proxy
+  }
+}
+frame app "app zone" [blue] {
+  fw2 [bridge span firewall]: Internal firewall
+  row {
+    web: Web servers
+    api: API servers
+  }
+}
+fw1 -> lb
+fw1 -> rp
+lb -> fw2
+rp -> fw2
+fw2 -> web
+fw2 -> api
+```
+
+</details>
+<!-- /source -->
+
 Every hint has its before and after in [`docs/layout-guide.md`](docs/layout-guide.md): which rule it serves, why,
 and what it changes.
 
@@ -179,14 +395,109 @@ and what it changes.
   <img src="docs/images/cicd.png" alt="CI/CD pipeline with parallel checks joined before a gate, staging, and a canary release with rollback" width="100%">
 </picture>
 <br><b>CI/CD with canary releases</b>: one row per stage, three checks joined into one gate, red and green
-paths. <a href="examples/cases/cicd.trace">source</a>
+paths.
+
+<!-- source examples/cases/cicd.trace -->
+<details><summary>Trace source</summary>
+
+```
+title "CI/CD with canary releases"
+
+column {
+  row {
+    dev [user]: Developer push
+    frame ci "CI, every commit" [blue] {
+      build [span container]: Build | cached Docker layers
+      column {
+        unit [flask-conical]: Unit tests
+        lint [list-checks]: Lint + typecheck
+        sast [shield]: SAST + dependency scan
+      }
+      ask gate [join]: all green?
+    }
+  }
+  row {
+    store registry [package]: Image registry | signed with cosign
+    frame staging "staging" [green] {
+      deploy [rocket]: Deploy | Helm
+      e2e [monitor-check]: E2E + smoke tests
+    }
+    ask approve: release approved?
+  }
+  column {
+    frame prod "production" [orange] {
+      canary [bird]: Canary 5%
+      ask slo: SLOs held 30 min?
+      full [ok server]: Roll out 100%
+    }
+    rollback [bad undo-2]: Automatic rollback
+  }
+}
+
+dev -> build
+build -> unit
+build -> lint
+build -> sast
+unit -> gate
+lint -> gate
+sast -> gate
+dev <- gate [bad] : no, PR blocked
+gate -> registry [ok] : yes, push
+registry -> deploy -> e2e -> approve
+approve -> canary [ok] : yes
+canary -> slo
+slo -> full [ok] : yes
+slo -> rollback [bad] : no
+
+align registry deploy e2e approve
+align slo rollback
+```
+
+</details>
+<!-- /source -->
+
 </td>
 <td width="50%" valign="top">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/job-sequence.dark.png">
   <img src="docs/images/job-sequence.png" alt="Sequence diagram of how a job runs" width="100%">
 </picture>
-<br><b>Sequence diagram</b>: messages, notes and loops. <a href="examples/playground/job-sequence.trace">source</a>
+<br><b>Sequence diagram</b>: messages, notes and loops.
+
+<!-- source examples/playground/job-sequence.trace -->
+<details><summary>Trace source</summary>
+
+```
+sequence
+title "How a job runs"
+
+pill client [user]: Client
+api [api]: API | FastAPI
+store db [database]: Postgres
+worker [server]: Worker | polls for jobs
+
+client -> api : POST /jobs
+api -> db : insert job
+api --> client : 202 accepted, job id
+note over api, db : one transaction
+loop "every 5 s" {
+  worker -> api : claim a job
+  api -> db : lease it for 60 s
+  api --> worker : job payload
+}
+alt "success" {
+  worker -> api : report done
+  api -> api : mark succeeded
+else "failure"
+  worker -> api : report error
+  note right of api : retry with backoff
+}
+api -> client : webhook with the result
+```
+
+</details>
+<!-- /source -->
+
 </td>
 </tr>
 <tr>
@@ -196,7 +507,78 @@ paths. <a href="examples/cases/cicd.trace">source</a>
   <img src="docs/images/hybrid.png" alt="Hybrid cloud: an on-prem datacenter reaching an AWS VPC through a transit gateway" width="100%">
 </picture>
 <br><b>Hybrid cloud</b>: four levels of nested zones, subnet tiers with straight sides, a transit gateway on
-the AWS border. <a href="examples/cases/hybrid.trace">source</a>
+the AWS border.
+
+<!-- source examples/cases/hybrid.trace -->
+<details><summary>Trace source</summary>
+
+```
+title "Hybrid cloud: datacenter to AWS"
+
+frame dc "on-prem datacenter" [grey] {
+  column {
+    row {
+      ad [users]: Active Directory
+      erp [database]: ERP | Oracle
+    }
+    core [switch]: Core switch
+    dcfw [firewall]: Datacenter firewall | IPsec peer
+  }
+}
+
+column {
+  pill users [user]: Internet users
+  frame aws "AWS eu-west-1" [orange] {
+    tgw [bridge router]: Transit gateway
+    frame vpc "VPC 10.20.0.0/16" [blue] {
+     column {
+      frame pub "public subnets" [green] {
+        igw [internet]: Internet gateway
+        alb [loadbalancer]: Application load balancer
+      }
+      frame priv "private subnets" [green] {
+        row {
+          app1 [server]: app ASG | az-a
+          app2 [server]: app ASG | az-b
+        }
+        nat [arrow-right-left]: NAT gateway
+      }
+      frame dbs "database subnets" [purple] {
+        row {
+          store rds [database]: RDS primary
+          store rdss [database]: RDS standby
+        }
+      }
+     }
+    }
+  }
+}
+pill internet [internet]: Internet | egress
+
+ad -> core : 389, 636 LDAP(S)
+erp -> core : 1521/tcp
+core -> dcfw : 802.1Q trunk
+dcfw -> tgw : BGP 179, Direct Connect 10 Gb
+dcfw --> tgw : IPsec UDP 500/4500, backup
+users -> igw : 443/tcp
+igw -> alb : 443/tcp
+alb -> app1 : 8080/tcp
+alb -> app2 : 8080/tcp
+app1 -> rds : 5432/tcp
+app2 -> rds : 5432/tcp
+rds -> rdss : 5432, sync replication
+tgw <- app1 [muted] : LDAPS 636 to AD
+app1 -> nat : any/tcp
+app2 -> nat : any/tcp
+nat -> internet : 443/tcp egress
+
+same-width pub priv dbs
+same-height dc aws
+```
+
+</details>
+<!-- /source -->
+
 </td>
 </tr>
 <tr>
@@ -205,7 +587,82 @@ the AWS border. <a href="examples/cases/hybrid.trace">source</a>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/shop-model.dark.png">
   <img src="docs/images/shop-model.png" alt="Shop data model: tables with columns and crow's-foot links between rows" width="100%">
 </picture>
-<br><b>Data model</b>: tables, each link ending at the row it is about. <a href="examples/cases/shop-model.trace">source</a>
+<br><b>Data model</b>: tables, each link ending at the row it is about.
+
+<!-- source examples/cases/shop-model.trace -->
+<details><summary>Trace source</summary>
+
+```
+title "Shop data model"
+
+table customers "Customers" {
+  id uuid pk
+  email text unique
+  name text
+  created_at timestamptz
+}
+table addresses "Addresses" {
+  id uuid pk
+  customer_id uuid fk
+  street text
+  city text
+  country text
+}
+table orders "Orders" {
+  id uuid pk
+  customer_id uuid fk
+  ship_to uuid fk
+  status text
+  placed_at timestamptz
+}
+table order_items "Order items" {
+  order_id uuid pk fk
+  line int pk
+  product_id uuid fk
+  qty int
+  unit_price numeric(10,2)
+}
+table products "Products" {
+  id uuid pk
+  category_id uuid fk
+  sku text unique
+  name text
+  price numeric(10,2)
+}
+table categories "Categories" {
+  id uuid pk
+  parent_id uuid fk
+  name text
+}
+table payments "Payments" {
+  id uuid pk
+  order_id uuid fk
+  amount numeric(10,2)
+  provider_ref text unique
+}
+table reviews "Reviews" {
+  id uuid pk
+  product_id uuid fk
+  customer_id uuid fk
+  stars int
+  body text null
+}
+
+addresses.customer_id -> customers.id [n-1] : lives at
+orders.customer_id -> customers.id [n-1] : placed by
+orders.ship_to -> addresses.id [n-1] : ships to
+order_items.order_id -> orders.id [n-1] : part of
+order_items.product_id -> products.id [n-1] : is a
+products.category_id -> categories.id [n-1] : filed under
+categories.parent_id -> categories.id [0n-01] : child of
+payments.order_id -> orders.id [n-1] : pays for
+reviews.product_id -> products.id [n-1] : about
+reviews.customer_id -> customers.id [n-1] : written by
+```
+
+</details>
+<!-- /source -->
+
 </td>
 </tr>
 <tr>
@@ -214,7 +671,59 @@ the AWS border. <a href="examples/cases/hybrid.trace">source</a>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/orgchart.dark.png">
   <img src="docs/images/orgchart.png" alt="Engineering organisation chart" width="100%">
 </picture>
-<br><b>Org chart</b>: the <code>tree</code> line centres each parent over its children. <a href="examples/cases/orgchart.trace">source</a>
+<br><b>Org chart</b>: the <code>tree</code> line centres each parent over its children.
+
+<!-- source examples/cases/orgchart.trace -->
+<details><summary>Trace source</summary>
+
+```
+direction down
+tree
+title "Engineering organisation"
+
+ceo [user]: CEO | Mira Okafor
+cto [user]: CTO | Jonas Weber
+cfo [user]: CFO | Lena Duarte
+coo [user]: COO | Samir Haddad
+
+platform [users]: Platform | 14 people
+product [users]: Product | 22 people
+data [users]: Data | 9 people
+security [shield]: Security | 6 people
+finance [users]: Finance | 8 people
+legal [users]: Legal | 4 people
+support [users]: Support | 18 people
+ops [users]: Operations | 11 people
+
+infra [server]: Infrastructure
+dev [code]: Developer experience
+web [globe]: Web
+mobile [smartphone]: Mobile
+ml [brain]: Machine learning
+bi [chart-bar]: Analytics
+
+ceo -> cto
+ceo -> cfo
+ceo -> coo
+cto -> platform
+cto -> product
+cto -> data
+cto -> security
+cfo -> finance
+cfo -> legal
+coo -> support
+coo -> ops
+platform -> infra
+platform -> dev
+product -> web
+product -> mobile
+data -> ml
+data -> bi
+```
+
+</details>
+<!-- /source -->
+
 </td>
 </tr>
 </table>
