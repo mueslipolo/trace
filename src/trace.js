@@ -671,6 +671,9 @@ function desugarSides(model) {
 
 const FONT_NAME = '600 13px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 const FONT_NOTE = '400 11px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+// notes are read at the size of a drawing scaled to a page: the list under the drawing at a node name's size
+const FONT_NOTE_LIST = '400 14px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+const FONT_NOTE_MARGIN = '400 12px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 const FONT_TITLE = '600 11.5px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 const FONT_HEAD = '700 16px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 const FONT_CAP = '400 12px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
@@ -690,9 +693,9 @@ function layoutNotes(model, rm, measure) {
     if (!a.target) return null;
     if (a.target.id) {
       const n = rm.nodes.find(q => q.id === a.target.id && q.x !== undefined);
-      if (n) return { x: n.x + n.w, y: n.y + n.h / 2, nx: n.x + n.w, ny: n.y };
+      if (n) return { x: n.x + n.w, y: n.y + n.h / 2, nx: n.x + n.w, ny: n.y, box: { x: n.x, y: n.y, w: n.w, h: n.h, r: 8 } };
       const f = rm.frames.find(b => b.f.id === a.target.id);
-      return f ? { x: f.x + f.w, y: f.y + 16, nx: f.x + f.w, ny: f.y } : null;
+      return f ? { x: f.x + f.w, y: f.y + 16, nx: f.x + f.w, ny: f.y, box: { x: f.x, y: f.y, w: f.w, h: f.h, r: 11 } } : null;
     }
     const [p, q] = a.target.link;
     const r = rm.edges.find(r => r.pts && r.pts.length > 1 && ((r.e.a === p && r.e.b === q) || (r.e.a === q && r.e.b === p)));
@@ -704,10 +707,10 @@ function layoutNotes(model, rm, measure) {
     }
     return { x: best.x, y: best.y, nx: best.x, ny: best.y };
   };
-  const items = list.map(a => ({ a, anchor: anchorOf(a), lines: wrap(a.text, FONT_NOTE, CW - 8, measure) }));
-  const fits = items.every(it => it.lines.length <= 4) && items.reduce((t, it) => t + it.lines.length * 14 + 12, 0) <= rm.height + 40;
+  const items = list.map(a => ({ a, anchor: anchorOf(a), lines: wrap(a.text, FONT_NOTE_MARGIN, CW - 8, measure) }));
+  const fits = items.every(it => it.lines.length <= 4) && items.reduce((t, it) => t + it.lines.length * 16 + 12, 0) <= rm.height + 40;
   const style = model.noteStyle === 'auto' ? (fits ? 'margin' : 'numbered') : model.noteStyle;
-  if (style === 'numbered') for (const it of items) it.lines = wrap(it.a.text, FONT_NOTE, Math.max(320, rm.width - 64), measure);
+  if (style === 'numbered') for (const it of items) it.lines = wrap(it.a.text, FONT_NOTE_LIST, Math.max(320, rm.width - 72), measure);
   // numbered in reading order: top to bottom, then left to right; notes about the whole diagram first, unnumbered
   let k = 0;
   const order = [...items].sort((u, v) => (u.anchor ? 1 : 0) - (v.anchor ? 1 : 0) || (u.anchor && v.anchor ? u.anchor.ny - v.anchor.ny || u.anchor.nx - v.anchor.nx : 0));
@@ -4652,8 +4655,15 @@ function diagramCSS(p, scope) {
     `${s}.box.ok{stroke:${p.ok};stroke-width:1.6}${s}.box.bad{stroke:${p.bad};stroke-width:1.6}` +
     `${s}.box.muted{stroke:${p.soft}}${s}.dashed{stroke-dasharray:4 3}` +
     `${s}.dot{fill:${p.line}}` +
-    `${s}.ntext{fill:${p.muted};font-size:11px;font-style:italic}${s}.nline{fill:none;stroke:${p.soft};stroke-width:0.8}${s}.npin{fill:${p.soft}}` +
-    `${s}.nnum{fill:${p.line}}${s}.nnumt{fill:${p.panel};font-size:9px;font-weight:700}${s}.nnumlist{fill:${p.fg};font-size:11px;font-weight:700}${s}.ntextlist{fill:${p.muted};font-size:11px}${s}.nrule{stroke:${p.soft};stroke-width:0.6;opacity:.6}` +
+    `${s}.ntext{fill:${p.muted};font-size:12px;font-style:italic}${s}.nline{fill:none;stroke:${p.soft};stroke-width:0.8}${s}.npin{fill:${p.soft}}` +
+    `${s}.nnum{fill:${p.line}}${s}.nnumt{fill:${p.panel};font-size:9px;font-weight:700}${s}.nnumlist{fill:${p.fg};font-size:14px;font-weight:700}${s}.ntextlist{fill:${p.fg};font-size:14px}${s}.nrule{stroke:${p.soft};stroke-width:0.6;opacity:.6}` +
+    `${s}.nhalo{fill:none;stroke:${p.fg};stroke-width:1.5;stroke-dasharray:3 3;opacity:0;transition:opacity .2s}` +
+    `${s}.nlinehi{fill:none;stroke:${p.fg};stroke-width:1.2;opacity:0;transition:opacity .2s}` +
+    `${s}.npin,${s}.nnumg,${s}.ntext,${s}.ntextlist,${s}.nnumlist{transform-box:fill-box;transition:transform .2s,fill .2s}${s}.npin,${s}.nnumg{transform-origin:center}${s}.ntext,${s}.ntextlist,${s}.nnumlist{transform-origin:left center}` +
+    `${s}.nnote:hover .nhalo,${s}.nnote:focus .nhalo{opacity:.6}${s}.nnote:hover .nlinehi,${s}.nnote:focus .nlinehi{opacity:.8}` +
+    `${s}.nnote:hover .npin,${s}.nnote:focus .npin{transform:scale(2)}${s}.nnote:hover .nnumg,${s}.nnote:focus .nnumg{transform:scale(1.35)}` +
+    `${s}.nnote:hover .ntext{fill:${p.fg}}` +
+    `@media (prefers-reduced-motion:reduce){${s}.nnote *{transition:none}}` +
     `${s}.card{fill:none;stroke:${p.line};stroke-width:1.2}${s}.cardo{fill:${p.panel};stroke:${p.line};stroke-width:1.2}` +
     `${s}.thead{fill:${p.engine}}${s}.tsep{fill:none;stroke:${p.soft};stroke-width:1}${s}.tframe{fill:none;stroke:${p.line};stroke-width:1.2}` +
     `${s}.tframe.ok{stroke:${p.ok};stroke-width:1.6}${s}.tframe.bad{stroke:${p.bad};stroke-width:1.6}${s}.tframe.muted{stroke:${p.soft}}` +
@@ -5116,6 +5126,11 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
   // they pass behind the boxes
   const ann = rm.annot;
   const noteTop = [];
+  // everything that belongs to one note goes in one group (drawn last): hovering or focusing any part of it outlines
+  // its subject, enlarges its pin or number and brings its text forward (standalone SVGs and pages)
+  const parts = new Map();
+  const part = it => { if (!parts.has(it)) parts.set(it, []); return parts.get(it); };
+  const halo = it => it.anchor && it.anchor.box ? `<rect class="nhalo" x="${r1(it.anchor.box.x - 4)}" y="${r1(it.anchor.box.y - 4)}" width="${r1(it.anchor.box.w + 8)}" height="${r1(it.anchor.box.h + 8)}" rx="${it.anchor.box.r}"/>` : '';
   if (ann && ann.style === 'margin') {
     // each note beside its subject, in the first free room to its right at its height (the drawing's right edge
     // at worst); notes keep 12px apart from each other
@@ -5131,7 +5146,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     };
     const placed = [];
     for (const it of ann.items) {
-      const h = it.lines.length * 14, a = it.anchor;
+      const h = it.lines.length * 16, a = it.anchor;
       let top = a ? a.y - 9 : 8;
       const from = a ? a.x : Math.ceil(rm.width);
       let x0;
@@ -5142,7 +5157,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
         top = clash.bottom + 12;
       }
       placed.push({ x0, top, bottom: top + h });
-      it.lines.forEach((l, i) => noteTop.push(`<text class="ntext" x="${x0}" y="${r1(top + 11 + i * 14)}">${esc(l)}</text>`));
+      part(it).push(halo(it), ...it.lines.map((l, i) => `<text class="ntext" x="${x0}" y="${r1(top + 12 + i * 16)}">${esc(l)}</text>`));
       if (a) {
         const ty = top + 7, xm = x0 - 10;
         // straight across to the note, unless that passes behind another box: then down below the drawing first
@@ -5152,13 +5167,13 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
           ? `M${r1(a.x)} ${r1(a.y + 2)} V${r1(rm.height - 6)} H${r1(xm)} V${r1(ty)} H${r1(x0 - 3)}`
           : `M${r1(a.x + 2)} ${r1(a.y)} H${r1(xm)}${Math.abs(ty - a.y) > 0.5 ? ` V${r1(ty)}` : ''} H${r1(x0 - 3)}`;
         body.push(`<path class="nline" d="${d}"/>`);
-        noteTop.push(`<circle class="npin" cx="${r1(a.x)}" cy="${r1(a.y)}" r="2.2"/>`);
+        part(it).push(`<path class="nlinehi" d="${d}"/>`, `<circle class="npin" cx="${r1(a.x)}" cy="${r1(a.y)}" r="2.2"/>`);
       }
-      W = Math.max(W, x0 + Math.max(...it.lines.map(l => l.length * 6)) + 16);
+      W = Math.max(W, x0 + Math.max(...it.lines.map(l => l.length * 6.6)) + 16);
       H = Math.max(H, Math.ceil(top + h) + 16);
     }
   } else if (ann) {
-    for (const it of ann.items) if (it.anchor) noteTop.push(`<circle class="nnum" cx="${r1(it.anchor.nx)}" cy="${r1(it.anchor.ny)}" r="7"/><text class="nnumt" x="${r1(it.anchor.nx)}" y="${r1(it.anchor.ny + 3.2)}" text-anchor="middle">${it.n}</text>`);
+    for (const it of ann.items) if (it.anchor) part(it).push(halo(it), `<g class="nnumg"><circle class="nnum" cx="${r1(it.anchor.nx)}" cy="${r1(it.anchor.ny)}" r="7"/><text class="nnumt" x="${r1(it.anchor.nx)}" y="${r1(it.anchor.ny + 3.2)}" text-anchor="middle">${it.n}</text></g>`);
   }
   const labels = [];
   // where two links cross, the horizontal one hops over the vertical one with a small arc, so a crossing never
@@ -5263,12 +5278,13 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     body.push(`<path class="nrule" d="M16 ${r1(y)} H${r1(Math.max(W, 340) - 16)}"/>`);
     y += 8;
     for (const it of ann.items) {
-      if (it.n) body.push(`<text class="nnumlist" x="16" y="${r1(y + 11)}">${it.n}</text>`);
-      it.lines.forEach((l, i) => body.push(`<text class="ntextlist" x="${it.n ? 32 : 16}" y="${r1(y + 11 + i * 14)}">${esc(l)}</text>`));
-      y += it.lines.length * 14 + 6;
+      if (it.n) part(it).push(`<text class="nnumlist" x="16" y="${r1(y + 14)}">${it.n}</text>`);
+      part(it).push(...it.lines.map((l, i) => `<text class="ntextlist" x="${it.n ? 38 : 16}" y="${r1(y + 14 + i * 20)}">${esc(l)}</text>`));
+      y += it.lines.length * 20 + 6;
     }
     H = y + 8;
   }
+  for (const [, ps] of parts) body.push(`<g class="nnote">${ps.join('')}</g>`);
   const defs = ['a:head', 'ok:head-ok', 'bad:head-bad', 'mu:head-muted'].map(s => {
     const [id, c] = s.split(':');
     // a head for the end and one for the start, each with plain orient="auto": not every renderer knows

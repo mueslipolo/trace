@@ -1288,6 +1288,7 @@ test('notes: in the margin when short, numbered when asked, never moving the dra
   assert.strictEqual(pos(margin), pos(plain), 'the layout is the same with notes');
   assert.strictEqual(margin.rm.annot.style, 'margin');
   assert.ok(margin.svg.includes('>read replica planned<') && margin.svg.includes('class="nline"'));
+  assert.ok((margin.svg.match(/class="nnote"/g) || []).length === 4, 'each note is one group, for the hover effect');
   const numbered = await compile(base + notes + '\nnotes numbered', measure, ELK, {});
   assert.strictEqual(numbered.rm.annot.style, 'numbered');
   assert.strictEqual(numbered.rm.annot.items.filter(it => it.n).length, 3, 'three numbered, the whole-diagram note unnumbered');
