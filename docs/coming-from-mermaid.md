@@ -49,6 +49,7 @@ app -> db : orders
 | `A([Label])`, `A[(Label)]`, `A{Label}` | `pill a: Label`, `store a: Label`, `ask a: Label?` (kinds say what a node is) |
 | `A --> B`, `A -.-> B`, `A --- B`, `A <--> B` | `a -> b`, `a --> b`, `a -- b`, `a <-> b` |
 | `A -->\|label\| B` | `a -> b : label` |
+| `A ==> B` (thick), `A --x B` (cross end) | `a ==> b`, `a -x b` (in Trace two dashes mean dashed: `a --x b` is a dashed refused link) |
 | `subgraph x [Title] … end` | `frame x "Title" { … }` |
 | `classDef`, `style`, `linkStyle` | tags that mean something: `[ok]`, `[bad]`, `[dashed]`, `[muted]`, zone colours |
 | `%% comment` | `# comment` |

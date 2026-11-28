@@ -1073,3 +1073,15 @@ test('a dot in a name is kept for table columns: any other dotted name is an err
   const t = parse('table orders {\n  id uuid pk\n}\nx -> orders.id');
   assert.deepStrictEqual(t.errors, [], 'a table column still works');
 });
+
+test('link styles: ==> is the main path (thicker), -x and --x are refused (a cross at the target), only with spaces round them', async () => {
+  const m = parse('a: A\nb: B\napp-xray: X\na ==> b : 443/tcp\nb -x a\nb --x app-xray [bad]\napp-xray -> a');
+  assert.deepStrictEqual(m.errors, []);
+  const tags = m.edges.map(e => [e.a, e.b, e.tags.join(' '), e.dashed]);
+  assert.deepStrictEqual(tags, [['a', 'b', 'main', false], ['b', 'a', 'refused', false], ['b', 'app-xray', 'bad refused', true], ['app-xray', 'a', '', false]]);
+  assert.strictEqual(m.edges[0].label, '443/tcp');
+  const res = await compile('a: A\nb: B\nc: C\na ==> b\nb -x c [bad]', measure, ELK, {});
+  assert.match(res.svg, /class="arrow main"[^>]*marker-end="url\(#[^)]*aM\)"/, 'a main link is thick, with a head of its own size');
+  assert.match(res.svg, /class="arrow bad"[^>]*marker-end="url\(#[^)]*badX\)"/, 'a refused link ends in a cross of its colour');
+  assert.match(res.svg, /<marker id="[^"]*badX"[^>]*><path d="M5 1 L13 9 M13 1 L5 9" class="xm head-bad"/);
+});

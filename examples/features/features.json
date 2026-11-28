@@ -73,14 +73,14 @@
     "id": "links",
     "title": "Link styles",
     "group": "Links",
-    "does": "Labels after a colon; `-->` dashed, `<->` both ways, `--` no arrowhead; tags `ok`, `bad`, `muted`, `dashed`.",
+    "does": "Labels after a colon; `-->` dashed, `<->` both ways, `--` no arrowhead, `==>` the main path (thicker), `-x` refused (a cross at the target); tags `ok`, `bad`, `muted`, `dashed`, `main`, `refused`.",
     "effect": "Labels take room in the layout (they sit beside the link and push things apart). The style of a link never changes where things go.",
     "beforeLabel": "Without",
     "afterLabel": "With",
     "beforeOff": [],
     "afterOff": [],
-    "syntax": "a -> b : 443/tcp\na --> b          # dashed\na <-> b          # both ways\na -> b [bad]     # red",
-    "use": "On every network link: ports and protocols cost nothing and make the diagram worth reading.",
+    "syntax": "a -> b : 443/tcp\na --> b          # dashed\na <-> b          # both ways\na ==> b          # main path, thicker\na -x b           # refused: a cross, no arrowhead\na -> b [bad]     # red",
+    "use": "On every network link: ports and protocols cost nothing and make the diagram worth reading. `==>` for the one path the reader should follow first; `-x` for traffic a firewall drops.",
     "wide": false
   },
   {

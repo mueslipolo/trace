@@ -152,13 +152,17 @@ a -> b -> c            # chains; a label applies to every link of the chain
 | `<--` | dashed version of `<-` |
 | `<->` | arrowheads at both ends |
 | `--` | no arrowhead |
+| `==>` | the main path: a thicker arrow (same as `-> [main]`) |
+| `-x`, `--x` | refused: a cross at the target instead of an arrowhead, solid or dashed (same as `-> [refused]`) |
 
 You can write a link either way round: when a link points back against the order you declared the
 nodes in, the layout treats it as a feedback link and keeps the main flow straight. `<-` is for when
 you want to say so yourself, and is the main layout tool: `pg <- worker` keeps the worker on the far side of Postgres while the
 arrow points at Postgres; `fw <- proxy` sends traffic back up without the layout turning around.
 
-Link tags: `ok`, `bad`, `muted` (colour), `dashed`, and `gather` (the tagged links into one node meet one line, from two up).
+Link tags: `ok`, `bad`, `muted` (colour), `dashed`, `main` (thicker: the path to follow first), `refused` (a cross
+at the target: traffic that is dropped), and `gather` (the tagged links into one node meet one line, from two up).
+`==>` and `-x` count only with spaces around them, so a name such as `app-xray` stays a name.
 
 Where the label goes: the engine puts it beside the link where it crosses nothing. A tag can ask for a place:
 `[label-start]` (just past the source, on the first stretch), `[label-end]` (just before the target, on the last),

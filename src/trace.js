@@ -3,7 +3,7 @@
 
 const KINDS = new Set(['box', 'store', 'engine', 'state', 'pill', 'ask', 'start', 'final', 'end']);
 const NODE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'span', 'bridge', 'gather', 'join']);   // join: the older name of gather
-const EDGE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'gather', 'label-start', 'label-end', 'label-above', 'label-below', 'label-left', 'label-right']);
+const EDGE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'gather', 'main', 'refused', 'label-start', 'label-end', 'label-above', 'label-below', 'label-left', 'label-right']);
 const CARD_RE = /^(1|n|01|0n)-(1|n|01|0n)$/;
 // the tags a link accepts: the fixed ones, and a cardinality for its two ends (n-1, 1-1, 0n-1, n-01 ...)
 const EDGE_TAG_SET = {
@@ -157,6 +157,21 @@ function firstColon(s) {
     else if (s[i] === ':' && !q) return i;
   }
   return -1;
+}
+
+// Mermaid's thick link and cross end, written as Mermaid writes them (with spaces round them, so a name such as
+// app-xray stays a name): a ==> b is a -> b [main], a -x b and a --x b are a -> b [refused] and a --> b [refused]
+function mermaidArrows(line) {
+  const c = line.indexOf(':');
+  const lhs = c < 0 ? line : line.slice(0, c), rest = c < 0 ? '' : line.slice(c);
+  const add = [];
+  let L = lhs.replace(/(\s)==>(\s)/g, (m, a, b) => { add.push('main'); return a + '->' + b; })
+    .replace(/(\s)--x(\s)/g, (m, a, b) => { add.push('refused'); return a + '-->' + b; })
+    .replace(/(\s)-x(\s)/g, (m, a, b) => { add.push('refused'); return a + '->' + b; });
+  if (!add.length) return line;
+  const tags = [...new Set(add)].join(' ');
+  L = /\]\s*$/.test(L) ? L.replace(/\]\s*$/, ' ' + tags + ']') : L.trimEnd() + ' [' + tags + ']';
+  return L + (rest ? ' ' + rest : '');
 }
 
 function unquote(s) {
@@ -542,7 +557,7 @@ function parse(src) {
 
   const lines = src.split('\n');
   lines.forEach((raw, i) => {
-    const line = stripComment(raw).trim();
+    const line = mermaidArrows(stripComment(raw).trim());
     if (!line) return;
     try { handle(line, i + 1); }
     catch (e) {
@@ -4696,7 +4711,8 @@ function diagramCSS(p, scope) {
     `${s}.logo{fill:${p.line};stroke:none}${s}.logo-soft{fill:${p.muted};stroke:none}` +
     `${s}.mki{fill:none;stroke:${p.muted};stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}` +
     `${s}.zone{stroke-width:1}${z}${s}.zground{stroke:none}` +
-    `${s}.arrow{fill:none;stroke:${p.line};stroke-width:1.2}${s}.arrow.ok{stroke:${p.ok}}${s}.arrow.bad{stroke:${p.bad}}${s}.arrow.muted{stroke:${p.soft}}` +
+    `${s}.arrow{fill:none;stroke:${p.line};stroke-width:1.2}${s}.arrow.ok{stroke:${p.ok}}${s}.arrow.bad{stroke:${p.bad}}${s}.arrow.muted{stroke:${p.soft}}${s}.arrow.main{stroke-width:2.4}` +
+    `${s}.xm{fill:none;stroke:${p.line};stroke-width:1.6;stroke-linecap:round}${s}.xm.head-ok{stroke:${p.ok}}${s}.xm.head-bad{stroke:${p.bad}}${s}.xm.head-muted{stroke:${p.soft}}` +
     `${s}.head{fill:${p.line}}${s}.head-ok{fill:${p.ok}}${s}.head-bad{fill:${p.bad}}${s}.head-muted{fill:${p.soft}}`;
 }
 
@@ -4855,11 +4871,11 @@ function cardinalitySVG(P, Q, kind) {
 }
 
 function headId(e, pfx) {
-  if (e.tags.includes('bad')) return pfx + 'bad';
-  if (e.tags.includes('ok')) return pfx + 'ok';
-  if (e.tags.includes('muted')) return pfx + 'mu';
-  return pfx + 'a';
+  const c = e.tags.includes('bad') ? 'bad' : e.tags.includes('ok') ? 'ok' : e.tags.includes('muted') ? 'mu' : 'a';
+  return pfx + c + (e.tags.includes('main') ? 'M' : '');
 }
+// the marker at a link's target end: its arrowhead, or the cross of a refused link
+const endId = (e, pfx) => e.tags.includes('refused') ? headId(e, pfx).replace(/M?$/, 'X') : headId(e, pfx);
 
 // The title, the caption (wrapped to the drawing's width) and the title block, measured once for the renderer.
 function measureHead(model, rm, measure) {
@@ -5225,12 +5241,13 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
   for (const r of rm.edges) {
     const { e, pts, lab } = r;
     const cls = ['arrow'];
-    for (const t of ['ok', 'bad', 'muted']) if (e.tags.includes(t)) cls.push(t);
+    for (const t of ['ok', 'bad', 'muted', 'main']) if (e.tags.includes(t)) cls.push(t);
     if (e.dashed) cls.push('dashed');
     const card = (e.tags || []).map(t => CARD_RE.exec(t)).find(Boolean);
     // a link with cardinalities has its ends drawn as crow's feet, bars and circles instead of arrowheads
-    const hp = card ? pts : shorten(pts, e.start, e.end);
-    const mk = card ? '' : (e.end ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.start ? ` marker-start="url(#${headId(e, pfx)}s)"` : '');
+    const hp = card ? pts : shorten(pts, e.start, e.end && !e.tags.includes('refused'));
+    const xEnd = e.tags.includes('refused');
+    const mk = card ? '' : (e.end || xEnd ? ` marker-end="url(#${endId(e, pfx)})"` : '') + (e.start ? ` marker-start="url(#${headId(e, pfx)}s)"` : '');
     // the links of a dashed bus share their trunk and stretches of the bus line: each is drawn from the hub out, so
     // the dashes on the shared stretches fall in the same places (drawn from their own ends, the gaps of one
     // would be filled by the dashes of another, and the trunk would look solid)
@@ -5238,7 +5255,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     const z = hp[hp.length - 1];
     if (hub && z.x >= hub.x - 3 && z.x <= hub.x + hub.w + 3 && z.y >= hub.y - 3 && z.y <= hub.y + hub.h + 3) {
       const hops = hopsFor(r);
-      const rmk = (e.start ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.end ? ` marker-start="url(#${headId(e, pfx)}s)"` : '');
+      const rmk = (e.start ? ` marker-end="url(#${headId(e, pfx)})"` : '') + (e.end || xEnd ? ` marker-start="url(#${endId(e, pfx)}${xEnd ? '' : 's'})"` : '');
       body.push(`<path class="${cls.join(' ')}" d="${roundPath([...hp].reverse(), 7, hops && hops.map(h => [...h].reverse()).reverse(), rm.joins)}"${rmk}/>`);
     } else
     body.push(`<path class="${cls.join(' ')}" d="${roundPath(hp, 7, hopsFor(r), r.merged ? rm.joins : null)}"${mk}/>`);
@@ -5309,12 +5326,19 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     H = y + 8;
   }
   for (const [, ps] of parts) body.push(`<g class="nnote">${ps.join('')}</g>`);
+  const uses = t => rm.edges.some(r => r.e.tags.includes(t)) || model.keys.some(k => k.tags.includes(t));
+  const usesMain = uses('main'), usesX = uses('refused');
   const defs = ['a:head', 'ok:head-ok', 'bad:head-bad', 'mu:head-muted'].map(s => {
     const [id, c] = s.split(':');
     // a head for the end and one for the start, each with plain orient="auto": not every renderer knows
     // auto-start-reverse (resvg, used for the PNGs, does not)
     return `<marker id="${pfx}${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" class="${c}"/></marker>` +
-      `<marker id="${pfx}${id}s" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0 L0 5 L10 10 Z" class="${c}"/></marker>`;
+      `<marker id="${pfx}${id}s" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0 L0 5 L10 10 Z" class="${c}"/></marker>` +
+      // a main link's heads, sized in pixels: scaled with its thicker stroke they would be twice the size
+      (!usesMain ? '' : `<marker id="${pfx}${id}M" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L10 5 L0 10 Z" class="${c}"/></marker>` +
+      `<marker id="${pfx}${id}Ms" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto"><path d="M10 0 L0 5 L10 10 Z" class="${c}"/></marker>`) +
+      // the cross of a refused link, a few pixels short of the box (symmetric, so one marker serves both ends)
+      (!usesX ? '' : `<marker id="${pfx}${id}X" viewBox="0 0 20 10" refX="19" refY="5" markerWidth="20" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M5 1 L13 9 M13 1 L5 9" class="xm ${c}"/></marker>`);
   }).join('');
   // the title and caption above the drawing, the title block at the bottom right
   const head = rm.head || { title: null, caption: [], cart: null };
@@ -5364,10 +5388,10 @@ function keySVG(k, x, y, pfx) {
   const out = [];
   const t = k.tags;
   if (k.shape === '->' || k.shape === '-->' || k.shape === '--') {
-    const cls = ['arrow', ...t.filter(v => ['ok', 'bad', 'muted'].includes(v))];
+    const cls = ['arrow', ...t.filter(v => ['ok', 'bad', 'muted', 'main'].includes(v))];
     if (k.shape === '-->' || t.includes('dashed')) cls.push('dashed');
     const e = { tags: t };
-    out.push(`<path class="${cls.join(' ')}" d="M${x} ${y + 10} L${x + 32} ${y + 10}"${k.shape === '--' ? '' : ` marker-end="url(#${headId(e, pfx)})"`}/>`);
+    out.push(`<path class="${cls.join(' ')}" d="M${x} ${y + 10} L${x + 32} ${y + 10}"${k.shape === '--' && !t.includes('refused') ? '' : ` marker-end="url(#${endId(e, pfx)})"`}/>`);
   } else if (k.shape === 'frame') {
     const color = t.find(v => PALETTE.light.zones[v]) || 'green';
     out.push(`<rect class="zone zone-${color}${t.includes('dashed') ? ' dashed' : ''}" x="${x}" y="${y + 1}" width="34" height="18" rx="5"/>`);

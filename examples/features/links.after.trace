@@ -3,8 +3,8 @@ b: API
 c: Cache
 d: Queue
 e: Worker
-a -> b : HTTPS 443
-b <-> c : 6379, read through
+a ==> b : 443/tcp
+b <-> c : 6379/tcp, read through
 b --> d : enqueue [dashed]
 d -> e : consume [ok]
-e -> b [bad] : callback failed
+e -x b [bad] : callback refused
