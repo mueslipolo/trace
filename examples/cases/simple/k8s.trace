@@ -27,16 +27,16 @@ engine stripe: Stripe API
 engine smtp: SMTP relay
 
 client -> clb : 443/tcp
-clb -> ingress : 443, NodePort 30443
+clb -> ingress : 443/tcp, NodePort 30443/tcp
 ingress -> svcweb : / 8080/tcp
 ingress -> svccart : /cart 8080/tcp
 ingress -> svccat : /api/catalog 8080/tcp
-svcweb -> podweb : 8080 mTLS
-svccart -> podcart : 8080 mTLS
-svccat -> podcat : 8080 mTLS
+svcweb -> podweb : 8080/tcp, mTLS
+svccart -> podcart : 8080/tcp, mTLS
+svccat -> podcat : 8080/tcp, mTLS
 podcart -> redis : 6379/tcp
 podcat -> pg : 5432/tcp
-podcart -> egw [dashed] : 15443 mesh egress
+podcart -> egw [dashed] : 15443/tcp, mesh egress
 egw -> stripe : 443/tcp only
 egw -> smtp : 587/tcp STARTTLS
 

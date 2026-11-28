@@ -20,7 +20,7 @@ frame dmz "DMZ, 10.0.1.0/24" [orange] {
   }
 }
 frame app "app zone, 10.0.2.0/24" [blue] {
-  fw2 [bridge span firewall]: Internal firewall | allow 443, 8443 only
+  fw2 [bridge span firewall]: Internal firewall | allow 443/tcp, 8443/tcp only
   row "app servers" {
     web1 [server]: web-01
     web2 [server]: web-02
@@ -28,7 +28,7 @@ frame app "app zone, 10.0.2.0/24" [blue] {
   }
 }
 frame data "data zone, 10.0.3.0/24" [purple] {
-  fw3 [bridge span firewall]: DB firewall | 5432, 6379 from app only
+  fw3 [bridge span firewall]: DB firewall | 5432/tcp, 6379/tcp from app only
   row {
     store pgp [database]: Postgres primary
     store pgr [database]: Postgres replica
@@ -42,22 +42,22 @@ frame mgmt "management VLAN, 10.0.9.0/24" [grey side span] {
 
 users -> ddos : 443/tcp
 partners -> ddos : 443/tcp
-ddos -> cdn : 443, clean traffic
+ddos -> cdn : 443/tcp, clean traffic
 cdn -> fw1 : 443/tcp
-fw1 -> lb : 443, 80/tcp
-fw1 -> rp : 8443 mTLS
+fw1 -> lb : 443/tcp, 80/tcp
+fw1 -> rp : 8443/tcp, mTLS
 fw1 -> bastion [dashed] : 22/tcp, VPN only
 lb -> fw2 : 443/tcp
 rp -> fw2 : 8443/tcp
 fw2 -> web1 : 443/tcp
 fw2 -> web2 : 443/tcp
 fw2 -> api1 : 8443/tcp
-web1 -> fw3 : 5432, 6379
-web2 -> fw3 : 5432, 6379
-api1 -> fw3 : 5432, 6379
+web1 -> fw3 : 5432/tcp, 6379/tcp
+web2 -> fw3 : 5432/tcp, 6379/tcp
+api1 -> fw3 : 5432/tcp, 6379/tcp
 fw3 -> pgp : 5432/tcp
 fw3 -> redis : 6379/tcp
-pgp -> pgr : 5432, streaming replication
+pgp -> pgr : 5432/tcp, streaming replication
 
 key frame [orange] : DMZ
 key box : firewall on a zone border

@@ -40,19 +40,19 @@ column {
 }
 pill internet [internet]: Internet | egress
 
-ad -> core : 389, 636 LDAP(S)
+ad -> core : 389/tcp, 636/tcp LDAP(S)
 erp -> core : 1521/tcp
 core -> dcfw : 802.1Q trunk
-dcfw -> tgw : BGP 179, Direct Connect 10 Gb
-dcfw --> tgw : IPsec UDP 500/4500, backup
+dcfw -> tgw : BGP 179/tcp, Direct Connect 10 Gb
+dcfw --> tgw : IPsec 500/udp, 4500/udp, backup
 users -> igw : 443/tcp
 igw -> alb : 443/tcp
 alb -> app1 : 8080/tcp
 alb -> app2 : 8080/tcp
 app1 -> rds : 5432/tcp
 app2 -> rds : 5432/tcp
-rds -> rdss : 5432, sync replication
-tgw <- app1 [muted] : LDAPS 636 to AD
+rds -> rdss : 5432/tcp, sync replication
+tgw <- app1 [muted] : LDAPS 636/tcp to AD
 app1 -> nat : any/tcp
 app2 -> nat : any/tcp
 nat -> internet : 443/tcp egress

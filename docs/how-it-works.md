@@ -239,7 +239,7 @@ A side zone slides back beside the zones level with it, whatever sticks out else
 </tr>
 </table>
 
-<sub>From [Everything Trace draws, in one picture](#examples-playground-everything-trace), the clearest case among the diagrams in `examples/`.</sub>
+<sub>From [Zero trust and security operations](#examples-holdout-security-operations-trace), the clearest case among the diagrams in `examples/`.</sub>
 
 </details>
 
@@ -320,7 +320,7 @@ A link that zigzags more than it needs takes the shorter route.
 </tr>
 </table>
 
-<sub>From [Home network](#examples-cases-simple-home-trace), the clearest case among the diagrams in `examples/`.</sub>
+<sub>From [Payment lifecycle](#examples-cases-payment-trace), the clearest case among the diagrams in `examples/`.</sub>
 
 </details>
 
@@ -828,18 +828,18 @@ frame sec "security services" [purple] {
   nac: NAC | 802.1X, RADIUS
 }
 
-isp1 -> r1 : BGP 179, 1 Gb
-isp2 --> r2 : LTE, IPsec UDP 4500
+isp1 -> r1 : BGP 179/tcp, 1 Gb
+isp2 --> r2 : LTE, IPsec 4500/udp
 r1 -> fw : VLAN 100
 r2 --> fw : VLAN 101
 fw -> coresw : 802.1Q trunk
 coresw -> staff : VLAN 10
-coresw -> voip : VLAN 20, SIP 5060
+coresw -> voip : VLAN 20, SIP 5060/udp
 coresw -> guest : VLAN 30
 coresw -> iot : VLAN 40
 staff -> proxy : 3128/tcp web traffic
 proxy -> fw : 443/tcp inspected egress
-guest -> fw [dashed] : 80, 443/tcp straight out, isolated
+guest -> fw [dashed] : 80/tcp, 443/tcp straight out, isolated
 nac -> staff [muted] : RADIUS 1812/udp, assigns VLAN
 
 key box [dashed] : isolated VLAN
@@ -1096,85 +1096,6 @@ data -> bi
 </details>
 <!-- /source -->
 
-<a id="examples-playground-everything-trace"></a>
-**Everything Trace draws, in one picture** (`examples/playground/everything.trace`)
-
-<!-- source examples/playground/everything.trace -->
-<details><summary>Trace source</summary>
-
-```
-direction down
-title "Everything Trace draws, in one picture"
-caption "Each box names the feature it shows."
-
-column {
-  row {
-    pill you [user]: You write text | nodes, links, zones
-    pill auto [sparkles]: The engine lays it out | no coordinates
-  }
-  frame edge "zones: named, coloured" [grey] {
-    span [span arrow-down-wide-narrow]: [span]: as wide as what it feeds
-  }
-}
-frame dmz "zones follow the flow" [orange] {
-  bridge [bridge span firewall]: [bridge]: a node on the border | half in each zone
-  row {
-    icons [server]: Icons | 1,500 Lucide names
-    logos [database postgresql]: Logos
-    kinds [bad]: Tags: ok, bad, dashed
-  }
-}
-frame app "kinds: store, engine, ask" [blue] {
-  bridge2 [bridge span shield]: Another [bridge] | the zones touch
-  row {
-    store one [database]: store
-    engine two [cloud]: engine
-    ask three: ask?
-  }
-}
-frame watch "[side span]: beside the flow, not after it" [green side span] {
-  gate [join monitor]: [join]: alike links meet | one arrow, one label
-}
-
-you -> span
-auto -> span
-span -> bridge : labels on links
-bridge -> icons : 443/tcp
-bridge -> logos : 5432
-bridge -> kinds [bad] : refused
-icons -> bridge2
-logos -> bridge2
-bridge2 -> one
-bridge2 -> two [dashed] : dashed: optional
-bridge2 -> three [ok] : green: the happy path
-bridge --> gate : logs
-bridge2 --> gate : logs
-three --> gate : logs
-
-key frame [orange] : a zone
-key -> [bad] : a refused path
-
-frame hub "five alike links: gathered on one line" [purple] {
-  row {
-    s1: Orders
-    s2: Billing
-    s3: Search
-    s4: Catalog
-    s5: Shipping
-  }
-}
-idp [key]: A hub | one link in, one label
-s1 -> idp : validate token
-s2 -> idp : validate token
-s3 -> idp : validate token
-s4 -> idp : validate token
-s5 -> idp : validate token
-two -> s3
-```
-
-</details>
-<!-- /source -->
-
 <a id="examples-holdout-file-backup-trace"></a>
 **File services and backup, 3-2-1** (`examples/holdout/file-backup.trace`)
 
@@ -1265,7 +1186,7 @@ pihole: Pi-hole | ad blocking
 isp -> router
 router -> switch
 router -> ap
-router -> pihole : DNS 53
+router -> pihole : DNS 53/udp
 switch -> nas
 switch -> printer
 switch -> tv
@@ -1314,7 +1235,7 @@ pihole [shield]: Pi-hole | ad blocking
 isp -> router
 router -> switch
 router -> ap
-router -> pihole : DNS 53
+router -> pihole : DNS 53/udp
 switch -> nas
 switch -> printer
 switch -> tv
@@ -1515,16 +1436,16 @@ engine stripe: Stripe API
 engine smtp: SMTP relay
 
 client -> clb : 443/tcp
-clb -> ingress : 443, NodePort 30443
+clb -> ingress : 443/tcp, NodePort 30443/tcp
 ingress -> svcweb : / 8080/tcp
 ingress -> svccart : /cart 8080/tcp
 ingress -> svccat : /api/catalog 8080/tcp
-svcweb -> podweb : 8080 mTLS
-svccart -> podcart : 8080 mTLS
-svccat -> podcat : 8080 mTLS
+svcweb -> podweb : 8080/tcp, mTLS
+svccart -> podcart : 8080/tcp, mTLS
+svccat -> podcat : 8080/tcp, mTLS
 podcart -> redis : 6379/tcp
 podcat -> pg : 5432/tcp
-podcart -> egw [dashed] : 15443 mesh egress
+podcart -> egw [dashed] : 15443/tcp, mesh egress
 egw -> stripe : 443/tcp only
 egw -> smtp : 587/tcp STARTTLS
 
@@ -1748,6 +1669,87 @@ tech -> eng : yes
 tech -> done : no
 eng -> done
 kb -> done
+```
+
+</details>
+<!-- /source -->
+
+<a id="examples-holdout-security-operations-trace"></a>
+**Zero trust and security operations** (`examples/holdout/security-operations.trace`)
+
+<!-- source examples/holdout/security-operations.trace -->
+<details><summary>Trace source</summary>
+
+```
+# Written for Trace, modelled on a common zero-trust and security-operations setup (MDM and EDR on devices, SSO with MFA, access proxy, log pipeline, SIEM, SOAR, privileged access); frozen at its first draft
+title "Zero trust and security operations"
+direction down
+
+frame endpoints "Endpoints" [blue] {
+  laptops [laptop]: Staff laptops | MDM enrolled
+  phones [smartphone]: Mobile phones
+  edr [shield]: EDR agent | on every device
+}
+
+frame identity "Identity" [purple] {
+  idp [key]: SSO / IdP | SAML, OIDC
+  mfa [fingerprint]: MFA | push, FIDO2
+  mdm [tablet-smartphone]: MDM | device posture
+}
+
+ztna [lock]: Zero-trust access proxy
+waf [shield]: WAF | public apps
+
+frame apps "Applications" [green] {
+  hr [users]: HR system
+  crm [contact]: CRM
+  git [git-branch]: Git hosting
+  wiki [book-open]: Wiki
+}
+
+frame admin "Privileged access" [orange] {
+  pam [vault]: PAM vault | session recording
+  bastion [terminal]: Jump host
+  prod [server]: Production servers
+}
+
+frame soc "Security operations" [grey] {
+  collector [funnel]: Log collector
+  siem [monitor]: SIEM | correlation, detections
+  soar [workflow]: SOAR | playbooks
+  ti [radar]: Threat intelligence feed
+  vuln [scan]: Vulnerability scanner
+  tickets [ticket]: Ticketing
+}
+
+analysts [user]: SOC analysts
+
+laptops -> ztna : every request
+phones -> ztna : every request
+ztna -> idp : who is it?
+idp -> mfa : second factor
+ztna -> mdm : device healthy?
+ztna -> hr
+ztna -> crm
+ztna -> git
+ztna -> wiki
+waf -> crm
+pam -> bastion : brokered session
+bastion -> prod : SSH
+idp -> pam : SSO
+edr -> collector [dashed] : telemetry
+idp -> collector [dashed] : sign-in logs
+ztna -> collector [dashed] : access logs
+waf -> collector [dashed] : WAF logs
+pam -> collector [dashed] : session logs
+collector -> siem
+ti -> siem : indicators
+vuln -> prod : weekly scan
+vuln -> siem : findings
+siem -> soar : alerts
+soar -> tickets : cases
+soar -> edr : isolate device
+analysts -> tickets : triage
 ```
 
 </details>

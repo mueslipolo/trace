@@ -1,0 +1,8 @@
+title "Notes"
+pill client [user]: Client
+frame pci "PCI scope" [blue] {
+  api [api]: Orders API
+  store db [database postgresql]: Postgres
+}
+client -> api : HTTPS
+api -> db

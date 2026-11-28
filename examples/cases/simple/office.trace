@@ -26,18 +26,18 @@ frame sec "security services" [purple] {
   nac: NAC | 802.1X, RADIUS
 }
 
-isp1 -> r1 : BGP 179, 1 Gb
-isp2 --> r2 : LTE, IPsec UDP 4500
+isp1 -> r1 : BGP 179/tcp, 1 Gb
+isp2 --> r2 : LTE, IPsec 4500/udp
 r1 -> fw : VLAN 100
 r2 --> fw : VLAN 101
 fw -> coresw : 802.1Q trunk
 coresw -> staff : VLAN 10
-coresw -> voip : VLAN 20, SIP 5060
+coresw -> voip : VLAN 20, SIP 5060/udp
 coresw -> guest : VLAN 30
 coresw -> iot : VLAN 40
 staff -> proxy : 3128/tcp web traffic
 proxy -> fw : 443/tcp inspected egress
-guest -> fw [dashed] : 80, 443/tcp straight out, isolated
+guest -> fw [dashed] : 80/tcp, 443/tcp straight out, isolated
 nac -> staff [muted] : RADIUS 1812/udp, assigns VLAN
 
 key box [dashed] : isolated VLAN

@@ -126,6 +126,7 @@ the package is `trace-diagrams`, files use `.trace`.
 ## Conventions
 
 - Error messages tell the person what to write instead, and carry a line number.
+- In examples and docs, a port on a link always names its protocol: `443/tcp`, `514/udp`, `8443/tcp, mTLS`.
 - UI text uses typographic apostrophes and quotes; code and syntax keep straight ones.
 - Don't add dependencies to the engine beyond elkjs without a reason; pages load elkjs 0.9.3 as a
   UMD script from jsDelivr, pinned. The comparison page also loads Mermaid 11.17.2 the same way (older

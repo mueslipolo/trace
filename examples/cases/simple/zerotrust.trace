@@ -29,7 +29,7 @@ sso -> mfa : 443 WebAuthn
 posture -> proxy [muted] : 443 device health
 proxy -> connector : 443 over the tunnel
 connector -> wiki : 443/tcp
-connector -> git : 22, 443/tcp
+connector -> git : 22/tcp, 443/tcp
 connector -> admin [bad] : 8443/tcp admins only
 emp --> vpn : IPsec UDP 500/4500, until Q3
 vpn --> git : 22/tcp

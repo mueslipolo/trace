@@ -59,7 +59,8 @@ app -> db : orders
 
 Hints that say where things go, when the automatic layout is not what you want: rows and columns, a firewall on a
 zone's border (`[bridge]`), zones beside the flow (`[side]`), links gathered on one line, `align`, `same-width`,
-legends, titles, and link labels at each end. See part 2 of the [manual](manual.md).
+legends, titles, link labels at each end, and notes on any node, zone or link (Mermaid has notes only in its
+sequence, state and class diagrams). See part 2 of the [manual](manual.md).
 
 ## What Trace leaves out
 

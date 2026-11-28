@@ -1278,3 +1278,21 @@ test('docs/how-it-works.md shows every step of the tidy-up, in the order the eng
   const { STEPS } = require('../tools/build-algorithm.js');
   assert.deepStrictEqual(STEPS.map(s => s[0]), steps, 'tools/build-algorithm.js needs a caption for each step');
 });
+
+test('notes: in the margin when short, numbered when asked, never moving the drawing, and a wrong name says what to write', async () => {
+  const base = 'pill client: Client\nframe pci "PCI" [blue] {\n  api: API\n  store db: Postgres\n}\nclient -> api\napi -> db';
+  const notes = '\nnote db : read replica planned\nnote api -> db : pool of 20\nnote pci : audited yearly\nnote : load test numbers';
+  const plain = await compile(base, measure, ELK, {}), margin = await compile(base + notes, measure, ELK, {});
+  assert.deepStrictEqual(margin.errors, []);
+  const pos = r => JSON.stringify(r.rm.nodes.map(n => [n.id, n.x, n.y]));
+  assert.strictEqual(pos(margin), pos(plain), 'the layout is the same with notes');
+  assert.strictEqual(margin.rm.annot.style, 'margin');
+  assert.ok(margin.svg.includes('>read replica planned<') && margin.svg.includes('class="nline"'));
+  const numbered = await compile(base + notes + '\nnotes numbered', measure, ELK, {});
+  assert.strictEqual(numbered.rm.annot.style, 'numbered');
+  assert.strictEqual(numbered.rm.annot.items.filter(it => it.n).length, 3, 'three numbered, the whole-diagram note unnumbered');
+  const bad = await compile(base + '\nnote nope : x', measure, ELK, {});
+  assert.ok(bad.errors.some(e => /no node or zone called nope/.test(e.msg) && e.line === 8));
+  const badLink = await compile(base + '\nnote client -> db : x', measure, ELK, {});
+  assert.ok(badLink.errors.some(e => /no link between client and db/.test(e.msg)));
+});

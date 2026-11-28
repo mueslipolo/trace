@@ -198,7 +198,7 @@ function splitLabel(text) {
 
 function parse(src) {
   const model = {
-    direction: 'RIGHT', spacing: 1, gather: 5, title: '', caption: [], titleBlock: [], marks: [],
+    direction: 'RIGHT', spacing: 1, gather: 5, annotations: [], noteStyle: 'auto', title: '', caption: [], titleBlock: [], marks: [],
     nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], sameSize: [], events: [], mode: 'flow', errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
@@ -272,6 +272,22 @@ function parse(src) {
       if (ids.length < 1 || ids.length > (where === 'over' ? 2 : 1)) throw new TraceError(where === 'over' ? 'note over takes one or two participants: note over api, db : text' : `note ${where} takes one participant: note ${where} api : text`);
       for (const id of ids) ensure(id, ln);
       model.events.push({ type: 'note', where, ids, text: m[3].trim().replace(/\\n/g, '\n'), line: ln });
+      return;
+    }
+    // notes on a flow diagram: note db : text, note api -> db : text, note pci : text (a zone), note : text (the
+    // whole diagram); drawn in the margin, or numbered and listed under the drawing (notes margin|numbered|auto)
+    if ((m = line.match(/^notes\s+(margin|numbered|auto)$/i))) { model.noteStyle = m[1].toLowerCase(); return; }
+    if ((m = line.match(/^note\b\s*(.*?)\s*:\s*(.+)$/i))) {
+      if (model.mode === 'sequence') throw new TraceError('In a sequence diagram a note says where it goes: note over api : text, note left of api : text');
+      const target = m[1].trim(), text = m[2].trim().replace(/\\n/g, '\n');
+      let t = null;
+      if (target) {
+        const parts = target.split(ARROWS).map(x => x.trim());
+        if (parts.length === 3 && ID_RE.test(parts[0]) && ID_RE.test(parts[2])) t = { link: [parts[0], parts[2]] };
+        else if (parts.length === 1 && ID_RE.test(target)) t = { id: target };
+        else throw new TraceError('A note reads  note db : text  (a node or a zone),  note api -> db : text  (a link)  or  note : text  (the whole diagram)');
+      }
+      model.annotations.push({ target: t, text, line: ln });
       return;
     }
     if ((m = line.match(/^(else|and)\b\s*(.*)$/i)) && stack[stack.length - 1].type === 'seqblock') {
@@ -660,6 +676,44 @@ const FONT_HEAD = '700 16px Inter, system-ui, -apple-system, "Segoe UI", sans-se
 const FONT_CAP = '400 12px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 const FONT_CK = '400 10.5px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 const FONT_CV = '600 11px Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+
+// Notes are about the drawing, not part of it: they take no part in the layout. Each is tied to a point on what it is
+// about (a node's right side, a zone's top right corner, the middle of a link's longest stretch). Margin style:
+// italic grey text in a column right of the drawing, a hairline to a pin. Numbered style: a numbered dot on the
+// subject and the text listed under the drawing. Automatic: the margin while every note is short and they fit
+// beside the drawing, numbered otherwise.
+function layoutNotes(model, rm, measure) {
+  const list = model.annotations || [];
+  if (!list.length || model.mode === 'sequence') return null;
+  const CW = 180;
+  const anchorOf = a => {
+    if (!a.target) return null;
+    if (a.target.id) {
+      const n = rm.nodes.find(q => q.id === a.target.id && q.x !== undefined);
+      if (n) return { x: n.x + n.w, y: n.y + n.h / 2, nx: n.x + n.w, ny: n.y };
+      const f = rm.frames.find(b => b.f.id === a.target.id);
+      return f ? { x: f.x + f.w, y: f.y + 16, nx: f.x + f.w, ny: f.y } : null;
+    }
+    const [p, q] = a.target.link;
+    const r = rm.edges.find(r => r.pts && r.pts.length > 1 && ((r.e.a === p && r.e.b === q) || (r.e.a === q && r.e.b === p)));
+    if (!r) return null;
+    let best = null;
+    for (let i = 1; i < r.pts.length; i++) {
+      const u = r.pts[i - 1], v = r.pts[i], L = Math.abs(u.x - v.x) + Math.abs(u.y - v.y);
+      if (!best || L > best.L) best = { L, x: (u.x + v.x) / 2, y: (u.y + v.y) / 2 };
+    }
+    return { x: best.x, y: best.y, nx: best.x, ny: best.y };
+  };
+  const items = list.map(a => ({ a, anchor: anchorOf(a), lines: wrap(a.text, FONT_NOTE, CW - 8, measure) }));
+  const fits = items.every(it => it.lines.length <= 4) && items.reduce((t, it) => t + it.lines.length * 14 + 12, 0) <= rm.height + 40;
+  const style = model.noteStyle === 'auto' ? (fits ? 'margin' : 'numbered') : model.noteStyle;
+  if (style === 'numbered') for (const it of items) it.lines = wrap(it.a.text, FONT_NOTE, Math.max(320, rm.width - 64), measure);
+  // numbered in reading order: top to bottom, then left to right; notes about the whole diagram first, unnumbered
+  let k = 0;
+  const order = [...items].sort((u, v) => (u.anchor ? 1 : 0) - (v.anchor ? 1 : 0) || (u.anchor && v.anchor ? u.anchor.ny - v.anchor.ny || u.anchor.nx - v.anchor.nx : 0));
+  for (const it of order) if (it.anchor) it.n = ++k;
+  return { style, items: order, CW };
+}
 
 function wrap(text, font, maxW, measure) {
   const out = [];
@@ -2307,15 +2361,17 @@ function squareUp(rm) {
 // The drawing is as big as what it holds, plus its 16px margin: a tidy-up that moved things (align, a zone pulled
 // in) leaves nothing past the left or top edge and no blank band at the right or the bottom.
 function fitCanvas(rm) {
-  // nothing closer than 16px to the left or top edge (8px for a label): everything shifts right or down
+  // 16px from the left and top edges (8px for a label), no more and no less: everything shifts right or down when it
+  // is too close, left or up when a blank band was left
   const labBox = r => { const w = r.e.lab.w; return { x: r.lab.anchor === 'middle' ? r.lab.x - w / 2 : r.lab.anchor === 'end' ? r.lab.x - w : r.lab.x, y: r.lab.y }; };
-  const xs = [16, ...rm.nodes.filter(n => n.x !== undefined).map(n => n.x), ...rm.frames.map(f => f.x), ...rm.edges.flatMap(r => (r.pts || []).map(p => p.x + 6)),
+  const xs = [...rm.nodes.filter(n => n.x !== undefined).map(n => n.x), ...rm.frames.map(f => f.x), ...rm.edges.flatMap(r => (r.pts || []).map(p => p.x + 6)),
     ...rm.edges.filter(r => r.lab && r.e.lab).map(r => labBox(r).x + 8)];
-  const ys = [16, ...rm.nodes.filter(n => n.x !== undefined).map(n => n.y), ...rm.frames.map(f => f.y), ...rm.edges.flatMap(r => (r.pts || []).map(p => p.y + 6)),
+  const ys = [...rm.nodes.filter(n => n.x !== undefined).map(n => n.y), ...rm.frames.map(f => f.y), ...rm.edges.flatMap(r => (r.pts || []).map(p => p.y + 6)),
     ...rm.edges.filter(r => r.lab && r.e.lab).map(r => labBox(r).y + 8)];
-  const dx = 16 - Math.min(...xs), dy = 16 - Math.min(...ys);
-  if (dx > 0.5 || dy > 0.5) {
-    const ddx = Math.max(0, dx), ddy = Math.max(0, dy), mv = o => { o.x += ddx; o.y += ddy; };
+  for (const rl of rm.rails || []) { xs.push(rl.x); ys.push(rl.y); }
+  const dx = xs.length ? 16 - Math.min(...xs) : 0, dy = ys.length ? 16 - Math.min(...ys) : 0;
+  if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+    const ddx = Math.abs(dx) > 0.5 ? dx : 0, ddy = Math.abs(dy) > 0.5 ? dy : 0, mv = o => { o.x += ddx; o.y += ddy; };
     for (const n of rm.nodes) if (n.x !== undefined) mv(n);
     for (const g of (rm.model && rm.model.groups) || []) if (g.x !== undefined) mv(g);
     for (const f of rm.frames) mv(f);
@@ -4583,6 +4639,8 @@ function diagramCSS(p, scope) {
     `${s}.box.ok{stroke:${p.ok};stroke-width:1.6}${s}.box.bad{stroke:${p.bad};stroke-width:1.6}` +
     `${s}.box.muted{stroke:${p.soft}}${s}.dashed{stroke-dasharray:4 3}` +
     `${s}.dot{fill:${p.line}}` +
+    `${s}.ntext{fill:${p.muted};font-size:11px;font-style:italic}${s}.nline{fill:none;stroke:${p.soft};stroke-width:0.8}${s}.npin{fill:${p.soft}}` +
+    `${s}.nnum{fill:${p.line}}${s}.nnumt{fill:${p.panel};font-size:9px;font-weight:700}${s}.nnumlist{fill:${p.fg};font-size:11px;font-weight:700}${s}.ntextlist{fill:${p.muted};font-size:11px}${s}.nrule{stroke:${p.soft};stroke-width:0.6;opacity:.6}` +
     `${s}.card{fill:none;stroke:${p.line};stroke-width:1.2}${s}.cardo{fill:${p.panel};stroke:${p.line};stroke-width:1.2}` +
     `${s}.thead{fill:${p.engine}}${s}.tsep{fill:none;stroke:${p.soft};stroke-width:1}${s}.tframe{fill:none;stroke:${p.line};stroke-width:1.2}` +
     `${s}.tframe.ok{stroke:${p.ok};stroke-width:1.6}${s}.tframe.bad{stroke:${p.bad};stroke-width:1.6}${s}.tframe.muted{stroke:${p.soft}}` +
@@ -5041,6 +5099,54 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     j.barLine = v ? [{ x: c, y: lo }, { x: c, y: hi }] : [{ x: lo, y: c }, { x: hi, y: c }];
     j.barDots = [...new Set(meets.map(m => Math.round(m * 10) / 10))].filter(m => m > lo + 0.5 && m < hi - 0.5).map(m => v ? { x: c, y: m } : { x: m, y: c });
   }
+  // notes: margin notes get their column right of the drawing; their hairlines go in before the links and nodes, so
+  // they pass behind the boxes
+  const ann = rm.annot;
+  const noteTop = [];
+  if (ann && ann.style === 'margin') {
+    // each note beside its subject, in the first free room to its right at its height (the drawing's right edge
+    // at worst); notes keep 12px apart from each other
+    const right = (y0, y1, from) => {
+      let x = from;
+      const boxes = [...rm.nodes.filter(n => n.x !== undefined), ...rm.frames];
+      for (const b of boxes) if (b.y < y1 && b.y + b.h > y0 && b.x + b.w > from - 1) x = Math.max(x, b.x + b.w);
+      for (const r of rm.edges) if (r.lab && r.e.lab && r.lab.y < y1 && r.lab.y + r.e.lab.h > y0) {
+        const lx = r.lab.anchor === 'middle' ? r.lab.x + r.e.lab.w / 2 : r.lab.anchor === 'end' ? r.lab.x : r.lab.x + r.e.lab.w;
+        if (lx > from - 1) x = Math.max(x, lx);
+      }
+      return x;
+    };
+    const placed = [];
+    for (const it of ann.items) {
+      const h = it.lines.length * 14, a = it.anchor;
+      let top = a ? a.y - 9 : 8;
+      const from = a ? a.x : Math.ceil(rm.width);
+      let x0;
+      for (let tries = 0; tries < 40; tries++) {
+        x0 = Math.ceil(right(top - 6, top + h + 6, from)) + 18;
+        const clash = placed.find(q => q.x0 < x0 + ann.CW && x0 < q.x0 + ann.CW && q.top < top + h + 12 && top < q.bottom + 12);
+        if (!clash) break;
+        top = clash.bottom + 12;
+      }
+      placed.push({ x0, top, bottom: top + h });
+      it.lines.forEach((l, i) => noteTop.push(`<text class="ntext" x="${x0}" y="${r1(top + 11 + i * 14)}">${esc(l)}</text>`));
+      if (a) {
+        const ty = top + 7, xm = x0 - 10;
+        // straight across to the note, unless that passes behind another box: then down below the drawing first
+        const own = it.a.target && it.a.target.id;
+        const behind = rm.nodes.some(n => n.x !== undefined && n.id !== own && n.x + n.w > a.x + 3 && n.x < xm && n.y < a.y && n.y + n.h > a.y);
+        const d = behind
+          ? `M${r1(a.x)} ${r1(a.y + 2)} V${r1(rm.height - 6)} H${r1(xm)} V${r1(ty)} H${r1(x0 - 3)}`
+          : `M${r1(a.x + 2)} ${r1(a.y)} H${r1(xm)}${Math.abs(ty - a.y) > 0.5 ? ` V${r1(ty)}` : ''} H${r1(x0 - 3)}`;
+        body.push(`<path class="nline" d="${d}"/>`);
+        noteTop.push(`<circle class="npin" cx="${r1(a.x)}" cy="${r1(a.y)}" r="2.2"/>`);
+      }
+      W = Math.max(W, x0 + Math.max(...it.lines.map(l => l.length * 6)) + 16);
+      H = Math.max(H, Math.ceil(top + h) + 16);
+    }
+  } else if (ann) {
+    for (const it of ann.items) if (it.anchor) noteTop.push(`<circle class="nnum" cx="${r1(it.anchor.nx)}" cy="${r1(it.anchor.ny)}" r="7"/><text class="nnumt" x="${r1(it.anchor.nx)}" y="${r1(it.anchor.ny + 3.2)}" text-anchor="middle">${it.n}</text>`);
+  }
   const labels = [];
   // where two links cross, the horizontal one hops over the vertical one with a small arc, so a crossing never
   // reads as a junction. Sequence lifelines, rails and the links of one bus are left out.
@@ -5109,7 +5215,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
   for (const rl of rm.rails || []) for (const d of rl.dots || []) body.push(`<circle class="dot" cx="${r1(d.x)}" cy="${r1(d.y)}" r="2.6"/>`);
   for (const d of rm.joins || []) body.push(`<circle class="dot" cx="${r1(d.x)}" cy="${r1(d.y)}" r="2.6"/>`);
   for (const n of rm.nodes) body.push(nodeSVG(n));
-  body.push(...late, ...labels);
+  body.push(...late, ...labels, ...noteTop);
 
   // legend
   const marks = model.marks || [];
@@ -5138,6 +5244,18 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
     H = y + rowH + 10;
   }
 
+  // numbered notes: listed under the drawing (and its legend), the number in bold, the text muted
+  if (ann && ann.style === 'numbered') {
+    let y = H + 8;
+    body.push(`<path class="nrule" d="M16 ${r1(y)} H${r1(Math.max(W, 340) - 16)}"/>`);
+    y += 8;
+    for (const it of ann.items) {
+      if (it.n) body.push(`<text class="nnumlist" x="16" y="${r1(y + 11)}">${it.n}</text>`);
+      it.lines.forEach((l, i) => body.push(`<text class="ntextlist" x="${it.n ? 32 : 16}" y="${r1(y + 11 + i * 14)}">${esc(l)}</text>`));
+      y += it.lines.length * 14 + 6;
+    }
+    H = y + 8;
+  }
   const defs = ['a:head', 'ok:head-ok', 'bad:head-bad', 'mu:head-muted'].map(s => {
     const [id, c] = s.split(':');
     // a head for the end and one for the start, each with plain orient="auto": not every renderer knows
@@ -5224,6 +5342,12 @@ async function compile(src, measure, ELK, opts) {
   const model = parse(src);
   if (model.errors.length) return { model, errors: model.errors };
   if (!model.nodes.size) return { model, errors: [], empty: true };
+  const noteErrors = model.annotations.filter(a => a.target).map(a => {
+    if (a.target.id) return model.nodes.has(a.target.id) || model.frames.has(a.target.id) ? null : { line: a.line, msg: `There is no node or zone called ${a.target.id} for this note: write the name of a node, a zone, or a link (note api -> db : text)` };
+    const [p, q] = a.target.link;
+    return model.edges.some(e => (e.a === p && e.b === q) || (e.a === q && e.b === p)) ? null : { line: a.line, msg: `There is no link between ${p} and ${q} for this note: write a link that is in the diagram, or name a node (note ${p} : text)` };
+  }).filter(Boolean);
+  if (noteErrors.length) return { model, errors: noteErrors };
   for (const k of model.keys) k._tw = measure(k.text, FONT_NOTE);
   const iconsFailed = await loadIcons(model, opts && opts.loadIcon);
   // a mark is drawn in the ink of the zone its node stands in (muted grey outside any zone)
@@ -5236,6 +5360,7 @@ async function compile(src, measure, ELK, opts) {
   }
   const rm = model.mode === 'sequence' ? await layoutSequence(model, measure) : await layout(model, measure, ELK, opts);
   rm.head = measureHead(model, rm, measure);
+  rm.annot = layoutNotes(model, rm, measure);
   return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || []), ...(model.tree && !isTree(model) ? ['tree: this diagram is not a hierarchy (one root, every node with one parent at most, no decision, no reversed or self link, four nodes or more), so it is drawn as usual'] : [])], svg: render(rm, opts), standalone: theme => render(rm, { ...opts, standalone: true, theme: typeof theme === 'string' ? theme : null }) };
 }
 

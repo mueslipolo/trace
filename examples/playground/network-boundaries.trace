@@ -12,7 +12,7 @@ frame defaultnet "network default, routes out" [blue] {
 frame workersnet "network workers, internal" [green] {
   row {
     store pg [bridge]: postgres
-    store s3 [bridge]: s3 | forwarder, TCP 8333 only
+    store s3 [bridge]: s3 | forwarder, 8333/tcp only
   }
   workers: engine workers | local engines inside: no socket
 }
@@ -23,7 +23,7 @@ frame storenet "network store, internal" [purple] {
   }
 }
 frame converter "network converter, internal" [orange] {
-  engine gotenberg: gotenberg | port 3000
+  engine gotenberg: gotenberg | 3000/tcp
 }
 
 client -> api : HTTP 8000, Bearer key

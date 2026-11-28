@@ -1,0 +1,88 @@
+direction down
+title "Online shop, production"
+caption "One text file, laid out by Trace. The numbered notes say which hint does what."
+notes numbered
+
+column {
+  row {
+    pill users [user]: Customers | web and mobile
+    pill partners [handshake]: Partners | order API
+  }
+  frame edge "edge" [grey] {
+    cdn [span cloud]: CDN + WAF | TLS, bot rules
+  }
+}
+frame dmz "DMZ" [orange] {
+  fw1 [bridge span firewall]: Edge firewall | stateful, geo-block
+  row {
+    relay [mail]: Mail relay
+    lb [loadbalancer]: Load balancer
+    gw [arrow-right-left]: API gateway | partners
+    bastion [terminal]: Bastion host | SSH via SSO
+  }
+}
+frame app "services" [blue] {
+  fw2 [bridge span firewall]: Internal firewall | 443/tcp, 8443/tcp only
+  row {
+    pay [credit-card]: Payments
+    orders [package]: Orders
+    web [browser]: Storefront
+    search [search]: Search
+  }
+}
+frame data "data" [purple] {
+  fw3 [bridge span firewall]: DB firewall | from services only
+  row {
+    store ledger [database postgresql]: Ledger
+    store pg [database postgresql]: Orders DB
+    store redis [zap redis]: Cache | sessions
+    store os [database opensearch]: Search index
+  }
+}
+frame third "third parties" [grey side left span] {
+  engine mailer [mail]: E-mail provider
+  engine stripe [credit-card stripe]: Stripe | card payments
+}
+frame obs "observability" [green side span] {
+  otel [join activity]: OTel collector | logs, traces
+}
+
+users -> cdn : 443/tcp
+partners -> cdn : 443/tcp
+cdn -> fw1 : 443/tcp, clean traffic
+fw1 -> relay : 25/tcp
+fw1 -> lb : 443/tcp
+fw1 -> gw : 8443/tcp, mTLS
+fw1 -> bastion [dashed] : 22/tcp, VPN only
+relay -> fw2
+lb -> fw2
+gw -> fw2
+bastion -> fw2 [dashed]
+fw2 -> pay
+fw2 -> orders
+fw2 -> web
+fw2 -> search
+pay -> fw3
+orders -> fw3
+web -> fw3
+search -> fw3
+fw3 -> ledger : 5432/tcp
+fw3 -> pg : 5432/tcp
+fw3 -> redis : 6379/tcp
+fw3 -> os : 9200/tcp
+pay <- orders
+orders <- web
+web -> search
+pg --> os : change data
+relay -> mailer : 587/tcp
+pay -> stripe : 443/tcp, mTLS
+fw1 --> otel : logs
+fw2 --> otel : logs
+fw3 --> otel : logs
+
+same-width relay lb gw bastion pay orders web search ledger pg redis os
+
+note fw1 : [bridge] and [span]: each firewall sits on the border it guards, as wide as the row it feeds, so every link drops straight
+note pay : row and same-width: each service stands over its data store, in four straight columns
+note stripe : [side span]: third parties and monitoring stand beside the tiers, level with what they talk to; the log links meet one line ([join])
+note pg : logos: [database postgresql] keeps the role icon and names the technology

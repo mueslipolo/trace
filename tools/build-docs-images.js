@@ -15,18 +15,7 @@ const outDir = path.join(root, 'docs/images');
 
 // README: [name, source]
 const readme = [
-  ['everything', 'examples/playground/everything.trace'],
-  ['dmz', 'examples/cases/dmz.trace'],
-  ['bigbank-plain', 'examples/holdout/bigbank-container.trace'],
-  ['bigbank-full', 'examples/holdout/full/bigbank-container.trace'],
-  ['cicd', 'examples/cases/cicd.trace'],
-  ['hybrid', 'examples/cases/hybrid.trace'],
-  ['payment', 'examples/cases/payment.trace'],
-  ['shop-model', 'examples/cases/shop-model.trace'],
-  ['job-sequence', 'examples/playground/job-sequence.trace'],
-  ['orgchart', 'examples/cases/orgchart.trace'],
-  ['bridge.before', 'examples/features/bridge.before.trace'],
-  ['bridge.after', 'examples/features/bridge.after.trace'],
+  ['online-shop', 'examples/playground/online-shop.trace'],
 ];
 // the manual's part 2: feature pairs, before and after; a name ending in ! has its "after" only
 const guidePairs = ['direction', 'across', 'lanes', 'bridge', 'span', 'side', 'samewidth!', 'align!', 'bus!', 'join!'];

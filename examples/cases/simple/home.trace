@@ -21,7 +21,7 @@ pihole: Pi-hole | ad blocking
 isp -> router
 router -> switch
 router -> ap
-router -> pihole : DNS 53
+router -> pihole : DNS 53/udp
 switch -> nas
 switch -> printer
 switch -> tv

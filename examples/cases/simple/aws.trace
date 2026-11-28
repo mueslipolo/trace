@@ -22,19 +22,19 @@ frame vpc "VPC 10.0.0.0/16" [grey] {
 store s3: S3 | uploads, backups
 ext: Payment API
 
-users -> cdn : 443
-cdn -> alb : 443
-alb -> web1 : 8080
-alb -> web2 : 8080
+users -> cdn : 443/tcp
+cdn -> alb : 443/tcp
+alb -> web1 : 8080/tcp
+alb -> web2 : 8080/tcp
 web1 -> app1
 web2 -> app2
-app1 -> db1 : 5432
-app2 -> db2 : 5432
+app1 -> db1 : 5432/tcp
+app2 -> db2 : 5432/tcp
 db1 -> db2 [dashed] : replication
-app1 -> cache : 6379
-app2 -> cache : 6379
-app1 -> s3 : 443
-app2 -> s3 : 443
+app1 -> cache : 6379/tcp
+app2 -> cache : 6379/tcp
+app1 -> s3 : 443/tcp
+app2 -> s3 : 443/tcp
 app1 -> nat
 app2 -> nat
-nat -> ext : 443
+nat -> ext : 443/tcp

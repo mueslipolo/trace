@@ -382,6 +382,22 @@ key frame [orange] : DMZ
 Shape is any node kind, `frame`, or an arrow (`->`, `-->`, `--`). Keys are laid out in a row under
 the diagram.
 
+### Notes
+
+```
+note db : read replica planned for Q3          # a node or a zone
+note api -> db : pool of 20 connections        # a link
+note : numbers from the March load test        # the whole diagram
+notes numbered                                 # or margin; auto by default
+```
+
+A note is a comment about the drawing, not a part of it, and takes no part in the layout. Short notes go beside
+their subject, in the first free room to its right, in italic, each with a hairline to a small pin on it (a node's
+right side, a zone's corner, the middle of a link); a hairline passes behind the boxes, or under the drawing when a
+box is in its way. When the notes are many or long, they become numbered dots on their subjects, with the text listed under the
+drawing. `notes margin` or `notes numbered` chooses for the whole diagram. A note can name only what is in the
+diagram; the error says what to write.
+
 ### Marks
 
 ```

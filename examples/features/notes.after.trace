@@ -1,0 +1,11 @@
+title "Notes"
+pill client [user]: Client
+frame pci "PCI scope" [blue] {
+  api [api]: Orders API
+  store db [database postgresql]: Postgres
+}
+client -> api : HTTPS
+api -> db
+note db : read replica planned for Q3
+note api -> db : pool of 20 connections
+note pci : audited every year, next in March

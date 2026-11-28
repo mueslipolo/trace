@@ -322,6 +322,20 @@
     "wide": false
   },
   {
+    "id": "notes",
+    "title": "Notes",
+    "group": "The whole diagram",
+    "does": "`note db : text` puts a comment beside a node, a zone or a link (`note api -> db : text`); `note : text` is about the whole diagram. Short notes go in the margin, italic, with a hairline to a pin on their subject; when they are many or long they become numbered dots, listed under the drawing.",
+    "effect": "Notes take no part in the layout: the diagram is drawn exactly as without them. A hairline passes behind the boxes, or below the drawing when a box is in its way. `notes margin` or `notes numbered` chooses the style for the whole diagram.",
+    "beforeLabel": "Without",
+    "afterLabel": "With notes",
+    "beforeOff": [],
+    "afterOff": [],
+    "syntax": "note db : read replica planned for Q3\nnote api -> db : pool of 20 connections\nnote pci : audited every year\nnote : numbers from the March load test\nnotes numbered      # or margin; auto by default",
+    "use": "For the why behind a part (a decision, a limit, a plan), or context for the whole diagram. Not for what a part is: that is its name and note line.",
+    "wide": false
+  },
+  {
     "id": "mark",
     "title": "Mark",
     "group": "Links",
