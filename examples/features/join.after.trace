@@ -5,7 +5,7 @@ column {
   lint [list-checks]: Lint
   sast [shield]: Security scan
 }
-ask gate [join]: all green?
+ask gate [gather]: all green?
 build -> unit
 build -> lint
 build -> sast

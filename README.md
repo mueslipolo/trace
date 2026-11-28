@@ -64,7 +64,7 @@ frame third "third parties" [grey side left span] {
   engine stripe [credit-card stripe]: Stripe | card payments
 }
 frame obs "observability" [green side span] {
-  otel [join activity]: OTel collector | logs, traces
+  otel [gather activity]: OTel collector | logs, traces
 }
 
 users -> cdn : 443/tcp
@@ -104,7 +104,7 @@ same-width relay lb gw bastion pay orders web search ledger pg redis os
 
 note fw1 : [bridge] and [span]: each firewall sits on the border it guards, as wide as the row it feeds, so every link drops straight
 note pay : row and same-width: each service stands over its data store, in four straight columns
-note stripe : [side span]: third parties and monitoring stand beside the tiers, level with what they talk to; the log links meet one line ([join])
+note stripe : [side span]: third parties and monitoring stand beside the tiers, level with what they talk to; the log links meet one line ([gather])
 note pg : logos: [database postgresql] keeps the role icon and names the technology
 ```
 
@@ -117,7 +117,7 @@ note pg : logos: [database postgresql] keeps the role icon and names the technol
   at least as well as Mermaid's drawing of the same diagram. This is measured on 27 real diagrams, drawn three ways
   (as written, with hints, and by Mermaid) on the comparison page: `npm run build`, then `dist/compare.html`.
 - **With hints, the diagram you had in mind.** Rows and columns, `[span]`, `[bridge]`, side zones, `align`, `mark`,
-  `[join]`, `tree`, notes, icons and logos: each is optional, and each says something the layout cannot guess.
+  `[gather]`, `tree`, notes, icons and logos: each is optional, and each says something the layout cannot guess.
 
 ## Text in, diagram out
 

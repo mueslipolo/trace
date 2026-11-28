@@ -10,7 +10,7 @@ column {
         lint [list-checks]: Lint + typecheck
         sast [shield]: SAST + dependency scan
       }
-      ask gate [join]: all green?
+      ask gate [gather]: all green?
     }
   }
   row {

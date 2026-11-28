@@ -6,9 +6,8 @@ What is left to do, by theme, the most wanted first. What is done is described i
 ## Next (wanted by the owner)
 
 1. **One language, fewer names** (from the review of the language, November 2026; none of it breaks a diagram):
-   - `[gather]` on links: the tagged links into one node are gathered from two up. Perhaps named sets
-     (`[gather tokens]`) and `[apart]` to keep a link out, only if a real diagram needs them.
-   - One name for gathering everywhere the user sees it: `[gather]` on a node, `[join]` kept as an alias.
+   - Done: `[gather]` on links and on nodes (`[join]` kept as its older name). Left: named sets (`[gather tokens]`)
+     and `[apart]` to keep a link out, only if a real diagram needs them.
    - A side zone always says `side` (`[side top]`, never `[top]` alone); the icon above the text becomes `[icon-top]`
      (`top` kept as an alias).
    - Warnings: a name that is both a tag and an icon (suggest `lucide/…` or `logo/…`); a `->` inside a link label
@@ -17,13 +16,16 @@ What is left to do, by theme, the most wanted first. What is done is described i
    - Dots in names reserved for table columns (`orders.customer_id`), with an error saying what to write.
 2. **From Mermaid** (the owner's picks):
    - Link styles: a thick link for the main path (`==>` or `[main]`), a cross end for refused traffic (`-x`).
-   - Notes beside a node or a zone (`note fw : …`), a small box with a dashed leader, placed like a leaf node.
    - Text formatting in labels: `**bold**`, `*italic*`, `` `code` ``; the width measure must know the runs.
 3. **Layout recommendations**: analyse a diagram and suggest the hint that would improve it (a row across the
    flow, `align`, a side zone, `span`, `bridge`), from the rules in `docs/manual.md`; applied by the author,
    or tried and compared with the engine's own cost. Not designed in detail.
 
 ## Layout quality: open problems
+
+- Zones side by side inside a zone (Kubernetes and VMs in an application network) keep their own column spacing:
+  the tiers around them cannot line up with their members, and links from a firewall above or below wander. Needed
+  for a realistic platform diagram (mocked as a README candidate, November 2026).
 
 - Links between zones in different rows of a grid loop round it when the zones are far apart (DMZ to app).
 - A bridge between rows (a firewall on a horizontal border while the diagram flows right).

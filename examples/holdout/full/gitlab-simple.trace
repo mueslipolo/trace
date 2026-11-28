@@ -12,7 +12,7 @@ Puma [rubyonrails]: Puma (Gitlab Rails)
 Sidekiq [rubyonrails]: Sidekiq (GitLab Rails)
 store Gitaly [git-branch]: Gitaly
 store PostgreSQL [postgresql]: PostgreSQL
-store Redis [redis join]: Redis
+store Redis [redis gather]: Redis
 
 HTTP -> NGINX : TCP 80,443
 SSH -> GitLabShell : TCP 22

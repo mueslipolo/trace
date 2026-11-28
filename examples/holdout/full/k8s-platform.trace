@@ -50,7 +50,7 @@ row {
 frame managed "Managed services" [orange] {
   row {
     store redis [redis]: Redis | sessions, cache
-    store pg [join database postgresql]: PostgreSQL | primary + replica
+    store pg [gather database postgresql]: PostgreSQL | primary + replica
     store queue [rabbitmq]: RabbitMQ | order events
     store blob [package]: Object storage | images, exports
   }

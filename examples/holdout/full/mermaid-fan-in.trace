@@ -8,7 +8,7 @@ frame api "API" {
     store db2 [database]: DB2
     store db3 [database]: DB3
   }
-  mcp [server join]: MCP
+  mcp [server gather]: MCP
 }
 
 db1 -> mcp

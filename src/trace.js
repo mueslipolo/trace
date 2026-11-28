@@ -2,8 +2,8 @@
 // Parser → model → ELK layout (with hand-stacked column/row groups) → SVG.
 
 const KINDS = new Set(['box', 'store', 'engine', 'state', 'pill', 'ask', 'start', 'final', 'end']);
-const NODE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'span', 'bridge', 'join']);
-const EDGE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'label-start', 'label-end', 'label-above', 'label-below', 'label-left', 'label-right']);
+const NODE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'span', 'bridge', 'gather', 'join']);   // join: the older name of gather
+const EDGE_TAGS = new Set(['ok', 'bad', 'dashed', 'muted', 'gather', 'label-start', 'label-end', 'label-above', 'label-below', 'label-left', 'label-right']);
 const CARD_RE = /^(1|n|01|0n)-(1|n|01|0n)$/;
 // the tags a link accepts: the fixed ones, and a cardinality for its two ends (n-1, 1-1, 0n-1, n-01 ...)
 const EDGE_TAG_SET = {
@@ -1648,7 +1648,9 @@ function mergeHubs(rm, MIN = 5) {
     const role = k.split('|')[1];
     const hub = rm.nodes.find(n => n.id === list[0].e[role]);
     // a node tagged join asks for it from two links up
-    const need = hub && hub.tags && hub.tags.includes('join') ? 2 : MIN;
+    // [gather] on the node (or its older name [join]), or on every one of these links, asks for it from two links up
+    const asked = (hub && hub.tags && (hub.tags.includes('gather') || hub.tags.includes('join'))) || list.every(r => (r.e.tags || []).includes('gather'));
+    const need = asked ? 2 : MIN;
     if (list.length < need) continue;
     if (!hub || hub.x === undefined || hub.cols || hub.span) continue;
     const rev = role === 'a';
@@ -2479,7 +2481,9 @@ function addJunctions(model) {
   let n = 0;
   for (const [k, list0] of [...groups.entries()].sort((x, y) => y[1].length - x[1].length)) {
     const list = list0.filter(e => !used.has(e));
-    if (list.length < MIN) continue;
+    // links tagged [gather] meet inside the zone from two up, like a bus
+    const min = list.length && list.every(e => (e.tags || []).includes('gather')) ? 2 : MIN;
+    if (list.length < min) continue;
     const role = k.split('|')[1], other = role === 'b' ? 'a' : 'b';
     const hub = model.nodes.get(list[0][role]);
     const hubFrames = frames(hub);
@@ -2488,7 +2492,7 @@ function addJunctions(model) {
     const count = new Map();
     for (const e of list) { const x = model.nodes.get(e[other]); if (!x || x.span) continue; for (const f of frames(x)) count.set(f, (count.get(f) || 0) + 1); }
     let F = null;
-    for (const [f, c] of count) if (c >= MIN && !hubFrames.includes(f) && (!F || c > count.get(F) || (c === count.get(F) && frames(f.items[0] || f).length > frames(F.items[0] || F).length))) F = f;
+    for (const [f, c] of count) if (c >= min && !hubFrames.includes(f) && (!F || c > count.get(F) || (c === count.get(F) && frames(f.items[0] || f).length > frames(F.items[0] || F).length))) F = f;
     if (!F) continue;
     const inF = x => { for (let p = x.parent; p; p = p.parent) if (p === F) return true; return false; };
     list.splice(0, list.length, ...list.filter(e => { const x = model.nodes.get(e[other]); return x && !x.span && inF(x); }));

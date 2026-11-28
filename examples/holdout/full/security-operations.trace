@@ -40,7 +40,7 @@ row {
 
 frame soc "Security operations" [grey] {
   row {
-    collector [join funnel]: Log collector
+    collector [gather funnel]: Log collector
     siem [monitor]: SIEM | correlation, detections
     soar [workflow]: SOAR | playbooks
     tickets [ticket]: Ticketing

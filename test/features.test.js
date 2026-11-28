@@ -809,7 +809,7 @@ test('tree: a hierarchy (a tree with no decisions) puts each parent in the middl
   assert.ok(who.rm.edges.some(r => r.e.label === 'yes' && r.pts.length === 2), 'the decision tree keeps a straight yes');
 });
 
-test('join: links into a node tagged join meet one line with a dot, from two links up; without the tag they stay apart', async () => {
+test('gather: links into a node tagged gather meet one line with a dot, from two links up; without the tag they stay apart', async () => {
   const src = fs.readFileSync(path.join(root, 'examples/features/join.after.trace'), 'utf8');
   const res = await compile(src, measure, ELK, {});
   assert.deepStrictEqual(res.errors, []);
@@ -817,7 +817,7 @@ test('join: links into a node tagged join meet one line with a dot, from two lin
   assert.strictEqual(into.length, 3);
   assert.ok(into.every(r => r.merged && r.mergeHub === 'gate'), 'the three checks are joined');
   assert.ok(res.rm.joins.length >= 1, 'a dot where they meet');
-  const plain = await compile(src.replace(' [join]', ''), measure, ELK, {});
+  const plain = await compile(src.replace(' [gather]', ''), measure, ELK, {});
   assert.ok(!plain.rm.edges.some(r => r.merged), 'three links alone are not joined');
 });
 
@@ -1027,4 +1027,16 @@ test('a bridge pairs its zone with the outermost zone across the border: zones s
   const ob = res.rm.edges.find(r => r.e.a === 'orders' && r.e.b === 'billing'), billing = res.rm.nodes.find(n => n.id === 'billing');
   const end = ob.pts[ob.pts.length - 1];
   assert.ok(Math.abs(end.x - (billing.x + billing.w)) < 2, 'Orders reaches Billing on its right side');
+});
+
+test('[gather] on links gathers just those links from two up; on a node it is the new name of [join]', async () => {
+  const src = 'direction right\nidp: Identity provider\na: A\nb: B\nc: C\na -> idp : token [gather]\nb -> idp : token [gather]\nc -> idp : login';
+  const res = await compile(src, measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const merged = res.rm.edges.filter(r => r.merged).map(r => r.e.a).sort();
+  assert.deepStrictEqual(merged, ['a', 'b'], 'the two tagged links are one bus, the third stays apart');
+  const node = await compile('direction right\nidp [gather]: Identity provider\na -> idp : token\nb -> idp : token', measure, ELK, {});
+  assert.strictEqual(node.rm.edges.filter(r => r.merged).length, 2);
+  const old = await compile('direction right\nidp [join]: Identity provider\na -> idp : token\nb -> idp : token', measure, ELK, {});
+  assert.strictEqual(old.rm.edges.filter(r => r.merged).length, 2, '[join] still works');
 });

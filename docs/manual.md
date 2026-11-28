@@ -27,7 +27,7 @@ title-block {         # a small table at the bottom right: free key: value lines
 
 All of these are optional. `gather` sets how many links with the same label and style, into or out of one
 node, are drawn as one bus (or meet one line inside a zone when they come from its members): five by default,
-`gather 3` for fewer, `gather off` for never. `[join]` on a node asks for it from two links whatever the setting.
+`gather 3` for fewer, `gather off` for never. `[gather]` on a node, or on the links themselves, asks for it from two links whatever the setting.
 
 The title and the caption sit above the drawing, which moves down to make room; a
 long caption wraps to the drawing's width, and several `caption` lines make several paragraphs. The
@@ -134,7 +134,7 @@ Tags (in brackets, before the colon or at the end of the label):
 | `dashed` | dashed border (planned, optional, retired) |
 | `muted` | soft grey border |
 | `span` | grows to the full height (direction right) or width (down) of the column or row it links to; one connection point per member, so each link runs straight |
-| `join` | links into (or out of) it that look the same meet a line with a dot first, then one arrow reaches it, label written once; done by itself from five such links (see `gather`), the tag asks for it from two. For a parallel stage closing on a gate, or log links into one collector |
+| `gather` | links into (or out of) it that look the same meet a line with a dot first, then one arrow reaches it, label written once; done by itself from five such links (see `gather`), the tag asks for it from two. For a parallel stage closing on a gate, or log links into one collector. `join` is its older name |
 | `bridge` | sits on the border between its frame and the frame of a node linking into it, with the two frames widened into bands; for firewalls, gateways, anything on two networks |
 
 ### Links
@@ -158,7 +158,7 @@ nodes in, the layout treats it as a feedback link and keeps the main flow straig
 you want to say so yourself, and is the main layout tool: `pg <- worker` keeps the worker on the far side of Postgres while the
 arrow points at Postgres; `fw <- proxy` sends traffic back up without the layout turning around.
 
-Link tags: `ok`, `bad`, `muted` (colour), `dashed`.
+Link tags: `ok`, `bad`, `muted` (colour), `dashed`, and `gather` (the tagged links into one node meet one line, from two up).
 
 Where the label goes: the engine puts it beside the link where it crosses nothing. A tag can ask for a place:
 `[label-start]` (just past the source, on the first stretch), `[label-end]` (just before the target, on the last),
@@ -719,10 +719,10 @@ back (a worker that polls the database), write the link in story order with `<-`
 ### 9. Many links into one node: one line, not a fan
 
 Five or more alike links into one node are gathered on one line by themselves (`gather N` changes the number).
-For two to four, tag the node `[join]`. For links that say no more than "uses it", `mark` the node.
+For two to four, tag the node `[gather]`, or only the links that belong together (`a -> idp : token [gather]`). For links that say no more than "uses it", `mark` the node.
 
 <table>
-<tr><th>Five alike links, gathered</th><th><code>[join]</code> on three</th></tr>
+<tr><th>Five alike links, gathered</th><th><code>[gather]</code> on three</th></tr>
 <tr><td valign="top"><img src="images/bus.after.png" alt="Links merged into one line with one label" width="100%"></td>
 <td valign="top"><img src="images/join.after.png" alt="Three links meeting a line with a dot" width="100%"></td></tr>
 </table>
@@ -760,7 +760,7 @@ column {
   lint [list-checks]: Lint
   sast [shield]: Security scan
 }
-ask gate [join]: all green?
+ask gate [gather]: all green?
 build -> unit
 build -> lint
 build -> sast
@@ -789,6 +789,6 @@ zones named with their address range or owner. They cost nothing and make a diag
 | Ragged tiers, or a step between two blocks | `same-width`, `align` (6) |
 | A monitoring zone stacked as the last tier | `[side]` or a `rail` (7) |
 | A long link looping round the diagram | write it in story order with `<-` (8) |
-| A fan of links into one node | `[join]`, `gather`, `mark` (9) |
+| A fan of links into one node | `[gather]`, `gather N`, `mark` (9) |
 
 Every feature, with its before and after, is also on the features page (`npm run build`, then `dist/features.html`).

@@ -9,7 +9,7 @@ row {
 
 frame api "API Application" [blue] {
   row {
-    sign [join log-in]: Sign In Controller | MVC Rest Controller
+    sign [gather log-in]: Sign In Controller | MVC Rest Controller
     accounts [list]: Accounts Summary Controller | MVC Rest Controller
   }
   row {
