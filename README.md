@@ -1,6 +1,13 @@
 # Trace
 
-Write diagrams as plain text; get them drawn like a careful hand would.
+Draw architecture and network diagrams from plain text.
+
+Trace is a diagram-as-code tool inspired by Mermaid: you write nodes, links and zones in a text file, and it lays
+them out for you.
+
+Mermaid draws what you write, but you can't tell it where things go, so a large diagram often comes out tangled.
+Trace lets you add a hint where it matters (this firewall sits on that border, these services go side by side), so
+the diagram comes out the way you would have drawn it yourself.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/everything.dark.png">
@@ -83,16 +90,14 @@ one -> s1
 </details>
 <!-- /source -->
 
-Trace keeps what people love in Mermaid (a diagram is code, it is easy to write, and the layout is automatic)
-and adds what it lacks to look good. Two promises:
+## Why Trace
 
-- **With no help, at least as good as Mermaid.** Write nodes and links only and the automatic layout must
-  read at least as well as Mermaid's drawing of the same diagram.
-- **With a few hints, the next level.** Rows and columns, `[span]`, `[bridge]`, side zones, `align`, `mark`,
-  `[join]`, `tree`, icons and logos: each is optional, each says something the engine cannot guess, and
-  together they give a drawing a careful hand would make.
+- **Without hints, at least as good as Mermaid.** Write nodes and links only, and the automatic layout must read
+  at least as well as Mermaid's drawing of the same diagram. This is measured on 27 real diagrams (below).
+- **With hints, the diagram you had in mind.** Rows and columns, `[span]`, `[bridge]`, side zones, `align`, `mark`,
+  `[join]`, `tree`, icons and logos: each is optional, and each says something the layout cannot guess.
 
-## Plain text in, a careful drawing out
+## Text in, diagram out
 
 <table>
 <tr>

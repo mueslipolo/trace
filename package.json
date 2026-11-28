@@ -1,7 +1,7 @@
 {
   "name": "trace-diagrams",
   "version": "0.1.0",
-  "description": "Trace: write diagrams as plain text, get them drawn like a careful hand would.",
+  "description": "Draw architecture and network diagrams from plain text: diagram as code inspired by Mermaid, with hints to say where things go.",
   "license": "UNLICENSED",
   "private": true,
   "main": "src/trace.js",

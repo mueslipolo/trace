@@ -1,7 +1,7 @@
 # Trace
 
-Trace is a small text language for diagrams. You write plain text; it is drawn like a careful
-hand would lay it out.
+Trace draws architecture and network diagrams from plain text. It is diagram as code inspired by Mermaid: you write
+nodes, links and zones, it lays them out, and hints let you say where things go when it matters.
 
 The core idea (the owner's): take what people love in Mermaid (diagram as code, easy to write, automatic
 layout) and add what makes the drawing look good. Two rules follow, and every change is judged by them:
