@@ -85,13 +85,13 @@ Icons: any word in the brackets that is not a tag below names an icon, drawn lef
 ```
 pill users [user]: Internet users
 fw [firewall]: Edge firewall | stateful, geo-block
-lb [loadbalancer top]: Load balancer pair | VRRP
+lb [loadbalancer icon-top]: Load balancer pair | VRRP
 ```
 
 - The names are the common diagram elements below, plus every Lucide icon under its own name
   (lucide.dev/icons), for example `brick-wall-fire` or `cable`. `lucide/bridge` names the Lucide icon
   `bridge`, since `bridge` alone is the tag.
-- `top` puts the icon above the text instead; the node gets taller instead of wider.
+- `icon-top` puts the icon above the text instead; the node gets taller instead of wider (`top` is its older name).
 - Icons are drawn in the diagram's ink colour whatever the node's state.
 - A name that does not exist is an error with a line number and close matches.
 - The drawings of the common names ship with the engine. Any other Lucide icon is fetched from
@@ -195,7 +195,7 @@ row "optional title" {
 }
 ```
 
-- `frame` draws a titled zone. Colours: `green` (default), `blue`, `orange`, `purple`, `grey`;
+- `frame` draws a titled zone. The title can also be written like a node's label: `frame dmz: DMZ, 10.0.1.0/24 [orange] {`. Colours: `green` (default), `blue`, `orange`, `purple`, `grey`;
   `dashed` also works. Frames nest. The id is optional; links can name a frame id. Without a title the id is
   shown as one; `frame paas "" [blue]` draws the zone with no title. A title too long for the room the zone has
   is shortened with an ellipsis (the whole title shows as its tooltip).
@@ -304,7 +304,7 @@ administers the diagram rather than being part of its path: logs, metrics, admin
 
 - Only the two sides across the flow exist: left and right in a diagram that flows down (the default side is
   right), top and bottom in one that flows right (the default is bottom). The ends of the flow are where it
-  starts and stops. Write `[side left]`, `[left]`, `[side top]` and so on to choose.
+  starts and stops. Write `[side left]`, `[side top]` and so on to choose.
 - A side zone goes at the top level. The rest of the diagram goes in a block of its own and the side zones in
   blocks beside it, so it is what you would write with rows and columns, written for you.
 - Several zones on one side stack along it, in the order of where their links come from. One on each side is

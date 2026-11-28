@@ -1040,3 +1040,36 @@ test('[gather] on links gathers just those links from two up; on a node it is th
   const old = await compile('direction right\nidp [join]: Identity provider\na -> idp : token\nb -> idp : token', measure, ELK, {});
   assert.strictEqual(old.rm.edges.filter(r => r.merged).length, 2, '[join] still works');
 });
+
+test('an arrow inside a link label is drawn as written, with a warning that says how to label each step', async () => {
+  const res = await compile('a -> b : one -> c', measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  assert.ok(res.warnings.some(w => /Line 1: the label of this link contains an arrow/.test(w)));
+  const quoted = await compile('a -> b : "one -> c"', measure, ELK, {});
+  assert.ok(!quoted.warnings.some(w => /contains an arrow/.test(w)), 'no warning when the label is in quotes');
+});
+
+test('a zone title can be written like a node label, with a colon; the quoted form still works', () => {
+  for (const src of ['frame dmz: DMZ, 10.0.1.0/24 [orange] {\n  a: A\n}', 'frame dmz [orange]: DMZ, 10.0.1.0/24 {\n  a: A\n}', 'frame dmz "DMZ, 10.0.1.0/24" [orange] {\n  a: A\n}']) {
+    const m = parse(src);
+    assert.deepStrictEqual(m.errors, [], src);
+    const f = m.frames.get('dmz');
+    assert.strictEqual(f.title, 'DMZ, 10.0.1.0/24', src);
+    assert.deepStrictEqual(f.tags, ['orange'], src);
+  }
+});
+
+test('icon-top puts the icon above the text, like its older name top', async () => {
+  for (const t of ['icon-top', 'top']) {
+    const res = await compile(`lb [loadbalancer ${t}]: Load balancer`, measure, ELK, {});
+    assert.deepStrictEqual(res.errors, []);
+    assert.ok(res.model.nodes.get('lb').iconTop, t);
+  }
+});
+
+test('a dot in a name is kept for table columns: any other dotted name is an error that says what to write', () => {
+  const m = parse('api.v2 -> db');
+  assert.ok(m.errors.some(e => /no table called "api"/.test(e.msg) && /api-v2/.test(e.msg) && e.line === 1));
+  const t = parse('table orders {\n  id uuid pk\n}\nx -> orders.id');
+  assert.deepStrictEqual(t.errors, [], 'a table column still works');
+});

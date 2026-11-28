@@ -5,15 +5,11 @@ What is left to do, by theme, the most wanted first. What is done is described i
 
 ## Next (wanted by the owner)
 
-1. **One language, fewer names** (from the review of the language, November 2026; none of it breaks a diagram):
-   - Done: `[gather]` on links and on nodes (`[join]` kept as its older name). Left: named sets (`[gather tokens]`)
-     and `[apart]` to keep a link out, only if a real diagram needs them.
-   - A side zone always says `side` (`[side top]`, never `[top]` alone); the icon above the text becomes `[icon-top]`
-     (`top` kept as an alias).
-   - Warnings: a name that is both a tag and an icon (suggest `lucide/…` or `logo/…`); a `->` inside a link label
-     (`a -> b : one -> c` is one link labelled "one -> c").
-   - Block titles may also be written with a colon (`frame dmz: DMZ [orange] {`), like node labels.
-   - Dots in names reserved for table columns (`orders.customer_id`), with an error saying what to write.
+1. **One language, fewer names** (from the review of the language, November 2026). Done: `[gather]` on links and
+   nodes (`[join]` its older name), `[icon-top]` (`top` its older name), side zones written with `side` in the docs,
+   zone titles with a colon, a warning for an arrow inside a link label, dotted names kept for table columns. Left:
+   named gathered sets (`[gather tokens]`) and `[apart]`, only if a real diagram needs them. Not done: a warning for
+   a name that is both a tag and an icon (it would fire on every `[bridge]`, a Lucide icon too).
 2. **From Mermaid** (the owner's picks):
    - Link styles: a thick link for the main path (`==>` or `[main]`), a cross end for refused traffic (`-x`).
    - Text formatting in labels: `**bold**`, `*italic*`, `` `code` ``; the width measure must know the runs.

@@ -56,7 +56,7 @@ function withIcon(line, name) {
   const lhs = line.slice(0, c), rest = line.slice(c);
   const m = lhs.match(/^(.*?)\s*\[([^\]]*)\]\s*$/);
   if (!m) return lhs.trimEnd() + ` [${name}]` + rest;
-  const keep = m[2].trim().split(/[\s,]+/).filter(t => t && (NODE_TAGS.has(t) || t === 'top'));
+  const keep = m[2].trim().split(/[\s,]+/).filter(t => t && (NODE_TAGS.has(t) || t === 'top' || t === 'icon-top'));
   return m[1] + ` [${[...keep, name].join(' ')}]` + rest;
 }
 async function loadIcons(model, loader) {
@@ -127,8 +127,8 @@ function iconHint(name) {
 }
 // the tags a node accepts: the fixed ones, `top`, and any icon name
 const NODE_TAG_SET = {
-  has: t => NODE_TAGS.has(t) || t === 'top' || iconKnown(t) || isLogoTag(t),
-  hint: t => `Unknown tag "${t}" on a node. Use ${[...NODE_TAGS, 'top'].join(', ')}, an icon name such as database, server, user, firewall, or a technology such as postgresql, kafka, kubernetes.${iconHint(t)}`,
+  has: t => NODE_TAGS.has(t) || t === 'top' || t === 'icon-top' || iconKnown(t) || isLogoTag(t),
+  hint: t => `Unknown tag "${t}" on a node. Use ${[...NODE_TAGS, 'icon-top'].join(', ')}, an icon name such as database, server, user, firewall, or a technology such as postgresql, kafka, kubernetes.${iconHint(t)}`,
 };
 // a frame takes its colour and side tags, and a technology's logo (shown before its title)
 const FRAME_TAG_SET = {
@@ -198,7 +198,7 @@ function splitLabel(text) {
 
 function parse(src) {
   const model = {
-    direction: 'RIGHT', spacing: 1, gather: 5, annotations: [], noteStyle: 'auto', title: '', caption: [], titleBlock: [], marks: [],
+    direction: 'RIGHT', spacing: 1, gather: 5, parseNotes: [], annotations: [], noteStyle: 'auto', title: '', caption: [], titleBlock: [], marks: [],
     nodes: new Map(), frames: new Map(), rails: new Map(), groups: [], edges: [], keys: [], aligns: [], sameSize: [], events: [], mode: 'flow', errors: [],
   };
   const root = { type: 'root', id: '', items: [], parent: null };
@@ -371,7 +371,7 @@ function parse(src) {
         if (!id || !ID_RE.test(id)) throw new TraceError('A table needs a name: table orders {   (or table orders "Orders" {)');
         if (model.frames.has(id) || model.rails.has(id)) throw new TraceError(`"${id}" is already a frame or rail`);
         let icon = null;
-        tags = tags.filter(t => { if (!NODE_TAGS.has(t) && t !== 'top') { icon = t; return false; } return t !== 'top'; });
+        tags = tags.filter(t => { if (!NODE_TAGS.has(t) && t !== 'top' && t !== 'icon-top') { icon = t; return false; } return t !== 'top' && t !== 'icon-top'; });
         let n = model.nodes.get(id);
         if (n && !n.implicit) throw new TraceError(`There is already a node or table called "${id}"`);
         if (!n) { n = { type: 'node', id, kind: 'table', name: '', note: '', tags: [], parent: null, line: ln }; model.nodes.set(id, n); }
@@ -429,11 +429,19 @@ function parse(src) {
       }
       if (kind === 'frame') {
         let { rest, tags } = takeTags(hm[2], FRAME_TAG_SET, 'frame');
+        let title = '';
+        let qm = rest.match(/"([^"]*)"\s*$/);
+        if (qm) { title = qm[1]; rest = rest.slice(0, qm.index).trim(); }
+        else if (rest.includes(':')) {
+          // the title written like a node's label: frame dmz: DMZ, 10.0.1.0/24 [orange] {  (tags before the colon too)
+          const c = rest.indexOf(':');
+          title = rest.slice(c + 1).trim();
+          const left = takeTags(rest.slice(0, c).trim(), FRAME_TAG_SET, 'frame');
+          rest = left.rest; tags = tags.concat(left.tags);
+          qm = true;
+        }
         const flogo = tags.find(t => !SIDE_FRAME_TAGS.has(t));
         tags = tags.filter(t => SIDE_FRAME_TAGS.has(t));
-        let title = '';
-        const qm = rest.match(/"([^"]*)"\s*$/);
-        if (qm) { title = qm[1]; rest = rest.slice(0, qm.index).trim(); }
         let id = rest.trim();
         if (id && !ID_RE.test(id)) throw new TraceError(`"${id}" is not a valid frame name`);
         if (!id) id = '_frame' + (++fcount);
@@ -473,6 +481,8 @@ function parse(src) {
     if (ARROWS.test(lhs)) {
       let { rest, tags } = takeTags(lhs.trim(), EDGE_TAG_SET, 'a link');
       if (label) { const lt = labelTags(label, EDGE_TAG_SET); label = lt.label; tags = tags.concat(lt.tags); }
+      // a -> b : one -> c is one link labelled "one -> c": most likely a chain written with its label in the middle
+      if (label && !/^"[^"]*"$/.test(label) && /\s(->|-->|<-|<--|<->)\s/.test(label)) model.parseNotes.push(`Line ${ln}: the label of this link contains an arrow, so it is one link labelled "${label}". To label each step of a chain, write one link per line (a -> b : one, then b -> c : two); to keep the arrow in the label, put the label in quotes.`);
       const parts = rest.split(ARROWS).map(s => s.trim());
       if (parts.length < 3 || parts.length % 2 === 0 || parts.some((p, i) => i % 2 === 0 && !p)) {
         throw new TraceError('A link reads: a -> b : label   (also -->, <-, <->, --)');
@@ -505,7 +515,8 @@ function parse(src) {
     let { rest, tags } = takeTags(lhs.trim(), NODE_TAG_SET, 'a node');
     if (label) { const lt = labelTags(label, NODE_TAG_SET); label = lt.label; tags = tags.concat(lt.tags); }
     let icon = null, iconTop = false, logo = null;
-    tags = tags.filter(t => { if (t === 'top') { iconTop = true; return false; } if (!NODE_TAGS.has(t)) { if (isLogoTag(t)) logo = t; else icon = t; return false; } return true; });
+    // icon-top puts the icon above the text (top is its older name)
+    tags = tags.filter(t => { if (t === 'top' || t === 'icon-top') { iconTop = true; return false; } if (!NODE_TAGS.has(t)) { if (isLogoTag(t)) logo = t; else icon = t; return false; } return true; });
     const words = rest.split(/\s+/).filter(Boolean);
     let kind = null, id;
     if (words.length === 2 && KINDS.has(words[0])) { kind = words[0]; id = words[1]; }
@@ -523,7 +534,7 @@ function parse(src) {
     n.tags = [...new Set(n.tags.concat(tags))];
     if (icon) n.icon = icon;
     if (logo) n.logo = logo;
-    if (iconTop) { if (!n.icon && !n.logo) throw new TraceError('"top" places an icon above the text, so give the node an icon: db [database top]: Orders'); n.iconTop = true; }
+    if (iconTop) { if (!n.icon && !n.logo) throw new TraceError('"icon-top" places an icon above the text, so give the node an icon: db [database icon-top]: Orders'); n.iconTop = true; }
     if (n.implicit || n.parent !== cur()) placeNode(n, cur());
     n.implicit = false;
     n.line = ln;
@@ -561,6 +572,15 @@ function parse(src) {
       model.nodes.delete(id);
       break;
     }
+  }
+  // a dot in a name is kept for table columns: any other name with a dot is a mistake
+  for (const [id, n] of model.nodes) {
+    if (!id.includes('.')) continue;
+    const t = id.slice(0, id.indexOf('.'));
+    const line = n.line || (model.edges.find(e => e.a === id || e.b === id) || {}).line;
+    model.errors.push({ line, msg: model.nodes.has(t)
+      ? `"${t}" is not a table, so "${id}" names no column: a dot in a name points at a table's column (orders.customer_id). Write the name with - or _ instead (${id.replace(/\./g, '-')})`
+      : `There is no table called "${t}" for "${id}": a dot in a name points at a table's column (orders.customer_id). Declare the table, or write the name with - or _ (${id.replace(/\./g, '-')})` });
   }
   for (const ss of model.sameSize) {
     const word = ss.axis === 'w' ? 'width' : 'height';
@@ -5394,7 +5414,7 @@ async function compile(src, measure, ELK, opts) {
   const rm = model.mode === 'sequence' ? await layoutSequence(model, measure) : await layout(model, measure, ELK, opts);
   rm.head = measureHead(model, rm, measure);
   rm.annot = layoutNotes(model, rm, measure);
-  return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(rm.notes || []), ...(model.alignNotes || []), ...(model.tree && !isTree(model) ? ['tree: this diagram is not a hierarchy (one root, every node with one parent at most, no decision, no reversed or self link, four nodes or more), so it is drawn as usual'] : [])], svg: render(rm, opts), standalone: theme => render(rm, { ...opts, standalone: true, theme: typeof theme === 'string' ? theme : null }) };
+  return { model, rm, errors: [], warnings: [...iconsFailed.map(n => `Could not load the icon "${n}" (offline?), drawn without it.`), ...(model.parseNotes || []), ...(rm.notes || []), ...(model.alignNotes || []), ...(model.tree && !isTree(model) ? ['tree: this diagram is not a hierarchy (one root, every node with one parent at most, no decision, no reversed or self link, four nodes or more), so it is drawn as usual'] : [])], svg: render(rm, opts), standalone: theme => render(rm, { ...opts, standalone: true, theme: typeof theme === 'string' ? theme : null }) };
 }
 
 if (typeof module !== 'undefined') module.exports = { parse, layout, render, compile, diagramCSS, standaloneCSS, PALETTE, FONT_NAME, FONT_NOTE, withIcon };
