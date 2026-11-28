@@ -1,37 +1,7 @@
-// Every example must parse and lay out, and the drawing must respect a few invariants
-// that earlier bugs broke: nodes never overlap, and a frame never covers a node from elsewhere.
+// One test per feature or engine rule, on small scenarios (test/fixtures/) or on the cases.
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
-const ELK = require('elkjs/lib/elk.bundled.js');
-const { compile, parse, FONT_NOTE } = require('../src/trace.js');
-const { measure } = require('../tools/measure.js');
-
-const root = path.join(__dirname, '..');
-const files = ['playground', 'cases', 'cases/simple', 'holdout/full'].flatMap(g =>
-  fs.readdirSync(path.join(root, 'examples', g)).filter(f => f.endsWith('.trace')).map(f => path.join('examples', g, f)));
-
-const overlap = (a, b, m = 0) => a.x < b.x + b.w - m && b.x < a.x + a.w - m && a.y < b.y + b.h - m && b.y < a.y + a.h - m;
-const owns = (frame, n) => { for (let p = n.parent; p; p = p.parent) if (p === frame) return true; return false; };
-
-for (const file of files) {
-  test(file, async () => {
-    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
-    assert.deepStrictEqual(res.errors, [], 'parse errors');
-    const nodes = res.rm.nodes;
-    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
-      assert.ok(!overlap(nodes[i], nodes[j], 1), `nodes overlap: ${nodes[i].id} and ${nodes[j].id}`);
-    }
-    for (const fr of res.model.mode === 'sequence' ? [] : res.rm.frames) {
-      for (const n of nodes) {
-        if (owns(fr.f, n) || n.tags.includes('bridge')) continue;
-        assert.ok(!overlap(fr, n, 1), `frame ${fr.f.id} covers foreign node ${n.id}`);
-      }
-    }
-    assert.match(res.standalone(), /^<svg /);
-  });
-}
+const { fs, path, ELK, compile, parse, FONT_NOTE, measure, root, files, overlap, owns, readFx, frameBox, within, noOverlap, compileFile } = require('./helpers.js');
 
 test('errors carry line numbers', async () => {
   const res = await compile('a -> b\nfoo bar baz', measure, ELK, {});
@@ -142,30 +112,6 @@ test('a long chain folds into rows by itself, a short one does not', async () =>
   assert.ok(long.rm.width / long.rm.height < 4, `a 16-step chain is folded (${Math.round(long.rm.width)}x${Math.round(long.rm.height)})`);
   const short = await compile(chain(5), measure, ELK, {});
   assert.ok(short.rm.width > short.rm.height * 2 && short.rm.height < 80, 'a 5-step chain stays on one line');
-});
-
-test('every link of every example starts at its source and ends at its target', async () => {
-  const near = (p, n) => p.x >= n.x - 4 && p.x <= n.x + n.w + 4 && p.y >= n.y - 4 && p.y <= n.y + n.h + 4;
-  for (const file of files) {
-    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
-    if (res.model.mode === 'sequence') continue;
-    const N = new Map(res.rm.nodes.map(n => [n.id, n]));
-    for (const { e, pts } of res.rm.edges) {
-      const A = N.get(e.a), B = N.get(e.b);
-      if (!A || !B || !pts.length) continue;
-      assert.ok(near(pts[0], A) && near(pts[pts.length - 1], B), `${file}: ${e.a} -> ${e.b} does not reach its ends`);
-    }
-  }
-});
-
-test('each simple case is the full case with the advanced commands removed (npm run simplify)', () => {
-  const { simplify } = require('../tools/simplify.js');
-  const dir = path.join(root, 'examples', 'cases');
-  for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.trace'))) {
-    const want = simplify(fs.readFileSync(path.join(dir, f), 'utf8')).text;
-    const have = fs.readFileSync(path.join(dir, 'simple', f), 'utf8');
-    assert.strictEqual(have, want, `examples/cases/simple/${f} is out of date: run npm run simplify`);
-  }
 });
 
 test('simple cases use none of the advanced commands', () => {
@@ -304,30 +250,6 @@ test('the simple form of a case with a rail has plain nodes and links', () => {
   assert.strictEqual(stats.rails, 1);
 });
 
-test('no link runs along a frame border in the middle of its path', async () => {
-  const simp = pts => { const o = [pts[0]]; for (let i = 1; i < pts.length - 1; i++) { const a = o[o.length - 1], b = pts[i], c = pts[i + 1]; if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) continue; if ((Math.abs(a.x - b.x) < 0.5 && Math.abs(b.x - c.x) < 0.5) || (Math.abs(a.y - b.y) < 0.5 && Math.abs(b.y - c.y) < 0.5)) continue; o.push(b); } o.push(pts[pts.length - 1]); return o; };
-  for (const file of files) {
-    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
-    if (res.model.mode === 'sequence') continue;
-    for (const { e, pts } of res.rm.edges) {
-      if (e.rail) continue;
-      const q = simp(pts);
-      for (let k = 1; k < q.length - 2; k++) {   // not the first or last stretch: those stay on their nodes
-        const a = q[k], b = q[k + 1];
-        for (const f of res.rm.frames) {
-          if (Math.abs(a.y - b.y) < 0.5) {
-            const ov = Math.min(Math.max(a.x, b.x), f.x + f.w) - Math.max(Math.min(a.x, b.x), f.x);
-            for (const by of [f.y, f.y + f.h]) assert.ok(!(Math.abs(a.y - by) < 8 && ov > 12), `${file}: ${e.a} -> ${e.b} runs along the ${f.f.id} frame`);
-          } else if (Math.abs(a.x - b.x) < 0.5) {
-            const ov = Math.min(Math.max(a.y, b.y), f.y + f.h) - Math.max(Math.min(a.y, b.y), f.y);
-            for (const bx of [f.x, f.x + f.w]) assert.ok(!(Math.abs(a.x - bx) < 8 && ov > 12), `${file}: ${e.a} -> ${e.b} runs along the ${f.f.id} frame`);
-          }
-        }
-      }
-    }
-  }
-});
-
 test('same-width and same-height make nodes and frames equal, and frames share their edges', async () => {
   const nodes = await compile('direction down\na: A\nb: A much longer label here\nc: Mid label\na -> b -> c\nsame-width a b c\nsame-height a c', measure, ELK, {});
   assert.deepStrictEqual(nodes.errors, []);
@@ -459,7 +381,7 @@ test('tables sit in frames and take links to a column from outside the frame', a
 });
 
 test('labels and titles stay off the links in the DMZ case', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/dmz.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/cases/dmz.trace');
   const seg = (r, fn) => r.pts.some((p, i) => i && fn(r.pts[i - 1], p));
   const crosses = (x0, x1, y0, y1) => res.rm.edges.some(r => !r.e.lifeline && seg(r, (a, p) => Math.min(a.x, p.x) < x1 && x0 < Math.max(a.x, p.x) && Math.min(a.y, p.y) < y1 && y0 < Math.max(a.y, p.y)));
   // a row or column title is not crossed by a link
@@ -488,27 +410,6 @@ test('labels and titles stay off the links in the DMZ case', async () => {
   assert.ok(ys.length === 1 && step.lab.y + step.e.lab.h <= ys[0], 'the label sits above the horizontal step');
 });
 
-test('no link label is crossed by a link in any example', async () => {
-  for (const file of files) {
-    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
-    if (res.model.mode === 'sequence') continue;
-    for (const r of res.rm.edges) {
-      if (!r.lab || !r.e.lab || r.e.lifeline || r.e.divider) continue;
-      const w = r.e.lab.w, h = r.e.lab.h;
-      const x0 = r.lab.anchor === 'middle' ? r.lab.x - w / 2 : r.lab.anchor === 'end' ? r.lab.x - w : r.lab.x;
-      const b = { x: x0, y: r.lab.y, w, h };
-      for (const o of res.rm.edges) {
-        if (!o.pts) continue;
-        for (let i = 1; i < o.pts.length; i++) {
-          const a = o.pts[i - 1], p = o.pts[i];
-          assert.ok(!(Math.min(a.x, p.x) < b.x + b.w && b.x < Math.max(a.x, p.x) && Math.min(a.y, p.y) < b.y + b.h && b.y < Math.max(a.y, p.y)),
-            `${file}: the label "${r.e.label}" is crossed by the link ${o.e.a || ''} -> ${o.e.b || ''}`);
-        }
-      }
-    }
-  }
-});
-
 test('a label moves off a link that crosses it, and may wrap to two lines to fit', async () => {
   // b -> c runs right past a -> d's label unless that label moves
   const src = ['direction down', 'a: A', 'b: B', 'c: C', 'd: D', 'a -> d : a fairly long label for this link', 'b -> c : another'].join('\n');
@@ -516,48 +417,6 @@ test('a label moves off a link that crosses it, and may wrap to two lines to fit
   assert.deepStrictEqual(res.errors, []);
   const wide = await compile(['direction down', 'a: A', 'b: B', 'a -> b : 8443/tcp admins only', 'a -> b [dashed] : second'].join('\n'), measure, ELK, {});
   assert.deepStrictEqual(wide.errors, []);
-});
-
-test('the comparison page is built with every Trace drawing already in it (no engine in the page), Mermaid drawn live', () => {
-  const { execFileSync } = require('child_process');
-  const out = path.join(require('os').tmpdir(), 'trace-compare-test.html');
-  execFileSync('node', [path.join(root, 'tools/build-compare.js'), '--out', out], { stdio: 'pipe' });
-  const html = fs.readFileSync(out, 'utf8');
-  const CASES = JSON.parse(html.match(/const CASES = (\[.*?\]);\n/s)[1]);
-  const ids = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace'));
-  assert.strictEqual(CASES.length, ids.length);
-  for (const c of CASES) { assert.match(c.svg, /^<svg/, `${c.id} drawn`); if (c.full) assert.match(c.fsvg, /^<svg/, `${c.id} full drawn`); }
-  assert.ok(!/elkjs|function compile/.test(html), 'no layout engine in the page');
-  assert.match(html, /mermaid@11\.17\.2/);
-});
-
-test('the showcase page shows one case at a time, with a list of every case, a menu, and simple and full', () => {
-  const { execFileSync } = require('child_process');
-  execFileSync('node', [path.join(root, 'tools/build-showcase.js')], { stdio: 'pipe' });
-  const html = fs.readFileSync(path.join(root, 'dist/showcase.html'), 'utf8');
-  const cases = JSON.parse(fs.readFileSync(path.join(root, 'examples/cases/cases.json'), 'utf8'));
-  for (const c of cases) {
-    assert.match(html, new RegExp(`<li><a href="#${c.id}">`), `${c.id} in the list`);
-    assert.match(html, new RegExp(`<option value="${c.id}">`), `${c.id} in the menu`);
-  }
-  assert.match(html, /id="v-simple"[^>]*>Simple</);
-  assert.match(html, /id="v-trace"[^>]*>Full</);
-  assert.match(html, /function showFromHash/);
-  assert.match(html, /ArrowRight/);
-});
-
-test('the comparison page draws every held-out diagram with Trace and Mermaid, each with its Mermaid version', () => {
-  const { execFileSync } = require('child_process');
-  execFileSync('node', [path.join(root, 'tools/build-compare.js')], { stdio: 'pipe' });
-  const html = fs.readFileSync(path.join(root, 'dist/compare.html'), 'utf8');
-  const dir = path.join(root, 'examples/holdout');
-  for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.trace'))) {
-    const id = f.replace(/\.trace$/, '');
-    assert.ok(fs.existsSync(path.join(dir, id + '.mmd')), `${id}.mmd next to ${f}`);
-    assert.match(html, new RegExp(`<li><a href="#${id}">`), `${id} in the list`);
-  }
-  assert.match(html, /mermaid@\d+\.\d+\.\d+\/dist\/mermaid\.min\.js/, 'Mermaid pinned to a version');
-  assert.match(html, /id="mcanvas"/);
 });
 
 test('mermaid-to-trace: shapes, both label forms, notes after a line break, subgraphs and padding subgraphs', () => {
@@ -633,7 +492,7 @@ test('a link with one step more than it needs takes the shorter route (down, acr
 });
 
 test('arrowheads on one side of a node are not crowded by the next link (office case)', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/office.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/cases/office.trace');
   const sides = new Map();
   for (const { e, pts } of res.rm.edges) {
     const p = pts[pts.length - 1];
@@ -671,7 +530,7 @@ test('hub: links between one node and five or more members of a zone it is not i
 });
 
 test('links leaving one short side of a node share the room out; stretches of different links are not squeezed together (aws case)', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/aws.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/cases/aws.trace');
   // every side of App a: the links that leave it there are 9.5px apart or more
   const n = res.rm.nodes.find(x => x.id === 'app1');
   const sides = { left: [], right: [], top: [], bottom: [] };
@@ -694,37 +553,10 @@ test('a chain much wider than tall folds into rows; a zoned strip is only folded
   try { const strip = await compile(src, measure, ELK, { off: ['wrap'] }); assert.ok(strip.rm.width / strip.rm.height > 4, 'a strip without the fold');
   } finally { delete process.env.TRACE_NOFOLD; }
   // k8s would fold into a page shape, but with a return link of 900px: the strip is kept
-  const k8s = await compile(fs.readFileSync(path.join(root, 'examples/cases/k8s.trace'), 'utf8'), measure, ELK, {});
+  const k8s = await compileFile('examples/cases/k8s.trace');
   assert.ok(k8s.rm.width / k8s.rm.height > 4, 'k8s stays a strip rather than get a link that runs the width of the page');
   try { } finally { delete process.env.TRACE_NOFOLD; }
 });
-
-test('the engine runs where there is no `process` (the page): nothing outside the guarded env reads it', () => {
-  const src = fs.readFileSync(path.join(root, 'src/trace.js'), 'utf8');
-  const bad = src.split('\n').map((l, i) => [l, i + 1]).filter(([l]) => /\bprocess\./.test(l) && !/typeof process/.test(l));
-  assert.deepStrictEqual(bad.filter(([l]) => !/const (env|DEBUG) = /.test(l)).map(([l, i]) => i + ': ' + l.trim()), []);
-});
-
-test('every feature example draws, before and after, and the features page has a card for each', async () => {
-  const { execFileSync } = require('child_process');
-  const meta = JSON.parse(fs.readFileSync(path.join(root, 'examples/features/features.json'), 'utf8'));
-  for (const f of meta) {
-    for (const [k, off] of [['before', f.beforeOff], ['after', f.afterOff]]) {
-      const res = await compile(fs.readFileSync(path.join(root, 'examples/features', `${f.id}.${k}.trace`), 'utf8'), measure, ELK, { off });
-      assert.deepStrictEqual(res.errors, [], `${f.id} ${k}`);
-      assert.ok(res.rm, `${f.id} ${k} draws`);
-    }
-  }
-  execFileSync('node', [path.join(root, 'tools/build-features.js')], { stdio: 'pipe' });
-  const html = fs.readFileSync(path.join(root, 'dist/features.html'), 'utf8');
-  assert.strictEqual((html.match(/<details class="case" id="/g) || []).length, meta.length);
-});
-
-// ---- side zones: [side], [side left|right|top|bottom], [span]
-const readFx = n => fs.readFileSync(path.join(root, 'test/fixtures', n), 'utf8');
-const frameBox = (res, id) => res.rm.frames.find(f => f.f.id === id);
-const within = (res, b) => b.x >= -0.5 && b.y >= -0.5 && b.x + b.w <= res.rm.width + 0.5 && b.y + b.h <= res.rm.height + 0.5;
-const noOverlap = (res, a, b) => !(a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && a.y < b.y + b.h - 1 && b.y < a.y + a.h - 1);
 
 test('a side zone stands to the right of the main flow, and spans the zones it is linked to', async () => {
   const res = await compile(readFx('side-span.trace'), measure, ELK, {});
@@ -843,25 +675,8 @@ test('title, caption and title block are drawn: the title and caption above, the
   assert.match(parse('title-block {\n  just text\n}').errors[0].msg, /key: value/);
 });
 
-test('no link runs through a node that is not one of its ends, in any example', async () => {
-  for (const file of files) {
-    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
-    for (const r of res.rm.edges) {
-      if (!r.pts || r.e.rail || r.e.lifeline || r.e.divider) continue;
-      for (const n of res.rm.nodes) {
-        if (n.x === undefined || n.id === r.e.a || n.id === r.e.b) continue;
-        for (let i = 1; i < r.pts.length; i++) {
-          const a = r.pts[i - 1], b = r.pts[i];
-          const hit = Math.min(a.x, b.x) < n.x + n.w - 1 && n.x + 1 < Math.max(a.x, b.x) && Math.min(a.y, b.y) < n.y + n.h - 1 && n.y + 1 < Math.max(a.y, b.y);
-          assert.ok(!hit, `${file}: ${r.e.a} -> ${r.e.b} runs through ${n.id}`);
-        }
-      }
-    }
-  }
-});
-
 test('layout blocks hold even when every straight way into a frame member is blocked; the router takes the link round', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'test/fixtures/blocked-port.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('test/fixtures/blocked-port.trace');
   assert.deepStrictEqual(res.errors, []);
   assert.ok(!(res.rm.notes || []).some(n => /could not be placed/.test(n)), 'the rows and columns are kept');
   for (const r of res.rm.edges) for (const n of res.rm.nodes) {
@@ -874,7 +689,7 @@ test('layout blocks hold even when every straight way into a frame member is blo
 });
 
 test('zones side by side in a row share their top, same-height makes them equal, and no zone covers another', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'test/fixtures/row-zones.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('test/fixtures/row-zones.trace');
   assert.deepStrictEqual(res.errors, []);
   assert.ok(!(res.rm.notes || []).length, String(res.rm.notes));
   const F = id => res.rm.frames.find(f => f.f.id === id);
@@ -904,7 +719,7 @@ test('mark: the links into the node are not drawn; each source carries its icon,
 });
 
 test('mark: a marked node with no link left to draw stands at the end of the flow, not among the first nodes', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/monorepo.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/cases/monorepo.trace');
   const N = id => res.rm.nodes.find(n => n.id === id);
   const last = Math.max(...res.rm.nodes.filter(n => !['utils', 'types'].includes(n.id)).map(n => n.x));
   for (const id of ['utils', 'types']) assert.ok(N(id).x >= last - 1, `${id} at x ${N(id).x}, the last column is at ${last}`);
@@ -922,7 +737,7 @@ test('mark: errors say what to write', () => {
 });
 
 test('logos: beside the technology name with a role icon, in its place without one, before a zone title; errors say what to write', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'test/fixtures/logos.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('test/fixtures/logos.trace');
   assert.deepStrictEqual(res.errors, []);
   assert.deepStrictEqual(res.warnings, []);
   const N = id => res.rm.nodes.find(n => n.id === id);
@@ -943,7 +758,7 @@ test('logos: beside the technology name with a role icon, in its place without o
 });
 
 test('zones stacked in a column share their left edge (hybrid: the three subnets), and same-width then gives them straight sides', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/hybrid.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/cases/hybrid.trace');
   assert.deepStrictEqual(res.errors, []);
   const F = id => res.rm.frames.find(f => f.f.id === id);
   const subnets = ['pub', 'priv', 'dbs'].map(F);
@@ -954,17 +769,17 @@ test('zones stacked in a column share their left edge (hybrid: the three subnets
 });
 
 test('links into one table row that look the same meet at one point; links that look different keep their own places', async () => {
-  const shop = await compile(fs.readFileSync(path.join(root, 'examples/cases/shop-model.trace'), 'utf8'), measure, ELK, {});
+  const shop = await compileFile('examples/cases/shop-model.trace');
   const ends = shop.rm.edges.filter(r => r.e.b === 'customers' && r.e.bCol === 'id').map(r => r.pts[r.pts.length - 1]);
   assert.ok(ends.length >= 3);
   for (const p of ends) assert.ok(Math.abs(p.x - ends[0].x) < 0.5 && Math.abs(p.y - ends[0].y) < 0.5, 'one point on customers.id');
-  const dm = await compile(fs.readFileSync(path.join(root, 'examples/playground/data-model.trace'), 'utf8'), measure, ELK, {});
+  const dm = await compileFile('examples/playground/data-model.trace');
   const ys = dm.rm.edges.filter(r => r.e.b === 'orders' && r.e.bCol === 'id').map(r => Math.round(r.pts[r.pts.length - 1].y));
   assert.strictEqual(new Set(ys).size, ys.length, 'different marks and styles on orders.id keep their own places');
 });
 
 test('a decision sends its two outcomes out of different sides, each with its label', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/triage.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/cases/triage.trace');
   const side = (r, n) => { const p = r.pts[0]; return Math.abs(p.y - n.y - n.h) < 2 ? 'bottom' : Math.abs(p.y - n.y) < 2 ? 'top' : Math.abs(p.x - n.x) < 2 ? 'left' : 'right'; };
   for (const id of ['spam', 'known', 'urgent']) {
     const n = res.rm.nodes.find(m => m.id === id);
@@ -975,7 +790,7 @@ test('a decision sends its two outcomes out of different sides, each with its la
 });
 
 test('tree: a hierarchy (a tree with no decisions) puts each parent in the middle of its children, only when asked for; a decision tree keeps its straight path', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/cases/orgchart.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/cases/orgchart.trace');
   const N = id => res.rm.nodes.find(n => n.id === id), c = n => n.x + n.w / 2;   // the case is top-down
   for (const [p, kids] of [['cto', ['platform', 'security']], ['cfo', ['finance', 'legal']], ['coo', ['support', 'ops']]]) {
     const lo = c(N(kids[0])), hi = c(N(kids[1])), mid = (lo + hi) / 2;
@@ -990,49 +805,8 @@ test('tree: a hierarchy (a tree with no decisions) puts each parent in the middl
   for (const [p, a, b] of [['service1', 'pod1', 'pod2'], ['service2', 'pod3', 'pod4']]) { const lo = Math.min(c(I(a)), c(I(b))), hi = Math.max(c(I(a)), c(I(b))); assert.ok(Math.abs(c(I(p)) - (lo + hi) / 2) <= (hi - lo) / 4 + 1, `${p} over the middle of its pods`); }
   const notTree = await compile('tree\na -> b\nb -> a\nc -> a\nd -> c\n', measure, ELK, {});
   assert.ok(notTree.warnings.some(w => /^tree:/.test(w)), 'a warning when the diagram is not a hierarchy');
-  const who = await compile(fs.readFileSync(path.join(root, 'examples/playground/who-may-delete-audit-rows.trace'), 'utf8'), measure, ELK, {});
+  const who = await compileFile('examples/playground/who-may-delete-audit-rows.trace');
   assert.ok(who.rm.edges.some(r => r.e.label === 'yes' && r.pts.length === 2), 'the decision tree keeps a straight yes');
-});
-
-test('every link is orthogonal: each stretch is horizontal or vertical, in every example and held-out diagram', async () => {
-  const holdout = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace')).map(f => 'examples/holdout/' + f);
-  for (const file of [...files, ...holdout]) {
-    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
-    for (const r of res.rm.edges) {
-      if (!r.pts || r.e.rail) continue;
-      for (let i = 1; i < r.pts.length; i++) {
-        const a = r.pts[i - 1], b = r.pts[i];
-        assert.ok(Math.abs(a.x - b.x) < 0.5 || Math.abs(a.y - b.y) < 0.5, `${file}: ${r.e.a} -> ${r.e.b} has a slanted stretch from (${Math.round(a.x)}, ${Math.round(a.y)}) to (${Math.round(b.x)}, ${Math.round(b.y)})`);
-      }
-    }
-  }
-});
-
-test('no two links lie on top of each other, in any example (links merged into one bus excepted)', async () => {
-  const ov = (a, b, c, d) => {
-    if (Math.abs(a.y - b.y) < 0.5 && Math.abs(c.y - d.y) < 0.5) return Math.abs(a.y - c.y) < 7 && Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) > 8;
-    if (Math.abs(a.x - b.x) < 0.5 && Math.abs(c.x - d.x) < 0.5) return Math.abs(a.x - c.x) < 7 && Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) - Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) > 8;
-    return false;
-  };
-  const bad = [];
-  for (const file of files) {
-    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
-    const E = res.rm.edges.filter(r => r.pts && !r.e.rail && !r.e.lifeline && !r.e.divider);
-    for (let i = 0; i < E.length; i++) for (let j = i + 1; j < E.length; j++) {
-      const A = E[i], B = E[j];
-      if (A.merged && B.merged && A.mergeHub === B.mergeHub) continue;   // a bus is shared on purpose (two buses are not)
-      // links into the same row of a table converge there (the ER convention), and two links between the same
-      // two nodes run side by side by nature
-      const tab = id => res.rm.nodes.find(n => n.id === id && n.cols);
-      if ((A.e.b === B.e.b && tab(A.e.b)) || (A.e.a === B.e.a && tab(A.e.a))) continue;
-      if ((A.e.a === B.e.a && A.e.b === B.e.b) || (A.e.a === B.e.b && A.e.b === B.e.a)) continue;
-      // two links that leave or reach the same node may share the first few pixels at the port
-      let hit = false;
-      for (let a = 1; a < A.pts.length && !hit; a++) for (let b = 1; b < B.pts.length && !hit; b++) if (ov(A.pts[a - 1], A.pts[a], B.pts[b - 1], B.pts[b])) hit = true;
-      if (hit) bad.push(`${file}: ${A.e.a}->${A.e.b} / ${B.e.a}->${B.e.b}`);
-    }
-  }
-  assert.deepStrictEqual(bad, []);
 });
 
 test('join: links into a node tagged join meet one line with a dot, from two links up; without the tag they stay apart', async () => {
@@ -1056,23 +830,8 @@ test('join: a zone border beside another row does not stop a bus (CI/CD gate, DM
   }
 });
 
-test('no zone title is crossed by a link in any example (a zone with no free place grows to make one)', async () => {
-  for (const file of files) {
-    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
-    if (res.errors.length) continue;
-    for (const fr of res.rm.frames) {
-      if (!fr.f.title || fr.f.logo) continue;
-      const m = res.svg.match(new RegExp(`<text class="ztitle muted" x="([\\d.]+)" y="([\\d.]+)" text-anchor="(\\w+)">${fr.f.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/&/g, '&amp;')}</text>`));
-      if (!m) continue;
-      const x = +m[1], y = +m[2], w = fr.f.titleW, x0 = m[3] === 'end' ? x - w : x;
-      const hit = res.rm.edges.some(r => r.pts && !r.e.lifeline && r.pts.some((q, i) => i && Math.min(r.pts[i - 1].x, q.x) < x0 + w && x0 < Math.max(r.pts[i - 1].x, q.x) && Math.min(r.pts[i - 1].y, q.y) < y + 3 && y - 11 < Math.max(r.pts[i - 1].y, q.y)));
-      assert.ok(!hit, `${file}: the title of ${fr.f.id} is not crossed by a link`);
-    }
-  }
-});
-
 test('side zones: zones written the same width in the main flow keep a common left edge, and the side zone stands level with them', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'test/fixtures/side-same-width.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('test/fixtures/side-same-width.trace');
   assert.deepStrictEqual(res.errors, []);
   const f = id => res.rm.frames.find(x => x.f.id === id);
   const xs = ['edge', 'core', 'access'].map(id => f(id).x);
@@ -1086,17 +845,10 @@ test('zones that ELK puts side by side in one layer share their top (per-zone la
   const was = process.env.TRACE_LAYOUT;
   process.env.TRACE_LAYOUT = 'hier';
   try {
-    const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/otel-telemetry.trace'), 'utf8'), measure, ELK, {});
+    const res = await compileFile('examples/holdout/otel-telemetry.trace');
     const tops = ['op', 'pr', 'ja', 'os'].map(id => res.rm.frames.find(f => f.f.id === id).y);
     assert.ok(Math.max(...tops) - Math.min(...tops) < 1, `the four backends share their top (${tops.map(Math.round)})`);
   } finally { if (was === undefined) delete process.env.TRACE_LAYOUT; else process.env.TRACE_LAYOUT = was; }
-});
-
-test('sequence: a message label has a ground of the page colour, so lifelines it spans do not show through it', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/gitlab-ssh-fetch.trace'), 'utf8'), measure, ELK, {});
-  const labelled = res.rm.edges.filter(r => !r.e.lifeline && r.lab && r.e.lab).length;
-  assert.ok(labelled > 0);
-  assert.strictEqual((res.svg.match(/class="labbg"/g) || []).length, labelled);
 });
 
 test('arrowheads at the start of a link use their own marker with orient="auto" (PNG renderers lack auto-start-reverse)', async () => {
@@ -1106,7 +858,7 @@ test('arrowheads at the start of a link use their own marker with orient="auto" 
 });
 
 test('no link label straddles a zone border where it has another place (techtribes, full)', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/full/techtribes.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/holdout/full/techtribes.trace');
   for (const r of res.rm.edges.filter(r => r.lab && r.e.lab)) {
     const w = r.e.lab.w, x0 = r.lab.anchor === 'middle' ? r.lab.x - w / 2 : r.lab.anchor === 'end' ? r.lab.x - w : r.lab.x;
     for (const f of res.rm.frames) {
@@ -1117,7 +869,7 @@ test('no link label straddles a zone border where it has another place (techtrib
 });
 
 test('same-width holds after a zone grows for its title: its partners grow with it, inside their zone (Deployment, full)', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/full/bigbank-deployment.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/holdout/full/bigbank-deployment.trace');
   const f = id => res.rm.frames.find(x => x.f.id === id);
   assert.ok(Math.abs(f('dn').w - f('bb2').w) < 1, 'dn and bb2 are as wide');
   const dc = res.rm.frames.find(x => f('dn').x > x.x && f('dn').x + f('dn').w < x.x + x.w && x !== f('dn') && x.w > f('dn').w + f('bb2').w);
@@ -1141,21 +893,8 @@ test('align: a zone that slides takes the nodes that hang from it alone (the Gra
   assert.ok(Math.abs((n('gr-http').x + n('gr-http').w / 2) - (n('gr-b').x + n('gr-b').w / 2)) < 1, 'the browser stays under Grafana HTTP');
 });
 
-test('no two zones that are not nested overlap, in any example or held-out diagram (a title too long for its room is shortened)', async () => {
-  const holdout = fs.readdirSync(path.join(root, 'examples/holdout')).filter(f => f.endsWith('.trace')).map(f => 'examples/holdout/' + f);
-  const bad = [];
-  for (const file of [...files, ...holdout]) {
-    const res = await compile(fs.readFileSync(path.join(root, file), 'utf8'), measure, ELK, {});
-    const F = res.rm.frames, nest = (x, y) => { for (let p = x.f.parent; p; p = p.parent) if (p === y.f) return true; return false; };
-    for (const a of F) for (const b of F) if (a.f.id < b.f.id && !/^_seq/.test(a.f.id) && !/^_seq/.test(b.f.id) && !nest(a, b) && !nest(b, a) && Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 2 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 2) bad.push(`${file}: ${a.f.id} / ${b.f.id}`);
-  }
-  assert.deepStrictEqual(bad, []);
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/unifi-home-vlans.trace'), 'utf8'), measure, ELK, {});
-  assert.match(res.svg, /VLAN_SERVERS[^<]*…<title>VLAN_SERVERS — Secure Server Net · YOUR_SERVER_SUBNET<\/title>/);
-});
-
 test('a link that ELK sends through nodes is routed round them, even alongside another link (a row of zones in a column)', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'test/fixtures/row-in-column-through.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('test/fixtures/row-in-column-through.trace');
   const N = res.rm.nodes.filter(n => n.x !== undefined);
   for (const r of res.rm.edges) for (let i = 1; i < r.pts.length; i++) {
     const a = r.pts[i - 1], b = r.pts[i];
@@ -1183,7 +922,7 @@ test('mermaid-to-trace: a link to a subgraph links the zone (no node of that nam
 });
 
 test('zones in a row put their titles on the same edge, with their bottoms lined up (UniFi home network)', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/unifi-home-vlans.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/holdout/unifi-home-vlans.trace');
   const row = ['VLAN65W2', 'VLAN62', 'VLAN1W2', 'VLAN64W', 'VLAN1W', 'VLAN65W'].map(id => res.rm.frames.find(f => f.f.id === id));
   assert.ok(row.every(f => f.titleEdge === 'bottom'), 'every title at the bottom');
   const bots = row.map(f => f.y + f.h);
@@ -1191,7 +930,7 @@ test('zones in a row put their titles on the same edge, with their bottoms lined
 });
 
 test('a node reached from inside a zone stands beside it, level with what links to it, its links straight (eShop, OpenAI)', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/full/eshop.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/holdout/full/eshop.trace');
   const n = id => res.rm.nodes.find(x => x.id === id), cloud = res.rm.frames.find(f => f.f.id === 'cloud');
   assert.ok(n('openai').y > cloud.y + 40, 'OpenAI is not above the cloud zone');
   for (const r of res.rm.edges.filter(r => r.e.b === 'openai')) {
@@ -1201,7 +940,7 @@ test('a node reached from inside a zone stands beside it, level with what links 
 });
 
 test('links to zones: rows and columns of zones still work, and a link to a zone ends on its border (multi-region SaaS)', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/full/multi-region-saas.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/holdout/full/multi-region-saas.trace');
   assert.deepStrictEqual(res.warnings, [], 'no "could not be placed" note');
   const f = id => res.rm.frames.find(x => x.f.id === id);
   const tops = ['eu', 'shared', 'us'].map(id => f(id).y);
@@ -1214,7 +953,7 @@ test('links to zones: rows and columns of zones still work, and a link to a zone
 });
 
 test('UniFi home network: zones in one layer share their top in every layout, and a span node lets a link leave past its stack (no hop)', async () => {
-  const res = await compile(fs.readFileSync(path.join(root, 'examples/holdout/full/unifi-home-vlans.trace'), 'utf8'), measure, ELK, {});
+  const res = await compileFile('examples/holdout/full/unifi-home-vlans.trace');
   const f = id => res.rm.frames.find(x => x.f.id === id);
   assert.ok(Math.abs(f('CORE').y - f('WIFI').y) < 1, 'Core switching and Wi-Fi share their top');
   const hue = res.rm.edges.find(e => e.e.b === 'HUE');
@@ -1226,17 +965,6 @@ test('UniFi home network: zones in one layer share their top in every layout, an
     return Math.min(H0.x, H1.x) + 0.5 < V0.x && V0.x < Math.max(H0.x, H1.x) - 0.5 && Math.min(V0.y, V1.y) + 0.5 < H0.y && H0.y < Math.max(V0.y, V1.y) - 0.5;
   })())));
   assert.ok(!crossesAny, 'the link to the Hue bridge crosses nothing');
-});
-
-test('every diagram in the docs shows its Trace source, up to date', () => {
-  const { fill, docFiles } = require('../tools/doc-sources.js');
-  for (const f of docFiles()) {
-    const md = fs.readFileSync(path.join(root, f), 'utf8');
-    assert.strictEqual(fill(md), md, `${f}: a source block is out of date: run npm run build:docs`);
-    // a picture of a diagram (docs/images, not a .dark one) has a source block in the same file
-    const pics = [...md.matchAll(/<img src="(?:docs\/)?images\/([\w.-]+)\.png"/g)].map(m => m[1]);
-    if (pics.length) assert.ok(/<!-- source /.test(md), `${f}: pictures without a source block`);
-  }
 });
 
 test('gather: five alike links make a bus by default, gather N changes the number, gather off stops it', async () => {
@@ -1266,17 +994,6 @@ test('link labels: a tag puts the label near an end, three parts name both ends,
   assert.ok(bad.errors.some(e => /three parts/.test(e.msg) && e.line === 1));
   const quoted = await compile('a -> b : "one | two"', measure, ELK, {});
   assert.deepStrictEqual(quoted.errors, []);
-});
-
-test('docs/how-it-works.md shows every step of the tidy-up, in the order the engine runs them', async () => {
-  const names = [];
-  const res = await compile('a -> b', measure, ELK, { onStage: (n, rm) => names.push(n) });
-  const steps = names.slice(names.lastIndexOf('layout') + 1);
-  const md = fs.readFileSync(path.join(root, 'docs/how-it-works.md'), 'utf8');
-  const shown = [...md.matchAll(/<!-- step: (\w+) -->/g)].map(m => m[1]);
-  assert.deepStrictEqual(shown, steps, 'a step was added, removed or moved: run npm run build:docs');
-  const { STEPS } = require('../tools/build-algorithm.js');
-  assert.deepStrictEqual(STEPS.map(s => s[0]), steps, 'tools/build-algorithm.js needs a caption for each step');
 });
 
 test('notes: in the margin when short, numbered when asked, never moving the drawing, and a wrong name says what to write', async () => {

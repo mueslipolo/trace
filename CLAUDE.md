@@ -68,45 +68,11 @@ the code they concern ("ELK lesson").
   `build-icons.js` (icon and logo data), `render.js` (one file to SVG or PNG), `snapshots.js` (all examples to `out/`),
   `simplify.js` (the simple forms), `metrics.js` (layout quality), `mermaid-to-trace.js` (Mermaid to Trace, plainly),
   `measure.js` and `png.js` (text widths and PNGs in Node).
-- `test/examples.test.js`: every example lays out with no errors, no overlapping nodes, no frame covering a node
-  that isn't its own, no link through a node, no two links on top of each other, no slanted link; plus a test per
-  feature (`test/fixtures/` holds the scenarios that are not examples).
-
-## Commands
-
-```
-npm install
-npm test                 # parse + layout + invariants for every example
-npm run simplify         # regenerate examples/cases/simple/ from the full cases
-npm run snapshots        # out/**/*.svg, plus .png if @resvg/resvg-js installed
-npm run build            # dist/: playground, showcase, features and compare pages
-npm run build:icons      # src/lucide-*.js and src/logo-*.js from the dev dependencies
-npm run build:docs       # docs/images/ and docs/how-it-works.md: the README and docs pictures
-npm run metrics          # layout quality, compared with metrics/baseline.json (-- --save to update it)
-                         # -- --json out.json writes every count; -- --check exits 1 if the held-out set got worse
-node tools/render.js examples/cases/dmz.trace out.svg     # also out.png, --dark, --zoom 2, --watch
-```
-
-## How to work on layout
-
-Layout changes have side effects across diagrams. After any change to `src/trace.js`:
-run `npm test`, run `npm run snapshots`, and look at the PNGs of every example, not only the one
-you were fixing. Most bugs found so far were only visible in a picture (a frame swallowing a
-node, a title under a box, a jog in a link). If you add a feature, add or extend an example that
-uses it.
-
-Then run `npm run metrics`. When you commit a layout change, run `npm run build:docs` too, so the README and
-the layout guide show what the engine draws today (check that each before/after pair in the guide still differs). It measures the examples (where the rules are tuned) and `examples/holdout/`
-(real C4 and Mermaid diagrams adapted to Trace, never tuned on) and compares with `metrics/baseline.json`: links
-through or brushing nodes, overlapping links, crossings, bends, links along borders, crossed labels, overlaps. A
-layout change is kept only if it does not make the held-out set worse; save a new baseline with
-`npm run metrics -- --save` when you commit it. Never edit a held-out diagram to suit the engine.
-
-Node measures text with an approximate width table (`tools/measure.js`); the browser measures
-with canvas and Inter. Snapshots are therefore close to, not identical with, the browser.
-
-## Style rules (from the reference SVGs)
-
+- `test/`: `layout.test.js` (every example lays out with no errors, no overlapping nodes, no frame covering a node
+  that isn't its own, no link through a node, no two links on top of each other, no slanted link), `features.test.js`
+  (a test per feature and engine rule; `test/fixtures/` holds the scenarios that are not examples), `pages.test.js`
+  (the pages, the docs and their pictures, the simple forms). `npm test` runs the files in parallel; `helpers.js`
+  compiles each example once per run (`compileFile`) for every test that reads it.
 - Palette and classes are fixed in `PALETTE` and `diagramCSS()`; output must work in light and
   dark (`prefers-color-scheme` in the standalone SVG, page theme in the playground).
 - Node label: bold 13px name, muted 11px note under it. Edge labels: muted 11px with a halo.
