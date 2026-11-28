@@ -2012,6 +2012,55 @@ function spreadEnds(rm, gap0 = 22) {
 // the top of the first to the bottom of the last, and the nodes in it move level with what they are linked to,
 // so the links across the gutter are straight. Done after the layout; the links that touch a moved node are
 // drawn again, the others stay as they were.
+// A side zone stands beside the whole main block, so a part of the drawing that is not level with it (a wide zone
+// further down) can hold it far from the zones it serves. It slides back toward what is level with it, keeping the
+// gutter it had; the parts of its links out in that gutter come with it. Nothing moves when nothing is level.
+function pullSides(rm, model) {
+  const flowH = model.direction === 'RIGHT';
+  const sides = [...model.frames.values()].filter(f => f.side);
+  if (!sides.length) return;
+  const C = flowH ? 'y' : 'x', CS = flowH ? 'h' : 'w', A = flowH ? 'x' : 'y', AS = flowH ? 'w' : 'h';
+  const within = (f, F) => { for (let p = f; p; p = p.parent) if (p === F) return true; return false; };
+  const inSide = f => sides.some(F => within(f, F));
+  const nodeIn = (n, F) => { const m = model.nodes.get(n.id); return !!m && within(m.parent, F); };
+  // what a side zone could run into: everything outside every side zone
+  const others = [...rm.nodes.filter(n => n.x !== undefined && !sides.some(G => nodeIn(n, G))), ...rm.frames.filter(b => !inSide(b.f))];
+  if (!others.length) return;
+  // the zones on one side stay in line: they move together, as far as the one that can move least
+  for (const side of new Set(sides.map(F => F.side))) {
+    const group = sides.filter(F => F.side === side).map(F => ({ F, FB: rm.frames.find(b => b.f === F) })).filter(g => g.FB);
+    if (!group.length) continue;
+    const far = side === 'right' || side === 'bottom';            // beyond the main block across the flow
+    const edge = list => far ? Math.max(...list.map(b => b[C] + b[CS])) : Math.min(...list.map(b => b[C]));
+    // only what lies wholly on the main side of these zones counts (a rail along the bottom reaches under them)
+    const inner = far ? Math.min(...group.map(g => g.FB[C])) : Math.max(...group.map(g => g.FB[C] + g.FB[CS]));
+    const main = others.filter(b => far ? b[C] + b[CS] <= inner + 1 : b[C] >= inner - 1);
+    if (!main.length) continue;
+    const all = edge(main);
+    let d = null;
+    for (const { FB } of group) {
+      const lo = FB[A] - 20, hi = FB[A] + FB[AS] + 20;
+      const level = main.filter(b => b[A] < hi && b[A] + b[AS] > lo);
+      const di = level.length ? edge(level) - all : 0;
+      d = d === null ? di : far ? Math.max(d, di) : Math.min(d, di);
+    }
+    if (!d || Math.abs(d) < 1) continue;
+    const past = v => far ? v > all + 0.5 : v < all - 0.5;          // out in the gutter or beyond
+    for (const { F, FB } of group) {
+      FB[C] += d;
+      for (const b of rm.frames) if (b !== FB && within(b.f, F)) b[C] += d;
+      const mine = new Set(rm.nodes.filter(n => n.x !== undefined && nodeIn(n, F)).map(n => n.id));
+      for (const n of rm.nodes) if (mine.has(n.id)) n[C] += d;
+      for (const r of rm.edges) {
+        if (!r.pts || !(mine.has(r.e.a) || mine.has(r.e.b))) continue;
+        const both = mine.has(r.e.a) && mine.has(r.e.b);
+        for (const p of r.pts) if (both || past(p[C])) p[C] += d;
+        if (r.lab && (both || past(r.lab[C]))) r.lab[C] += d;
+      }
+    }
+  }
+}
+
 function spanSides(rm, model) {
   const allSides = [...model.frames.values()].filter(f => f.side);
   const zones = allSides;
@@ -2304,6 +2353,7 @@ async function layout(model, measure, ELK, opts) {
     ['placeOnConcentrators', rm => placeOnConcentrators(rm)],
     ['splitDecisions', rm => splitDecisions(rm, flowH)],
     ['spanSides', rm => spanSides(rm, model)],
+    ['pullSides', rm => pullSides(rm, model)],
     ['clearFrames', rm => clearFrames(rm)],
     ['alignJogs', rm => alignJogs(rm)],
     ['simplifySnakes', rm => simplifySnakes(rm)],
@@ -5063,8 +5113,11 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
 
   // legend
   const marks = model.marks || [];
+  const bodyH = H;                       // the drawing's own bottom, before the legend
+  let legendTop = null, legendRight = 0;
   if (model.keys.length || marks.length) {
     let x = 16, y = H + 2;
+    legendTop = y;
     const rowH = 26, maxX = Math.max(W, 420) - 16;
     const items = [];
     for (const k of model.keys) {
@@ -5072,14 +5125,14 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
       const iw = 34 + 8 + tw + 22;
       if (x + iw > maxX && x > 16) { x = 16; y += rowH; }
       items.push(keySVG(k, x, y, pfx));
-      x += iw;
+      x += iw; legendRight = Math.max(legendRight, x);
     }
     for (const mk of marks) {
       const tw = (mk._tw || mk.text.length * 6.2);
       const iw = 14 + 8 + tw + 22;
       if (x + iw > maxX && x > 16) { x = 16; y += rowH; }
       items.push(`<g class="mki ink-${mk.ink || 'none'}" transform="translate(${r1(x)} ${r1(y + 4)}) scale(${r1(MARK_SIZE / 24 * 1000) / 1000})">${mk.iconMarkup || ''}</g><text class="note muted" x="${r1(x + 20)}" y="${r1(y + 14)}">${esc(mk.text)}</text>`);
-      x += iw;
+      x += iw; legendRight = Math.max(legendRight, x);
     }
     body.push(...items);
     H = y + rowH + 10;
@@ -5107,7 +5160,18 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
   if (head.cart) {
     const c = head.cart, rowH = 18, cw = Math.ceil(10 + c.kw + 16 + c.vw + 10), ch = c.rows.length * rowH + 10;
     W = Math.max(W, cw + 32);
-    const x = W - cw - 16, y = H + 4;
+    const x = W - cw - 16;
+    // like the title block of an engineering drawing: in the drawing's bottom right corner when nothing is there,
+    // else to the right of the legend when there is room, else on a band of its own below
+    const hit = (x0, y0, x1, y1) => rm.nodes.some(n => n.x !== undefined && n.x < x1 && n.x + n.w > x0 && n.y < y1 && n.y + n.h > y0) ||
+      rm.frames.some(f => f.x < x1 && f.x + f.w > x0 && f.y < y1 && f.y + f.h > y0) ||
+      rm.edges.some(r => (r.pts || []).some((p, i) => i && Math.min(p.x, r.pts[i - 1].x) < x1 && Math.max(p.x, r.pts[i - 1].x) > x0 && Math.min(p.y, r.pts[i - 1].y) < y1 && Math.max(p.y, r.pts[i - 1].y) > y0) ||
+        (r.lab && r.e.lab && (() => { const lx = r.lab.anchor === 'middle' ? r.lab.x - r.e.lab.w / 2 : r.lab.anchor === 'end' ? r.lab.x - r.e.lab.w : r.lab.x; return lx < x1 && lx + r.e.lab.w > x0 && r.lab.y < y1 && r.lab.y + r.e.lab.h > y0; })()));
+    const cornerY = bodyH - ch - 8;
+    let y;
+    if (cornerY > 0 && !hit(x - 12, cornerY - 12, x + cw + 12, bodyH)) y = cornerY + hh;
+    else if (legendTop !== null && legendRight + 24 <= x) y = legendTop + hh;
+    else y = H + 4;
     const rows = [`<rect class="card" x="${x}" y="${y}" width="${cw}" height="${ch}" rx="4"/>`];
     c.rows.forEach((r, i) => {
       const by = y + 5 + i * rowH + 13;
@@ -5115,7 +5179,7 @@ function render(rm, { standalone = false, idPrefix = 'tr', theme = null } = {}) 
       if (i) rows.push(`<path class="tsep" d="M${x} ${y + 5 + i * rowH} H${x + cw}"/>`);
     });
     shifted.push(...rows);
-    H = y + ch + 14;
+    H = Math.max(H, y + ch + 14);
   }
   body.length = 0; body.push(...top, ...shifted);
   const aria = esc(model.title || describe(model));

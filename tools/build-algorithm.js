@@ -22,6 +22,7 @@ const STEPS = [
   ['placeOnConcentrators', 'Junctions inside zones', 'Five or more alike links from one zone meet one line inside it; each runs straight across to it.'],
   ['splitDecisions', 'Decisions part at the box', "A question's yes and no leave from different sides."],
   ['spanSides', 'Side zones line up', 'A side zone stretches along the zones it serves; its nodes move level with their links.'],
+  ['pullSides', 'Side zones come close', 'A side zone slides back beside the zones level with it, whatever sticks out elsewhere.'],
   ['clearFrames', 'Off the borders', 'A link running along a zone border moves off it.'],
   ['alignJogs', 'Steps at one height', 'Links into one node take their step at the same height.'],
   ['simplifySnakes', 'No snakes', 'A link that zigzags more than it needs takes the shorter route.'],

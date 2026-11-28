@@ -51,11 +51,11 @@ key -> [bad] : a refused path
 
 frame hub "five alike links: gathered on one line" [purple] {
   row {
-    s1 [package]: Orders
-    s2 [credit-card]: Billing
-    s3 [search]: Search
-    s4 [list]: Catalog
-    s5 [truck]: Shipping
+    s1: Orders
+    s2: Billing
+    s3: Search
+    s4: Catalog
+    s5: Shipping
   }
 }
 idp [key]: A hub | one link in, one label
@@ -64,4 +64,4 @@ s2 -> idp : validate token
 s3 -> idp : validate token
 s4 -> idp : validate token
 s5 -> idp : validate token
-one -> s1
+two -> s3

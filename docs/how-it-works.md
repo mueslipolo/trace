@@ -216,8 +216,35 @@ A side zone stretches along the zones it serves; its nodes move level with their
 
 </details>
 
+<!-- step: pullSides -->
+### 5. Side zones come close
+
+A side zone slides back beside the zones level with it, whatever sticks out elsewhere.
+
+<table>
+<tr><th>Before</th><th>After</th></tr>
+<tr>
+<td valign="top"><img src="images/algo/pullSides.sketch-before.png" alt="Side zones come close, sketched: before" width="100%"></td>
+<td valign="top"><img src="images/algo/pullSides.sketch-after.png" alt="Side zones come close, sketched: after" width="100%"></td>
+</tr>
+</table>
+
+<details><summary>In a real diagram</summary>
+
+<table>
+<tr><th>Before</th><th>After</th></tr>
+<tr>
+<td valign="top"><img src="images/algo/pullSides.before.png" alt="Side zones come close: before" width="100%"></td>
+<td valign="top"><img src="images/algo/pullSides.after.png" alt="Side zones come close: after" width="100%"></td>
+</tr>
+</table>
+
+<sub>From [Everything Trace draws, in one picture](#examples-playground-everything-trace), the clearest case among the diagrams in `examples/`.</sub>
+
+</details>
+
 <!-- step: clearFrames -->
-### 5. Off the borders
+### 6. Off the borders
 
 A link running along a zone border moves off it.
 
@@ -244,7 +271,7 @@ A link running along a zone border moves off it.
 </details>
 
 <!-- step: alignJogs -->
-### 6. Steps at one height
+### 7. Steps at one height
 
 Links into one node take their step at the same height.
 
@@ -271,7 +298,7 @@ Links into one node take their step at the same height.
 </details>
 
 <!-- step: simplifySnakes -->
-### 7. No snakes
+### 8. No snakes
 
 A link that zigzags more than it needs takes the shorter route.
 
@@ -298,7 +325,7 @@ A link that zigzags more than it needs takes the shorter route.
 </details>
 
 <!-- step: mergeHubs -->
-### 8. Gathered links
+### 9. Gathered links
 
 Five or more alike links into one node (`gather N` changes the number) become one bus, the label written once.
 
@@ -325,7 +352,7 @@ Five or more alike links into one node (`gather N` changes the number) become on
 </details>
 
 <!-- step: rerouteBlocked -->
-### 9. Around, never through
+### 10. Around, never through
 
 A link through or along a node, or on top of another link, is routed again on a grid.
 
@@ -352,7 +379,7 @@ A link through or along a node, or on top of another link, is routed again on a 
 </details>
 
 <!-- step: straightenSmallJogs -->
-### 10. Small steps removed
+### 11. Small steps removed
 
 A step of a few pixels is not worth a bend: the end slides and the link is straight.
 
@@ -379,7 +406,7 @@ A step of a few pixels is not worth a bend: the end slides and the link is strai
 </details>
 
 <!-- step: reorderEnds -->
-### 11. Ends that do not cross
+### 12. Ends that do not cross
 
 Links leaving one side of a node take the order that crosses least.
 
@@ -406,7 +433,7 @@ Links leaving one side of a node take the order that crosses least.
 </details>
 
 <!-- step: spreadEnds -->
-### 12. Arrowheads apart
+### 13. Arrowheads apart
 
 Ends on one side of a node are pushed apart, in the order their links go.
 
@@ -433,7 +460,7 @@ Ends on one side of a node are pushed apart, in the order their links go.
 </details>
 
 <!-- step: separateParallels -->
-### 13. Parallel links apart
+### 14. Parallel links apart
 
 Two links running side by side too close are pulled apart.
 
@@ -460,7 +487,7 @@ Two links running side by side too close are pulled apart.
 </details>
 
 <!-- step: uncrossSteps -->
-### 14. Steps swapped
+### 15. Steps swapped
 
 Two links that cross twice swap their steps and cross no more.
 
@@ -487,7 +514,7 @@ Two links that cross twice swap their steps and cross no more.
 </details>
 
 <!-- step: resolveOverlaps -->
-### 15. Nothing on top
+### 16. Nothing on top
 
 Links still lying on top of each other are separated.
 
@@ -514,7 +541,7 @@ Links still lying on top of each other are separated.
 </details>
 
 <!-- step: slideToStraighten -->
-### 16. Nodes slide to their links
+### 17. Nodes slide to their links
 
 A node whose links all arrive with a short step slides so they arrive straight.
 
@@ -541,7 +568,7 @@ A node whose links all arrive with a short step slides so they arrive straight.
 </details>
 
 <!-- step: rerouteSiblings -->
-### 17. A second look
+### 18. A second look
 
 A link crossing a sibling of its own node is routed again, kept only if it crosses less.
 
@@ -568,7 +595,7 @@ A link crossing a sibling of its own node is routed again, kept only if it cross
 </details>
 
 <!-- step: squareUp -->
-### 18. Square
+### 19. Square
 
 Every stretch is made exactly horizontal or vertical.
 
@@ -583,7 +610,7 @@ Every stretch is made exactly horizontal or vertical.
 <sub>No diagram in `examples/` shows it visibly at the moment.</sub>
 
 <!-- step: placeLabels -->
-### 19. Labels placed
+### 20. Labels placed
 
 Each label goes beside its link where it covers nothing.
 
@@ -610,7 +637,7 @@ Each label goes beside its link where it covers nothing.
 </details>
 
 <!-- step: roomForTitles -->
-### 20. Room for titles
+### 21. Room for titles
 
 A zone with no free corner grows a band for its title.
 
@@ -637,7 +664,7 @@ A zone with no free corner grows a band for its title.
 </details>
 
 <!-- step: alignTitleEdges -->
-### 21. Titles in line
+### 22. Titles in line
 
 Zones side by side put their titles on the same edge.
 
@@ -664,7 +691,7 @@ Zones side by side put their titles on the same edge.
 </details>
 
 <!-- step: sameSizeFrames -->
-### 22. Same size
+### 23. Same size
 
 Zones written `same-width` or `same-height` grow to one size.
 
@@ -679,7 +706,7 @@ Zones written `same-width` or `same-height` grow to one size.
 <sub>No diagram in `examples/` shows it visibly at the moment.</sub>
 
 <!-- step: fitCanvas -->
-### 23. Cut to size
+### 24. Cut to size
 
 The drawing is cut to what it holds, with a margin.
 
@@ -1064,6 +1091,85 @@ product -> web
 product -> mobile
 data -> ml
 data -> bi
+```
+
+</details>
+<!-- /source -->
+
+<a id="examples-playground-everything-trace"></a>
+**Everything Trace draws, in one picture** (`examples/playground/everything.trace`)
+
+<!-- source examples/playground/everything.trace -->
+<details><summary>Trace source</summary>
+
+```
+direction down
+title "Everything Trace draws, in one picture"
+caption "Each box names the feature it shows."
+
+column {
+  row {
+    pill you [user]: You write text | nodes, links, zones
+    pill auto [sparkles]: The engine lays it out | no coordinates
+  }
+  frame edge "zones: named, coloured" [grey] {
+    span [span arrow-down-wide-narrow]: [span]: as wide as what it feeds
+  }
+}
+frame dmz "zones follow the flow" [orange] {
+  bridge [bridge span firewall]: [bridge]: a node on the border | half in each zone
+  row {
+    icons [server]: Icons | 1,500 Lucide names
+    logos [database postgresql]: Logos
+    kinds [bad]: Tags: ok, bad, dashed
+  }
+}
+frame app "kinds: store, engine, ask" [blue] {
+  bridge2 [bridge span shield]: Another [bridge] | the zones touch
+  row {
+    store one [database]: store
+    engine two [cloud]: engine
+    ask three: ask?
+  }
+}
+frame watch "[side span]: beside the flow, not after it" [green side span] {
+  gate [join monitor]: [join]: alike links meet | one arrow, one label
+}
+
+you -> span
+auto -> span
+span -> bridge : labels on links
+bridge -> icons : 443/tcp
+bridge -> logos : 5432
+bridge -> kinds [bad] : refused
+icons -> bridge2
+logos -> bridge2
+bridge2 -> one
+bridge2 -> two [dashed] : dashed: optional
+bridge2 -> three [ok] : green: the happy path
+bridge --> gate : logs
+bridge2 --> gate : logs
+three --> gate : logs
+
+key frame [orange] : a zone
+key -> [bad] : a refused path
+
+frame hub "five alike links: gathered on one line" [purple] {
+  row {
+    s1: Orders
+    s2: Billing
+    s3: Search
+    s4: Catalog
+    s5: Shipping
+  }
+}
+idp [key]: A hub | one link in, one label
+s1 -> idp : validate token
+s2 -> idp : validate token
+s3 -> idp : validate token
+s4 -> idp : validate token
+s5 -> idp : validate token
+two -> s3
 ```
 
 </details>
