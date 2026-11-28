@@ -1276,7 +1276,10 @@ function rerouteBlocked(rm, force, siblingsOnly) {
     if (dd(T, r.pts[0]) < dd(S, r.pts[0])) [S, T] = [T, S];
     const others = boxes.filter(n => n !== S && n !== T);
     // through a node, or brushing past one closer than 6px: both read as touching it
-    const blocked = r.pts.some((p, i) => i && others.some(b => segHits(r.pts[i - 1], p, b, 6)));
+    // a link through or brushing a node; or through its own source or target, arriving from the far side (a stretch
+    // across the box's inside, not just touching its edge)
+    const blocked = r.pts.some((p, i) => i && (others.some(b => segHits(r.pts[i - 1], p, b, 6)) ||
+      [S, T].some(b => !b.zone && !b.cols && !b.span && segHits(r.pts[i - 1], p, b, -3))));
     // a link that turns right against its node (a first or last stretch under 10px) reads as touching it
     const len = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
     const q0 = simplifyPts(r.pts), n = q0.length;
@@ -3794,6 +3797,16 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
 // flow (a shared library after what uses it), not among the first nodes
 function markIsland(n) { return !!(n.markTarget && n.markTarget.links && !n.markTarget.rest); }
 function frameOfItem(it) { let p = it.parent; while (p && p.type !== 'frame') p = p.parent; return p || null; }
+// The zone across a bridge's border from its own zone F: not the innermost zone of the node linking in, but the
+// outermost one holding that node and not F (a firewall between the data zone and an application network that holds
+// a Kubernetes zone and a VM zone pairs with the application network, not with Kubernetes)
+function bridgeSide(Q, F) {
+  if (!Q) return Q;
+  const within = (a, b) => { for (let p = a; p; p = p.parent) if (p === b) return true; return false; };
+  let up = Q;
+  for (let p = Q.parent; p; p = p.parent) if (p.type === 'frame') { if (within(F, p)) break; up = p; }
+  return up;
+}
 function bridgePartner(n, model, flowH) {
   const A = flowH ? 'x' : 'y';
   const F = frameOfItem(n);
@@ -3803,7 +3816,7 @@ function bridgePartner(n, model, flowH) {
     const other = e.a === n.id ? e.b : e.b === n.id ? e.a : null;
     if (!other) continue;
     const on = model.nodes.get(other);
-    const Q = on ? frameOfItem(on) : model.frames.get(other) || null;
+    const Q = bridgeSide(on ? frameOfItem(on) : model.frames.get(other) || null, F);
     if (!Q || within(Q, F) || within(F, Q)) continue;
     const end = contentEnd(Q, flowH);
     // the two frames must be level: a frame in another row or column of a lane shares no border
@@ -4522,7 +4535,7 @@ function fitFrames(rm, model, flowH) {
       const other = e.a === n.id ? e.b : e.b === n.id ? e.a : null;
       if (!other) continue;
       const on = model.nodes.get(other);
-      const Q = on ? frameOf(on) : model.frames.get(other) || null;
+      const Q = bridgeSide(on ? frameOf(on) : model.frames.get(other) || null, F);
       if (!Q || !box.has(Q.id) || within(Q, F) || within(F, Q)) continue;
       const qb = box.get(Q.id);
       const level = flowH ? qb.y < n.y + n.h && n.y < qb.y + qb.h : qb.x < n.x + n.w && n.x < qb.x + qb.w;

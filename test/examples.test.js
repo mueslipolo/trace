@@ -1296,3 +1296,17 @@ test('notes: in the margin when short, numbered when asked, never moving the dra
   const badLink = await compile(base + '\nnote client -> db : x', measure, ELK, {});
   assert.ok(badLink.errors.some(e => /no link between client and db/.test(e.msg)));
 });
+
+test('a bridge pairs its zone with the outermost zone across the border: zones side by side inside a zone stay inside it', async () => {
+  const res = await compile(readFx('nested-bridge.trace'), measure, ELK, {});
+  assert.deepStrictEqual(res.errors, []);
+  const box = id => res.rm.frames.find(f => f.f.id === id);
+  const app = box('app'), k8s = box('k8s'), vms = box('vms'), data = box('data');
+  for (const z of [k8s, vms]) assert.ok(z.x >= app.x && z.y >= app.y && z.x + z.w <= app.x + app.w && z.y + z.h <= app.y + app.h, `${z.f.id} inside the application network`);
+  assert.ok(Math.abs(data.y - (app.y + app.h)) < 2, 'the data zone meets the application network at the DB firewall');
+  assert.ok(data.w > k8s.w + 40, 'the data zone is not cut to the width of the Kubernetes zone');
+  // a link between two zones side by side enters its target from the side facing it, not through it
+  const ob = res.rm.edges.find(r => r.e.a === 'orders' && r.e.b === 'billing'), billing = res.rm.nodes.find(n => n.id === 'billing');
+  const end = ob.pts[ob.pts.length - 1];
+  assert.ok(Math.abs(end.x - (billing.x + billing.w)) < 2, 'Orders reaches Billing on its right side');
+});

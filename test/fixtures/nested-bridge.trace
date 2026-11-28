@@ -1,0 +1,35 @@
+direction down
+frame dmz "DMZ" [orange] {
+  gw: API gateway
+}
+frame app "application network" [blue] {
+  fw2 [bridge span firewall]: Internal firewall
+  row {
+    frame vms "VM cluster" [grey] {
+      billing: Billing
+      erp: ERP connector
+    }
+    frame k8s "Kubernetes" [green] {
+      row {
+        orders: Orders
+        catalog: Catalog
+      }
+    }
+  }
+}
+frame data "data" [purple] {
+  fw3 [bridge span firewall]: DB firewall
+  row {
+    store pg: Postgres
+    store nas: NAS
+  }
+}
+gw -> fw2
+fw2 -> orders
+fw2 -> catalog
+orders -> billing
+billing -> erp
+orders -> fw3
+erp -> fw3
+fw3 -> pg
+fw3 -> nas
