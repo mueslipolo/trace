@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Writes docs/algorithm.md, the visual explanation of the layout, and its pictures in docs/images/algo/.
+// Writes docs/how-it-works.md, the visual explanation of the layout, and its pictures in docs/images/algo/.
 // The pictures are the engine's own work: each example is laid out with compile(..., { onStage }), the drawing
 // is kept after the layout and after every step of the tidy-up, and for each step the example where it changes
 // the most legible little is shown before and after, cropped to the change, the change in orange.
@@ -14,7 +14,7 @@ const { sketch, SKETCHES } = require('./algorithm-sketches.js');
 
 const root = path.join(__dirname, '..');
 const imgDir = path.join(root, 'docs/images/algo');
-const OUT = path.join(root, 'docs/algorithm.md');
+const OUT = path.join(root, 'docs/how-it-works.md');
 
 // [step, title, one line]
 const STEPS = [
@@ -280,6 +280,6 @@ if (require.main === module) (async () => {
   }
   fs.writeFileSync(OUT, md.join('\n'));
   for (const [n, b] of best) if (b.c.move < 8) console.log(`  ${n}: the largest change is ${b.c.move.toFixed(1)}px (${b.d.file})`);
-  console.log(`docs/algorithm.md: ${STEPS.length} steps, ${best.size} with a picture, from ${used.size} diagrams`);
+  console.log(`docs/how-it-works.md: ${STEPS.length} steps, ${best.size} with a picture, from ${used.size} diagrams`);
 })().catch(e => { console.error(e.stack || e.message); process.exit(1); });
 module.exports = { STEPS };

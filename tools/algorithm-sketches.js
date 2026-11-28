@@ -1,5 +1,5 @@
 // Small drawings, one before/after pair per step of the tidy-up, made to show that one idea at a glance
-// (docs/algorithm.md shows them above the real example). Coordinates are in a 260 x 150 panel.
+// (docs/how-it-works.md shows them above the real example). Coordinates are in a 260 x 150 panel.
 // A sketch: { nodes: [[label, x, y, w?, h?, opts]], links: [[[x, y], ...], opts], frames: [[x, y, w, h, title, colour,
 // opts]], dots: [[x, y]], texts: [[text, x, y, anchor?]] }; opts.orange marks what the step changes.
 const INK = '#1d2330', MUTED = '#5d6677', ORANGE = '#f08c00', W = 260, H = 150;

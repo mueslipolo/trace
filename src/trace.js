@@ -2296,7 +2296,7 @@ async function layout(model, measure, ELK, opts) {
   const off = new Set((opts && opts.off) || []);
   model.noWrap = off.has('wrap');
   if (!off.has('merge') && !model.junctionsDone) { addJunctions(model); model.junctionsDone = true; }
-  // the tidy-up, step by step, in this order (docs/algorithm.md draws what each one does; opts.onStage, when
+  // the tidy-up, step by step, in this order (docs/how-it-works.md draws what each one does; opts.onStage, when
   // given, is called after the layout and after every step with the step's name and the drawing so far)
   const flowH = model.direction === 'RIGHT';
   const steps = [
@@ -3102,6 +3102,9 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     const ee = { id: 'E' + e.i, sources: [src], targets: [tgt] };
     if (e.align) ee.layoutOptions = { 'elk.layered.priority.straightness': '100' };
     if (e.lab) {
+// ELK lesson: a label with empty text is never placed (it comes back at 0,0), so the real text is always passed.
+// ELK lesson: in layered, an edge label becomes a dummy node with a layer of its own (wide gaps going right, tall
+// going down); TAIL placement avoids the layer but the labels then overlap freely (tried and reverted).
       const L = { id: 'L' + e.i, text: e.label.replace(/\n/g, ' '), width: e.lab.w, height: e.lab.h };
       ee.labels = [L];
     }
@@ -3143,6 +3146,8 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
           layoutOptions: {
             'elk.padding': `[top=${it.title ? 34 : 18},left=18,bottom=18,right=18]`,
             'elk.nodeSize.constraints': 'MINIMUM_SIZE',
+// ELK lesson: nodeSize.minimum on a compound node is not reliably kept for spacing: a frame widened for its title
+// can overlap its neighbours, which fitFrames sorts out afterwards.
             'elk.nodeSize.minimum': `(${Math.ceil(it.titleW + 36)}, 60)`,
           },
           children: build(it),
@@ -3225,6 +3230,8 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
     } else {
       const r = byId.get('E' + e.i);
       if (!r || !r.sections || !r.sections.length) continue;
+// ELK lesson: elk.json.shapeCoords ROOT does nothing in 0.9.3 (child coordinates stay relative to the parent), and
+// edgeCoords ROOT is unreliable for edges ELK moves into a compound node: the edge's container field is used instead.
       const co = r.container && r.container !== 'root' ? abs.get(r.container) : { x: 0, y: 0 };
       const mv = p => ({ x: p.x + co.x, y: p.y + co.y });
       pts = [];
@@ -3261,7 +3268,7 @@ async function layoutOnce(model, measure, ELK, FLAT, HIER, WRAP, CYC, LANEP) {
   placeRails(rm, model, flowH);
   return rm;
 
-  // ---- per-frame layout (see docs/roadmap.md, item 2). Frames are laid out bottom-up, each by
+  // ---- per-frame layout (see docs/dev/architecture.md). Frames are laid out bottom-up, each by
   // its own ELK run; a finished frame is an opaque node with fixed ports in its parent's run.
   // The result is returned in the shape of one hierarchical ELK result, so the read-back above
   // is shared. Returns null when a link cannot reach its member in a straight line.
@@ -4138,6 +4145,8 @@ function placeRails(rm, model, flowH) {
 // ELK sometimes leaves a [span] node offset from the stack it feeds, by the same amount on
 // every link (it keeps frames centred on each other). Slide the span node's frame over when
 // that is free, so the links drop straight; links crossing the slid frame's edge get a jog.
+// ELK lesson: with INCLUDE_CHILDREN, ELK keeps compound nodes roughly centred on each other, which can leave a node
+// offset from what it links to in another frame: hence this, and the per-zone layout (one ELK run per zone).
 function straightenSpans(rm, model, flowH) {
   const X = flowH ? 'y' : 'x', Y = flowH ? 'x' : 'y', W = flowH ? 'h' : 'w';
   const within = (a, b) => { for (let p = a; p; p = p.parent) if (p === b) return true; return false; };

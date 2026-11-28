@@ -1,8 +1,16 @@
-# The Trace language
+# The Trace manual
+
+Everything you can write in Trace, then how to make a diagram look right. New to Trace? Start with
+[getting started](getting-started.md); coming from Mermaid, see [coming from Mermaid](coming-from-mermaid.md).
+
+- [Part 1: the language](#part-1-the-language)
+- [Part 2: making a diagram look right](#part-2-making-a-diagram-look-right)
+
+## Part 1: the language
 
 One statement per line. `#` starts a comment (outside quotes, at line start or after a space).
 
-## Whole-diagram settings
+### Whole-diagram settings
 
 ```
 direction down        # right (default, also lr) or down (also td, tb)
@@ -26,16 +34,13 @@ long caption wraps to the drawing's width, and several `caption` lines make seve
 title block is the small table in the corner of an engineering drawing (who made it, when, which version): any keys
 you like, in the order you write them.
 
-## Layout is automatic
+### Layout is automatic
 
-When a diagram does not look right yet, `docs/layout-guide.md` says what to try, in order.
+Write nodes and links and nothing else: the engine places everything, folds a long chain into rows, and draws
+zones around their members. When a drawing does not look right, [part 2](#part-2-making-a-diagram-look-right) says
+what to add.
 
-Write nodes and links and nothing else: the layout is automatic. A long chain such as
-`a -> b -> c -> ...` folds into rows by itself when it would otherwise be a strip more than four times
-wider than tall; zones (frames) are placed around their members; you never have to say where anything
-goes. Rows and columns of frames (see Blocks) are there for the cases where you want to decide.
-
-### Hierarchies: `tree`
+#### Hierarchies: `tree`
 
 ```
 direction down
@@ -49,7 +54,7 @@ reversed or self link, four nodes or more. Zones around the nodes are fine; a pa
 Otherwise a warning says so and the diagram is drawn as usual. Without the line a hierarchy is drawn like any
 other diagram.
 
-## Nodes
+### Nodes
 
 ```
 [kind] name [tags] : Bold label | muted note
@@ -132,7 +137,7 @@ Tags (in brackets, before the colon or at the end of the label):
 | `join` | links into (or out of) it that look the same meet a line with a dot first, then one arrow reaches it, label written once; done by itself from five such links (see `gather`), the tag asks for it from two. For a parallel stage closing on a gate, or log links into one collector |
 | `bridge` | sits on the border between its frame and the frame of a node linking into it, with the two frames widened into bands; for firewalls, gateways, anything on two networks |
 
-## Links
+### Links
 
 ```
 a -> b : label [tags]
@@ -176,7 +181,7 @@ A link can also say how many at each end, source end first: `[n-1]` many to one,
 `01` and `0n` for zero or one and zero or many (`[0n-1]`). The ends are then drawn as in an ER diagram
 (a crow's foot for many, two bars for one, a circle for optional) instead of arrowheads.
 
-## Blocks
+### Blocks
 
 ```
 frame id "Title" [colour] {
@@ -223,7 +228,7 @@ column {
   direction, so a firewall between two rows is an ordinary node. Layout blocks need the per-frame layout;
   if the diagram cannot be placed that way, the blocks are ignored and the result carries a warning.
 
-## Tables (data models)
+### Tables (data models)
 
 ```
 table orders "Orders" {
@@ -248,7 +253,7 @@ link, for a reference without a foreign key. Tables are ordinary nodes otherwise
 frames, icons, `same-width`, `align`, rails and the rest apply; only a table inside a row or column of
 nodes loses the row-level attachment.
 
-## Sequence diagrams
+### Sequence diagrams
 
 ```
 sequence
@@ -283,7 +288,7 @@ label gets as much room between its lifelines as it needs.
   branch with a dashed divider (`and "label"` inside a `par`).
 - No frames, rows, columns, rails, `align` or `same-width` in a sequence diagram.
 
-## Side zones
+### Side zones
 
 ```
 frame obs "observability" [green side] {
@@ -314,7 +319,7 @@ administers the diagram rather than being part of its path: logs, metrics, admin
 - Mistakes name the line and what to write: a side zone inside another frame, `top` in a diagram that flows
   down, two sides on one zone, `span` without a side.
 
-## Equal sizes
+### Equal sizes
 
 ```
 same-width edge core access      # frames
@@ -328,7 +333,7 @@ size from what is inside it, so the smaller frames are grown afterwards: to one 
 same edges, when the frames fit in it; otherwise around their own centre or to the free side. A frame
 that cannot grow without covering another frame or node keeps its size, and the result says so.
 
-## Rails
+### Rails
 
 ```
 rail logs "management VLAN" [right] {
@@ -349,7 +354,7 @@ with an arrow. Rail links take no part in the layout, so adding a rail never mov
 - A link crosses whatever lies between its node and the rail, so a rail suits nodes near the edge it runs
   along. When a link would cross another node, the result carries a warning saying which.
 
-## Aligning two nodes
+### Aligning two nodes
 
 ```
 align tPay payment
@@ -365,10 +370,7 @@ registry, the staging zone (with Deploy and E2E in it) and the approval until al
 draws the links between them straight. A node inside a zone moves with its whole zone, so its contents stay
 inside it; a zone is only moved when the other node is not inside it.
 
-Use it for a clear one-to-one pair between two stacks of different lengths, such as an order and its
-invoice. It does not reduce crossings: a fan of links between two stacks crosses the same way level or not.
-
-## Legend
+### Legend
 
 ```
 key box [dashed] : planned
@@ -380,7 +382,7 @@ key frame [orange] : DMZ
 Shape is any node kind, `frame`, or an arrow (`->`, `-->`, `--`). Keys are laid out in a row under
 the diagram.
 
-## Marks
+### Marks
 
 ```
 mark flagd "reads its feature flags from Flagd"
@@ -397,9 +399,380 @@ text. The links stay in the source and stay out of the layout; delete the `mark`
 - Only links whose arrow ends at the marked node become marks; links leaving it are drawn as usual.
 - One `mark` line per node. A frame cannot be marked, and a mark needs at least one link arriving.
 - A marked node with no link left to draw stands at the end of the flow (a shared library after what uses it).
-- `npm run simplify` leaves marks out of the simple forms: they draw the links.
 
-## Errors
+### Errors
 
 Every problem is reported with its line number and what to write instead; the playground lists
 them under the editor and keeps showing the last good drawing, faded.
+
+## Part 2: making a diagram look right
+
+Most diagrams need nothing more than part 1. When one does not look right, these are the rules a good diagram
+follows, each with the hint that gets it. Write the plain version first and look at it: a hint only says what the
+engine cannot guess, and every hint is one more thing to maintain. Each picture pair is the same text without and
+with the hint; the source shown is the one with it.
+
+### 1. Choose the direction from the shape of the story
+
+Layers that something crosses in order go **down**; a sequence of steps goes **right** (the default). Write
+`direction down`.
+
+<table>
+<tr><th align="left">To the right (default)</th><th align="left"><code>direction down</code></th></tr>
+<tr><td valign="top"><img src="images/direction.before.png" alt="A request path as one long strip" width="100%"></td>
+<td valign="top"><img src="images/direction.after.png" alt="The same request path top to bottom" width="120"></td></tr>
+</table>
+
+<!-- source examples/features/direction.after.trace "Trace source" -->
+<details><summary>Trace source</summary>
+
+```
+direction down
+title "Request path"
+user [user]: Browser
+cdn [cloud]: CDN
+lb [loadbalancer]: Load balancer
+web [server]: Web tier
+app [api]: App tier
+db [database]: Database
+user -> cdn -> lb -> web -> app -> db
+```
+
+</details>
+<!-- /source -->
+
+### 2. Put siblings across the flow, not along it
+
+Nodes reached from the same place go side by side across the flow: a `row` when the diagram goes down, a `column`
+when it goes right. Stacked along the flow, each one stands in the way of the next.
+
+<table>
+<tr><th>A column, along the flow</th><th>A row, across it</th></tr>
+<tr><td valign="top"><img src="images/across.before.png" alt="Three nodes stacked; links run round them" width="100%"></td>
+<td valign="top"><img src="images/across.after.png" alt="Three nodes side by side; every link drops straight" width="100%"></td></tr>
+</table>
+
+<!-- source examples/features/across.after.trace "Trace source" -->
+<details><summary>Trace source</summary>
+
+```
+direction down
+fw: Firewall
+row {
+  lb: Load balancer
+  rp: Reverse proxy
+  bastion: Bastion
+}
+app: App servers
+fw -> lb
+fw -> rp
+fw -> bastion
+lb -> app
+rp -> app
+```
+
+</details>
+<!-- /source -->
+
+### 3. Let the flow place the zones; use rows and columns of zones only to decide
+
+Zones are placed in the order the flow crosses them. Put them in a `row` or `column` only for something the flow
+would not do: two zones side by side, a grid, a particular order.
+
+<table>
+<tr><th>The flow decides</th><th>Rows of zones</th></tr>
+<tr><td valign="top"><img src="images/lanes.before.png" alt="Four zones in a chain" width="100%"></td>
+<td valign="top"><img src="images/lanes.after.png" alt="The four zones as a grid" width="100%"></td></tr>
+</table>
+
+<!-- source examples/features/lanes.after.trace "Trace source" -->
+<details><summary>Trace source</summary>
+
+```
+column {
+  row {
+    frame edge "edge" [orange] {
+      fw: Firewall
+    }
+    frame dmz "DMZ" [orange] {
+      lb: Load balancer
+    }
+  }
+  row {
+    frame app "app zone" [blue] {
+      api: API servers
+    }
+    frame data "data zone" [purple] {
+      db: Postgres
+    }
+  }
+}
+fw -> lb -> api -> db
+```
+
+</details>
+<!-- /source -->
+
+### 4. Put a gateway on the border it guards
+
+A firewall or gateway between two zones sits on their border, half in each: `[bridge]`. With `span` it is as wide
+as what it feeds, so every link drops straight.
+
+<table>
+<tr><th>Without</th><th><code>[bridge span]</code></th></tr>
+<tr><td valign="top"><img src="images/bridge.before.png" alt="Each firewall inside its zone" width="100%"></td>
+<td valign="top"><img src="images/bridge.after.png" alt="Each firewall on the border between the zones" width="100%"></td></tr>
+</table>
+
+<!-- source examples/features/bridge.after.trace "Trace source" -->
+<details><summary>Trace source</summary>
+
+```
+direction down
+frame dmz "DMZ" [orange] {
+  fw1 [bridge span firewall]: Edge firewall
+  row {
+    lb: Load balancer
+    rp: Reverse proxy
+  }
+}
+frame app "app zone" [blue] {
+  fw2 [bridge span firewall]: Internal firewall
+  row {
+    web: Web servers
+    api: API servers
+  }
+}
+fw1 -> lb
+fw1 -> rp
+lb -> fw2
+rp -> fw2
+fw2 -> web
+fw2 -> api
+```
+
+</details>
+<!-- /source -->
+
+### 5. Let a fan land straight
+
+Sources wider apart than the node they feed bunch up at its edge. `[span]` makes the node as wide as they are.
+
+<table>
+<tr><th>Without</th><th><code>[span]</code></th></tr>
+<tr><td valign="top"><img src="images/span.before.png" alt="Two links bending inward to a narrow node" width="100%"></td>
+<td valign="top"><img src="images/span.after.png" alt="The node as wide as its sources, both links straight" width="100%"></td></tr>
+</table>
+
+<!-- source examples/features/span.after.trace "Trace source" -->
+<details><summary>Trace source</summary>
+
+```
+direction down
+row {
+  pill users [user]: Internet users
+  pill partners [handshake]: Partner APIs
+}
+ddos [span shield]: DDoS scrubbing
+users -> ddos
+partners -> ddos
+```
+
+</details>
+<!-- /source -->
+
+### 6. Give tiers straight sides, and keep linked pairs level
+
+`same-width a b c` gives stacked zones one width; `align a b` puts two linked nodes in different blocks on one line
+when the engine leaves a step.
+
+<table>
+<tr><th><code>same-width</code></th><th><code>align slo rollback</code></th></tr>
+<tr><td valign="top"><img src="images/samewidth.after.png" alt="Three zones with straight sides" width="100%"></td>
+<td valign="top"><img src="images/align.after.png" alt="The rollback straight under its decision" width="100%"></td></tr>
+</table>
+
+<!-- source examples/features/samewidth.after.trace "Trace source, same-width" -->
+<details><summary>Trace source, same-width</summary>
+
+```
+direction down
+frame a "edge" [orange] {
+  fw: Firewall
+}
+frame b "application servers and workers" [blue] {
+  app: App servers
+  jobs: Background workers
+}
+frame c "data" [purple] {
+  db: Postgres
+}
+fw -> app
+app -> db
+jobs -> db
+same-width a b c
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/align.after.trace "Trace source, align" -->
+<details><summary>Trace source, align</summary>
+
+```
+title "A canary release"
+column {
+  row {
+    store registry [package]: Image registry | signed with cosign
+    frame staging "staging" [green] {
+      deploy [rocket]: Deploy | Helm
+      e2e [monitor-check]: E2E + smoke tests
+    }
+    ask approve: release approved?
+  }
+  column {
+    frame prod "production" [orange] {
+      canary [bird]: Canary 5%
+      ask slo: SLOs held 30 min?
+      full [ok server]: Roll out 100%
+    }
+    rollback [bad undo-2]: Automatic rollback
+  }
+}
+registry -> deploy -> e2e -> approve
+approve -> canary [ok] : yes
+canary -> slo
+slo -> full [ok] : yes
+slo -> rollback [bad] : no
+
+align slo rollback
+```
+
+</details>
+<!-- /source -->
+
+### 7. Put what watches the diagram beside it
+
+Logs, monitoring and admin access are not the last tier: tag their zone `[side]` (with `span`, as tall as what it
+serves). Links that touch many nodes and are no part of the story can go to a `rail` instead.
+
+<table>
+<tr><th>Stacked after the last tier</th><th><code>[side]</code></th></tr>
+<tr><td valign="top"><img src="images/side.before.png" alt="Observability as the last tier" width="100%"></td>
+<td valign="top"><img src="images/side.after.png" alt="Observability beside the tiers" width="100%"></td></tr>
+</table>
+
+<!-- source examples/features/side.after.trace "Trace source" -->
+<details><summary>Trace source</summary>
+
+```
+direction down
+title "side zone"
+frame dmz "DMZ" [orange] {
+  lb [loadbalancer]: Load balancer
+  col1 [server]: Collector | zone aggregator
+}
+frame app "app zone" [blue] {
+  web1 [server]: web-01
+  api1 [api]: api-01
+  col2 [server]: Collector | zone aggregator
+}
+frame data "data zone" [purple] {
+  store pg [database]: Postgres
+  col3 [server]: Collector | zone aggregator
+}
+frame obs "observability" [green side] {
+  gw [server]: OTel gateway
+  loki [file-text]: Loki
+}
+lb -> web1
+web1 -> pg
+col1 -> gw : 4317
+col2 -> gw : 4317
+col3 -> gw : 4317
+gw -> loki
+```
+
+</details>
+<!-- /source -->
+
+### 8. Write links in the order of the story
+
+The layout follows the order links are written in; the arrow follows the operator. When the arrow should point
+back (a worker that polls the database), write the link in story order with `<-`: `pg <- worker`.
+
+### 9. Many links into one node: one line, not a fan
+
+Five or more alike links into one node are gathered on one line by themselves (`gather N` changes the number).
+For two to four, tag the node `[join]`. For links that say no more than "uses it", `mark` the node.
+
+<table>
+<tr><th>Five alike links, gathered</th><th><code>[join]</code> on three</th></tr>
+<tr><td valign="top"><img src="images/bus.after.png" alt="Links merged into one line with one label" width="100%"></td>
+<td valign="top"><img src="images/join.after.png" alt="Three links meeting a line with a dot" width="100%"></td></tr>
+</table>
+
+<!-- source examples/features/bus.after.trace "Trace source, gathered" -->
+<details><summary>Trace source, gathered</summary>
+
+```
+title "One label"
+idp [key]: Identity provider
+a [globe]: Web
+b [smartphone]: Mobile
+c [package]: Orders
+d [credit-card]: Billing
+e [truck]: Shipping
+f [bell]: Notify
+a -> idp : validate token
+b -> idp : validate token
+c -> idp : validate token
+d -> idp : validate token
+e -> idp : validate token
+f -> idp : validate token
+```
+
+</details>
+<!-- /source -->
+<!-- source examples/features/join.after.trace "Trace source, join" -->
+<details><summary>Trace source, join</summary>
+
+```
+title "A parallel stage"
+build [container]: Build
+column {
+  unit [flask-conical]: Unit tests
+  lint [list-checks]: Lint
+  sast [shield]: Security scan
+}
+ask gate [join]: all green?
+build -> unit
+build -> lint
+build -> sast
+unit -> gate
+lint -> gate
+sast -> gate
+```
+
+</details>
+<!-- /source -->
+
+### 10. Say what things are
+
+Ports on links (`lb -> app : 443/tcp`), icons (`[database]`, `[firewall]`), logos (`[database postgresql]`), and
+zones named with their address range or owner. They cost nothing and make a diagram worth reading.
+
+### Reading a result
+
+| What you see | Try |
+|---|---|
+| A strip much wider than tall | `direction down` (1), or rows of zones (3) |
+| A link that leaves a box sideways and comes back | swap `column` and `row` (2) |
+| Long links between zones in different rows | put those zones one after the other along the flow (3) |
+| A firewall floating inside one zone | `[bridge]` (4) |
+| Links that bunch up at a node's edge | `[span]` on the node (5) |
+| Ragged tiers, or a step between two blocks | `same-width`, `align` (6) |
+| A monitoring zone stacked as the last tier | `[side]` or a `rail` (7) |
+| A long link looping round the diagram | write it in story order with `<-` (8) |
+| A fan of links into one node | `[join]`, `gather`, `mark` (9) |
+
+Every feature, with its before and after, is also on the features page (`npm run build`, then `dist/features.html`).

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Draws the pictures in README.md and docs/layout-guide.md into docs/images/, as PNGs with the Inter font.
+// Draws the pictures in README.md and docs/manual.md into docs/images/, as PNGs with the Inter font.
 // The README pictures also get a dark version (<name>.dark.png) for a <picture> element; the guide's
 // before/after pairs come from examples/features (the "before" with the tidy-ups its feature switches off).
 // Run it after a layout change: npm run build:docs
@@ -28,16 +28,15 @@ const readme = [
   ['bridge.before', 'examples/features/bridge.before.trace'],
   ['bridge.after', 'examples/features/bridge.after.trace'],
 ];
-// layout guide: feature pairs, plus the plain DMZ (the full one is the README's)
-const guidePairs = ['direction', 'across', 'lanes', 'bridge', 'span', 'samewidth', 'align', 'side', 'rail',
-  'reverse', 'bus', 'junction', 'join', 'mark', 'fold'];
+// the manual's part 2: feature pairs, before and after; a name ending in ! has its "after" only
+const guidePairs = ['direction', 'across', 'lanes', 'bridge', 'span', 'side', 'samewidth!', 'align!', 'bus!', 'join!'];
 const meta = JSON.parse(fs.readFileSync(path.join(root, 'examples/features/features.json'), 'utf8'));
 // [name, source, tidy-ups off]
-const guide = [['dmz-plain', 'examples/cases/simple/dmz.trace']];
-for (const id of guidePairs) {
-  const m = meta.find(f => f.id === id);
+const guide = [];
+for (const g of guidePairs) {
+  const id = g.replace(/!$/, ''), m = meta.find(f => f.id === id);
   if (!m) throw new Error(`no feature ${id} in examples/features/features.json`);
-  for (const k of ['before', 'after'])
+  for (const k of g.endsWith('!') ? ['after'] : ['before', 'after'])
     if (!readme.some(r => r[0] === `${id}.${k}`)) guide.push([`${id}.${k}`, `examples/features/${id}.${k}.trace`, k === 'before' ? m.beforeOff || [] : []]);
 }
 

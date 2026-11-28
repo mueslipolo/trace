@@ -153,7 +153,7 @@ Nodes are a name and a label (`a: Label | a note under it`), links are arrows wi
 everything else is optional: a kind (`state`, `store`, `pill`, `final`…), a tag (`[bad]`, `[dashed]`, an icon
 such as `[database]` or a technology logo such as `[postgresql]`), a frame around a zone. Orthogonal links,
 rounded corners, arrowheads that stop short of the box, hops where two links cross, labels with a halo, light
-and dark: the style is built in. The full language is in [`docs/language.md`](docs/language.md).
+and dark: the style is built in. The full language is in the [manual](docs/manual.md).
 
 ## The same diagram three ways
 
@@ -388,7 +388,7 @@ fw2 -> api
 </details>
 <!-- /source -->
 
-Every hint has its before and after in [`docs/layout-guide.md`](docs/layout-guide.md): which rule it serves, why,
+Every hint has its before and after in [part 2 of the manual](docs/manual.md#part-2-making-a-diagram-look-right): which rule it serves, why,
 and what it changes.
 
 ## Gallery
@@ -832,12 +832,14 @@ node tools/render.js examples/cases/dmz.trace dmz.svg     # or .png; --dark, --z
 npm run build        # dist/playground.html (live editor), dist/showcase.html (twenty real cases),
                      # dist/features.html (every feature with and without), dist/compare.html (Trace beside Mermaid)
 npm run metrics      # layout quality over the examples and a held-out set of real diagrams
-npm run build:docs   # the pictures in this README and the layout guide
+npm run build:docs   # the pictures in this README and the docs
 ```
 
-Language: [`docs/language.md`](docs/language.md). Drawing a diagram well: [`docs/layout-guide.md`](docs/layout-guide.md).
-How it works, in pictures: [`docs/algorithm.md`](docs/algorithm.md); in words: [`docs/architecture.md`](docs/architecture.md). The rules behind the layout:
-[`docs/drawing-rules.md`](docs/drawing-rules.md). What's next: [`docs/roadmap.md`](docs/roadmap.md).
+- [Getting started](docs/getting-started.md): install, your first diagram, the playground, using Trace from code.
+- [The manual](docs/manual.md): everything you can write, then how to make a diagram look right.
+- [Coming from Mermaid](docs/coming-from-mermaid.md): the same things side by side, and a converter.
+- [How it works](docs/how-it-works.md): the layout, step by step, in pictures.
+- [Roadmap](ROADMAP.md): what is next.
 
 Icons are Lucide's (ISC) and technology logos Simple Icons' (CC0; the logos are trademarks of their owners),
 see `third-party/`.

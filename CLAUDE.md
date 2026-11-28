@@ -16,8 +16,14 @@ layout) and add what makes the drawing look good. Two rules follow, and every ch
 about how something should look, follow the style rules below and look at those.
 
 The project started in a claude.ai conversation. Everything decided there is captured in this
-file and in `docs/`. Read `docs/layout-guide.md` before drawing or restyling a case (it is the checklist for making a diagram look right), `docs/language.md` before changing the parser, `docs/architecture.md`
-before changing layout, and `docs/roadmap.md` before picking up work. `docs/drawing-rules.md` lists the rules for a good diagram learned from reviews: add to it when a review leads to a change. `docs/algorithm.md` shows the layout in pictures, one per step of the tidy-up, drawn by `tools/build-algorithm.js` (`npm run build:docs`); a new step needs a one-line caption there.
+file and in `docs/`, which is written for users: `docs/manual.md` (the language, then part 2, the checklist for
+making a diagram look right: read it before drawing or restyling a case), `docs/getting-started.md`,
+`docs/coming-from-mermaid.md` and `docs/how-it-works.md`. Read `ROADMAP.md` before picking up work.
+
+`docs/how-it-works.md` shows the layout in pictures, one per step of the tidy-up, drawn by `tools/build-algorithm.js`
+(`npm run build:docs`); a new step needs a one-line caption and a sketch there. Each step is a rule the owner asked
+for in a review: never undo one without asking. The ELK quirks that cost debugging sessions are comments next to
+the code they concern ("ELK lesson").
 
 ## Layout of the repository
 
@@ -53,7 +59,7 @@ before changing layout, and `docs/roadmap.md` before picking up work. `docs/draw
   with their notes. `playground/features-template.html`, `playground/compare-template.html`: the features and
   comparison pages. All but the comparison page get the icon and logo data and `src/trace.js` inlined by the build
   (the comparison page gets its Trace drawings already rendered).
-- `docs/images/`: the pictures in `README.md` and `docs/layout-guide.md`, PNGs drawn by `npm run build:docs`
+- `docs/images/`: the pictures in `README.md` and the docs, PNGs drawn by `npm run build:docs`
   (`tools/build-docs-images.js`, which lists them; the README ones also in dark). Never edit by hand.
   Every diagram shown in the docs comes with its Trace source in a collapsible block: put
   `<!-- source path/to/file.trace "label" -->` and `<!-- /source -->` under the picture and `npm run build:docs`
@@ -75,7 +81,7 @@ npm run simplify         # regenerate examples/cases/simple/ from the full cases
 npm run snapshots        # out/**/*.svg, plus .png if @resvg/resvg-js installed
 npm run build            # dist/: playground, showcase, features and compare pages
 npm run build:icons      # src/lucide-*.js and src/logo-*.js from the dev dependencies
-npm run build:docs       # docs/images/: the README and layout guide pictures
+npm run build:docs       # docs/images/ and docs/how-it-works.md: the README and docs pictures
 npm run metrics          # layout quality, compared with metrics/baseline.json (-- --save to update it)
                          # -- --json out.json writes every count; -- --check exits 1 if the held-out set got worse
 node tools/render.js examples/cases/dmz.trace out.svg     # also out.png, --dark, --zoom 2, --watch

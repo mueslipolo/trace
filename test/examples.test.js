@@ -1268,11 +1268,11 @@ test('link labels: a tag puts the label near an end, three parts name both ends,
   assert.deepStrictEqual(quoted.errors, []);
 });
 
-test('docs/algorithm.md shows every step of the tidy-up, in the order the engine runs them', async () => {
+test('docs/how-it-works.md shows every step of the tidy-up, in the order the engine runs them', async () => {
   const names = [];
   const res = await compile('a -> b', measure, ELK, { onStage: (n, rm) => names.push(n) });
   const steps = names.slice(names.lastIndexOf('layout') + 1);
-  const md = fs.readFileSync(path.join(root, 'docs/algorithm.md'), 'utf8');
+  const md = fs.readFileSync(path.join(root, 'docs/how-it-works.md'), 'utf8');
   const shown = [...md.matchAll(/<!-- step: (\w+) -->/g)].map(m => m[1]);
   assert.deepStrictEqual(shown, steps, 'a step was added, removed or moved: run npm run build:docs');
   const { STEPS } = require('../tools/build-algorithm.js');

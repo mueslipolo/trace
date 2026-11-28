@@ -17,6 +17,7 @@ const examples = files.map(name => {
 });
 const js = 'const EXAMPLES = ' + JSON.stringify(examples).replace(/</g, '\\u003c') + ';';
 let page = fs.readFileSync(path.join(root, 'playground/template.html'), 'utf8');
+// replacements are functions: a string with $ in it ($', $&) would be read as a pattern by String.replace
 page = page.replace('/*CORE*/', () => core).replace('/*EXAMPLES*/', () => js);
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist/playground.html'), page);

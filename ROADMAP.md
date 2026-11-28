@@ -1,7 +1,7 @@
 # Roadmap
 
-What is left to do, by theme, the most wanted first. What is done is described in `docs/language.md`,
-`docs/architecture.md` and `docs/drawing-rules.md`, and its history is in git.
+What is left to do, by theme, the most wanted first. What is done is described in `docs/manual.md` and
+`docs/how-it-works.md`, and its history is in git.
 
 ## Next (wanted by the owner)
 
@@ -20,7 +20,7 @@ What is left to do, by theme, the most wanted first. What is done is described i
    - Notes beside a node or a zone (`note fw : …`), a small box with a dashed leader, placed like a leaf node.
    - Text formatting in labels: `**bold**`, `*italic*`, `` `code` ``; the width measure must know the runs.
 3. **Layout recommendations**: analyse a diagram and suggest the hint that would improve it (a row across the
-   flow, `align`, a side zone, `span`, `bridge`), from the rules in `docs/layout-guide.md`; applied by the author,
+   flow, `align`, a side zone, `span`, `bridge`), from the rules in `docs/manual.md`; applied by the author,
    or tried and compared with the engine's own cost. Not designed in detail.
 
 ## Layout quality: open problems
